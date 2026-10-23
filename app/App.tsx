@@ -7,8 +7,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Declic, type NouveauProfil } from './src/application/declic';
 import { MemoryNotifier, SystemClock, UuidV7Generator } from './src/adapters/memory';
 import { SqliteEventStore } from './src/adapters/sqlite';
-import type { ContenuSante, ContexteCigarette, ReferencePharma, TableauDeBord } from './src/domain';
-import { ContexteSheet } from './src/ui/ContexteSheet';
+import type { ContenuSante, ReferencePharma, TableauDeBord } from './src/domain';
+import { ContexteSheet, type Precision } from './src/ui/ContexteSheet';
 import { DashboardScreen } from './src/ui/DashboardScreen';
 import { OnboardingScreen } from './src/ui/OnboardingScreen';
 import { couleurs } from './src/ui/theme';
@@ -105,13 +105,14 @@ export default function App() {
     ]);
   };
 
-  const onPreciser = async (precision: { contexte?: ContexteCigarette; ilYaMinutes?: number }) => {
+  const onPreciser = async ({ nouveauContexte, ...precision }: Precision) => {
     const id = aPreciser;
     setAPreciser(null);
-    if (id) {
-      await declic.preciserCigarette(id, precision);
-      await rafraichir();
-    }
+    if (!id) return;
+    // Un contexte saisi est d'abord ajouté à la liste, puis attribué à la cigarette.
+    const contexte = nouveauContexte ? await declic.ajouterContexte(nouveauContexte) : precision.contexte;
+    await declic.preciserCigarette(id, { ...precision, ...(contexte ? { contexte } : {}) });
+    await rafraichir();
   };
 
   const onEffacer = () =>
@@ -139,7 +140,11 @@ export default function App() {
           onEcheance={() => void rafraichir()}
         />
       )}
-      <ContexteSheet visible={aPreciser !== null} onChoisir={(p) => void onPreciser(p)} />
+      <ContexteSheet
+        visible={aPreciser !== null}
+        contextesPerso={tdb?.contextesPerso ?? []}
+        onChoisir={(p) => void onPreciser(p)}
+      />
     </View>
     </SafeAreaProvider>
   );

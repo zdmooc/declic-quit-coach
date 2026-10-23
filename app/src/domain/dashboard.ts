@@ -5,7 +5,7 @@
  * Les journées sont définies par les cigarettes (RM-14, ADR-0008), pas par l'horloge.
  */
 
-import { analyser, type Analyse } from './analyse';
+import { analyser, type Analyse, type ContextePerso } from './analyse';
 import { effectiveEvents, instantOf, type ContexteCigarette, type DomainEvent, type TypeSubstitutOral } from './events';
 import { DUREE_ACTIVE_PAR_DEFAUT, mesurerHabitudes, type Habitudes } from './habitudes';
 import { intervalleCibleMinutes, plusLonguePauseMinutes, prochaineCigarette, type StatutProchaine } from './intervals';
@@ -69,6 +69,8 @@ export interface EtatJournal {
   patch: PatchEnCours | null;
   oraux: { a: Instant; jour: LocalDate; forme: TypeSubstitutOral }[];
   objectifs: { libelle: string; montantCents: number }[];
+  /** Contextes ajoutés par l'utilisateur (RM-16). */
+  contextesPerso: ContextePerso[];
   /** Dernier événement saisi par l'utilisateur (pour « annuler »). */
   derniereSaisieId: string | null;
   derniereCigaretteId: string | null;
@@ -106,6 +108,7 @@ export function rejouer(events: readonly DomainEvent[], tz: string): EtatJournal
     patch: null,
     oraux: [],
     objectifs: [],
+    contextesPerso: [],
     derniereSaisieId: null,
     derniereCigaretteId: null,
   };
@@ -178,6 +181,11 @@ export function rejouer(events: readonly DomainEvent[], tz: string): EtatJournal
         break;
       case 'ObjectifEpargneDefini':
         etat.objectifs.push({ libelle: e.payload.libelle, montantCents: e.payload.montantCents });
+        break;
+      case 'ContexteAjoute':
+        if (!etat.contextesPerso.some((c) => c.cle === e.payload.cle)) {
+          etat.contextesPerso.push({ cle: e.payload.cle, libelle: e.payload.libelle.trim() });
+        }
         break;
       default:
         break;
@@ -342,8 +350,8 @@ export interface TableauDeBord {
   restant: number | null;
   prochaine: StatutProchaine | null;
   /**
-   * Origine de l'intervalle du compte à rebours : le plan, ou pendant l'observation le rythme
-   * habituel (intervalle moyen mesuré, sinon déclaration) — indicatif, rien n'est imposé.
+   * Origine de l'intervalle du compte à rebours : le plan, ou pendant l'observation la
+   * recommandation de 60 min — indicative, sans notification.
    */
   sourceIntervalle: 'plan' | 'habitude';
   intervalleCibleMinutes: number | null;
@@ -364,6 +372,8 @@ export interface TableauDeBord {
   proposerPalier: boolean;
   /** Analyse des 14 derniers jours (déclencheurs, heures à risque). */
   analyse: Analyse;
+  /** Contextes personnels à proposer dans la feuille de contexte. */
+  contextesPerso: ContextePerso[];
   /** Fenêtre de comptage de la journée (pour les notifications). */
   fenetreJour: Fenetre;
   /** Début du comptage des économies du jour (fenêtre, ou démarrage du plan le jour 0). */
@@ -400,7 +410,10 @@ export function tableauDeBord(etat: EtatJournal, maintenant: Instant, tz: string
     analyse: analyser(
       etat.cigarettes.filter((c) => daysBetween(c.jour, jour) <= 14),
       tz,
+      3,
+      etat.contextesPerso,
     ),
+    contextesPerso: etat.contextesPerso,
     fenetreJour: fenetre,
     derniereCigaretteId: etat.derniereCigaretteId,
   };
@@ -419,7 +432,7 @@ export function tableauDeBord(etat: EtatJournal, maintenant: Instant, tz: string
         maintenant,
         quota: Number.POSITIVE_INFINITY,
         fumeesAujourdhui: duJour.map((c) => c.a),
-        intervalleMinutes: rythmeHabituel(etat, commun.intervalleMoyenJourMinutes, commun.intervalleMoyen7jMinutes),
+        intervalleMinutes: INTERVALLE_RECOMMANDE_OBSERVATION_MINUTES,
       }),
       sourceIntervalle: 'habitude',
       intervalleCibleMinutes: null,
@@ -495,12 +508,8 @@ export function tableauDeBord(etat: EtatJournal, maintenant: Instant, tz: string
   };
 }
 
-/** Rythme habituel pendant l'observation : moyenne du jour, sinon des 7 jours, sinon la déclaration. */
-function rythmeHabituel(etat: EtatJournal, jour: number | null, septJours: number | null): number | null {
-  if (jour !== null && jour > 0) return jour;
-  if (septJours !== null && septJours > 0) return septJours;
-  return etat.declare > 1 ? DUREE_ACTIVE_PAR_DEFAUT / (etat.declare - 1) : null;
-}
+/** Intervalle recommandé pendant l'observation (indicatif, sans notification). */
+export const INTERVALLE_RECOMMANDE_OBSERVATION_MINUTES = 60;
 
 /** Instant de l'heure habituelle de début d'une journée (message du matin). */
 export const debutHabituelDe = (etat: EtatJournal, jour: LocalDate, tz: string): Instant =>

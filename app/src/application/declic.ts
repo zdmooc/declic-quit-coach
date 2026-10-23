@@ -4,6 +4,7 @@
 
 import {
   genererCandidates,
+  LIBELLES_CONTEXTE,
   MOINS_UN_PAR_JOUR,
   planifier,
   PREFERENCES_PAR_DEFAUT,
@@ -14,6 +15,7 @@ import {
   type Candidate,
   type ContenuSante,
   type ContexteCigarette,
+  type ContextePredefini,
   type DomainEvent,
   type EtatJournal,
   type PreferencesNotif,
@@ -119,6 +121,25 @@ export class Declic {
     }
     if (!payload.contexte && !payload.occurredAt) return;
     await this.ajouter(this.evenement('CigaretteCorrigee', payload));
+  }
+
+  /**
+   * Ajoute un contexte personnel (RM-16) et renvoie sa clé. Si un contexte de même libellé
+   * existe déjà (prédéfini ou personnel, sans tenir compte de la casse), il est réutilisé.
+   */
+  async ajouterContexte(libelleSaisi: string): Promise<ContexteCigarette> {
+    const libelle = libelleSaisi.trim().replace(/\s+/g, ' ');
+    const normal = (t: string) => t.toLocaleLowerCase('fr-FR');
+    const predefini = (Object.entries(LIBELLES_CONTEXTE) as [ContextePredefini, string][]).find(
+      ([cle, l]) => cle !== 'autre' && normal(l) === normal(libelle),
+    );
+    if (predefini) return predefini[0];
+    const etat = await this.etat();
+    const existant = etat?.contextesPerso.find((c) => normal(c.libelle) === normal(libelle));
+    if (existant) return existant.cle;
+    const cle: `perso:${string}` = `perso:${this.deps.ids.next()}`;
+    await this.ajouter(this.evenement('ContexteAjoute', { cle, libelle }));
+    return cle;
   }
 
   enregistrerEnvieResistee(strategieUtilisee?: string, source: Source = 'phone'): Promise<void> {

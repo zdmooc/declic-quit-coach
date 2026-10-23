@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { formatDuree, formatEuros, LIBELLES_CONTEXTE, type TableauDeBord } from '../domain';
+import { formatDuree, formatEuros, type TableauDeBord } from '../domain';
 import { couleurs, espace } from './theme';
 
 interface Props {
@@ -156,7 +156,7 @@ export function DashboardScreen(props: Props) {
     tdb.intervalleCibleMinutes && tdb.phase === 'reduction'
       ? { valeur: duree(tdb.intervalleCibleMinutes), libelle: 'objectif d’intervalle' }
       : { valeur: tdb.analyse.cigarettes > 0 ? String(tdb.analyse.cigarettes) : '—', libelle: 'notées (14 jours)' },
-    { valeur: top ? `${Math.round(top.part * 100)} %` : '—', libelle: top ? LIBELLES_CONTEXTE[top.contexte] : 'déclencheur n° 1' },
+    { valeur: top ? `${Math.round(top.part * 100)} %` : '—', libelle: top ? top.libelle : 'déclencheur n° 1' },
     { valeur: heureRisque ? `${heureRisque.heure} h` : '—', libelle: 'heure à risque' },
   ];
 

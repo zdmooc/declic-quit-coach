@@ -21,7 +21,7 @@
 
 | Élément | État |
 |---|---|
-| Domaine : observation 3 jours, journées définies par les cigarettes, habitudes, déclencheurs, plan −1/jour, intervalles, économies, substituts, jalons, notifications | ✅ codé, 79 tests (dont tests par propriétés) |
+| Domaine : observation 3 jours, journées définies par les cigarettes, habitudes, déclencheurs, plan −1/jour, intervalles, économies, substituts, jalons, notifications | ✅ codé, 81 tests (dont tests par propriétés) |
 | Cas d'usage (`Declic`) et ports | ✅ |
 | Écrans : profil, page unique (compte à rebours, pastilles, actions), observation et bilan, « J'ai fumé » + contexte, palier | ✅ prototype |
 | Stockage | ✅ SQLite sur le téléphone, les données survivent à la fermeture · ⚠️ **non chiffré** dans Expo Go (chiffrement avec le premier build de développement) |

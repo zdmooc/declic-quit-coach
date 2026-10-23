@@ -144,3 +144,20 @@ describe('suppression des données', () => {
     expect(notifier.planifiees).toEqual([]);
   });
 });
+
+describe('contextes personnels', () => {
+  it('ajoute un contexte, le réutilise, reconnaît un libellé prédéfini, refuse un libellé vide', async () => {
+    const { app } = monter();
+    await app.creerProfil(PROFIL);
+    const cle = await app.ajouterContexte('  Au   volant ');
+    expect(cle).toMatch(/^perso:/);
+    expect(await app.ajouterContexte('au volant')).toBe(cle);
+    expect(await app.ajouterContexte('Café')).toBe('cafe');
+    const id = await app.enregistrerCigarette();
+    await app.preciserCigarette(id, { contexte: cle });
+    const tdb = (await app.tableauDeBord())!;
+    expect(tdb.contextesPerso).toEqual([{ cle, libelle: 'Au volant' }]);
+    expect(tdb.analyse.declencheurs[0]!.libelle).toBe('Au volant');
+    await expect(app.ajouterContexte('   ')).rejects.toThrow(/invalide/);
+  });
+});

@@ -8,15 +8,11 @@ import type { ReductionStrategy } from './reduction';
 
 export type EventSource = 'phone' | 'notification' | 'watch';
 
-export type ContexteCigarette =
-  | 'cafe'
-  | 'stress'
-  | 'repas'
-  | 'alcool'
-  | 'travail'
-  | 'social'
-  | 'ennui'
-  | 'autre';
+/** Contextes proposés par défaut. */
+export type ContextePredefini = 'cafe' | 'stress' | 'repas' | 'alcool' | 'travail' | 'social' | 'ennui' | 'autre';
+
+/** Contexte d'une cigarette : prédéfini, ou ajouté par l'utilisateur (« perso:<id> »). */
+export type ContexteCigarette = ContextePredefini | `perso:${string}`;
 
 export type TypeSubstitutOral = 'pastille' | 'gomme';
 
@@ -69,6 +65,8 @@ export type CigaretteFumee = Base<
   'CigaretteFumee',
   { contexte?: ContexteCigarette; intensiteEnvie?: 1 | 2 | 3 | 4 | 5 }
 >;
+/** Nouveau contexte saisi par l'utilisateur, proposé ensuite comme les autres (RM-16). */
+export type ContexteAjoute = Base<'ContexteAjoute', { cle: `perso:${string}`; libelle: string }>;
 export type EnvieResistee = Base<'EnvieResistee', { strategieUtilisee?: string }>;
 export type SaisieAnnulee = Base<'SaisieAnnulee', { evenementId: string }>;
 /** Précise une cigarette après coup : contexte (RM-16) et/ou heure réelle. */
@@ -100,6 +98,7 @@ export type DomainEvent =
   | EnvieResistee
   | SaisieAnnulee
   | CigaretteCorrigee
+  | ContexteAjoute
   | PatchPose
   | PatchRetire
   | SubstitutOralPris
@@ -151,6 +150,11 @@ export function validateEvent(e: DomainEvent): string[] {
     case 'CigaretteCorrigee':
       if (e.payload.occurredAt !== undefined && Number.isNaN(Date.parse(e.payload.occurredAt)))
         errors.push('occurredAt corrigé invalide');
+      break;
+    case 'ContexteAjoute':
+      if (!e.payload.cle.startsWith('perso:')) errors.push('clé de contexte invalide');
+      if (e.payload.libelle.trim().length < 1 || e.payload.libelle.trim().length > 30)
+        errors.push('libellé de contexte : 1 à 30 caractères');
       break;
     case 'PrixModifie':
       if (!isInt(e.payload.prixPaquetCents) || e.payload.prixPaquetCents <= 0) errors.push('prixPaquetCents invalide');

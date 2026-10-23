@@ -109,7 +109,7 @@ describe('analyse des déclencheurs (RM-16)', () => {
     );
     expect(a.cigarettes).toBe(5);
     expect(a.avecContexte).toBe(4);
-    expect(a.declencheurs[0]).toEqual({ contexte: 'cafe', nombre: 2, part: 0.5 });
+    expect(a.declencheurs[0]).toEqual({ contexte: 'cafe', libelle: 'Café', nombre: 2, part: 0.5 });
     expect(a.heuresARisque.slice(0, 2)).toEqual([
       { heure: 8, nombre: 2 },
       { heure: 16, nombre: 2 },

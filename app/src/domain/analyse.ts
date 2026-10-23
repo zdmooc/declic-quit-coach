@@ -3,10 +3,10 @@
  * renseignés par l'utilisateur. Sert à l'affichage, aux notifications préventives et au coach.
  */
 
-import type { ContexteCigarette } from './events';
+import type { ContexteCigarette, ContextePredefini } from './events';
 import { minutesOfDay, type Instant } from './time';
 
-export const LIBELLES_CONTEXTE: Record<ContexteCigarette, string> = {
+export const LIBELLES_CONTEXTE: Record<ContextePredefini, string> = {
   cafe: 'Café',
   stress: 'Stress',
   repas: 'Après le repas',
@@ -17,10 +17,23 @@ export const LIBELLES_CONTEXTE: Record<ContexteCigarette, string> = {
   autre: 'Autre',
 };
 
-export const CONTEXTES: ContexteCigarette[] = ['cafe', 'stress', 'repas', 'alcool', 'travail', 'social', 'ennui', 'autre'];
+/** Contextes proposés dans la feuille de contexte (« autre » est remplacé par « + Ajouter un contexte »). */
+export const CONTEXTES: ContextePredefini[] = ['cafe', 'stress', 'repas', 'alcool', 'travail', 'social', 'ennui'];
+
+export interface ContextePerso {
+  cle: `perso:${string}`;
+  libelle: string;
+}
+
+/** Libellé d'un contexte, prédéfini ou personnel. */
+export function libelleContexte(c: ContexteCigarette, persos: readonly ContextePerso[] = []): string {
+  if (c.startsWith('perso:')) return persos.find((p) => p.cle === c)?.libelle ?? 'Contexte perso';
+  return LIBELLES_CONTEXTE[c as ContextePredefini];
+}
 
 export interface Declencheur {
   contexte: ContexteCigarette;
+  libelle: string;
   nombre: number;
   /** Part parmi les cigarettes dont le contexte est renseigné (0 à 1). */
   part: number;
@@ -38,6 +51,7 @@ export function analyser(
   cigarettes: readonly { a: Instant; contexte?: ContexteCigarette }[],
   tz: string,
   top = 3,
+  persos: readonly ContextePerso[] = [],
 ): Analyse {
   const parContexte = new Map<ContexteCigarette, number>();
   const parHeure = new Map<number, number>();
@@ -51,12 +65,18 @@ export function analyser(
     parHeure.set(h, (parHeure.get(h) ?? 0) + 1);
   }
   const declencheurs = [...parContexte.entries()]
-    .map(([contexte, nombre]) => ({ contexte, nombre, part: nombre / avecContexte }))
-    .sort((a, b) => b.nombre - a.nombre || CONTEXTES.indexOf(a.contexte) - CONTEXTES.indexOf(b.contexte))
+    .map(([contexte, nombre]) => ({ contexte, libelle: libelleContexte(contexte, persos), nombre, part: nombre / avecContexte }))
+    .sort((a, b) => b.nombre - a.nombre || rangContexte(a.contexte) - rangContexte(b.contexte))
     .slice(0, top);
   const heuresARisque = [...parHeure.entries()]
     .map(([heure, nombre]) => ({ heure, nombre }))
     .sort((a, b) => b.nombre - a.nombre || a.heure - b.heure)
     .slice(0, top);
   return { cigarettes: cigarettes.length, avecContexte, declencheurs, heuresARisque };
+}
+
+/** Ordre de départage : contextes prédéfinis dans l'ordre de la liste, puis contextes personnels. */
+function rangContexte(c: ContexteCigarette): number {
+  const i = (CONTEXTES as string[]).indexOf(c);
+  return i >= 0 ? i : CONTEXTES.length;
 }

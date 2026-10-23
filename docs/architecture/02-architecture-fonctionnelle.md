@@ -65,7 +65,7 @@ Priorités : **MVP** = première version publiable ; **V2** = coach IA et montre
 | ID | Fonction | Priorité |
 |---|---|---|
 | F3.1 | Bouton « J'ai fumé » : horodatage automatique, correction possible | MVP |
-| F3.2 | Contexte proposé en un tap après chaque cigarette (RM-16), avec « Passer » | MVP |
+| F3.2 | Contexte proposé en un tap après chaque cigarette (RM-16), avec « Passer » ; « + Ajouter un contexte » ouvre un champ de saisie, le nouveau contexte rejoint la liste | MVP |
 | F3.6 | Correction de l'heure d'une saisie tardive (« il y a 10 min / 30 min / 1 h ») | MVP |
 | F3.3 | Bouton « J'ai résisté » : enregistrer une envie surmontée et la stratégie utilisée | MVP |
 | F3.4 | Historique et annulation (erreur de saisie) | MVP |
@@ -85,7 +85,7 @@ Priorités : **MVP** = première version publiable ; **V2** = coach IA et montre
 
 | ID | Fonction | Priorité |
 |---|---|---|
-| F5.1 | Compte à rebours (mm:ss, à la seconde) en haut de l'écran vers la prochaine cigarette conseillée ; pendant l'observation, compte à rebours **indicatif** au rythme habituel (intervalle moyen mesuré, sinon déclaration), sans notification | MVP |
+| F5.1 | Compte à rebours (mm:ss, à la seconde) en haut de l'écran vers la prochaine cigarette conseillée ; pendant l'observation, compte à rebours **indicatif** sur une recommandation de 60 min, sans notification | MVP |
 | F5.7 | Écran principal sur **une seule page** sans défilement : compte à rebours, pastilles d'information non cliquables (fumées / quota, envies résistées, économies, intervalles, plus longue pause, déclencheur n° 1, heure à risque), puis les actions | MVP |
 | F5.2 | Quota du jour ; intervalle cible ; intervalle moyen réel aujourd'hui et sur 7 jours (nuits exclues) ; plus longue pause | MVP |
 | F5.3 | Économies du jour, cumulées, projetées sur 1 mois et 1 an (RM-06, RM-07) | MVP |

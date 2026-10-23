@@ -51,15 +51,26 @@ describe('observation (RM-15)', () => {
     expect(tdb.observation).toMatchObject({ joursMesures: 0, joursRequis: 3, terminee: false });
   });
 
-  it('compte à rebours indicatif au rythme habituel : déclaration, puis moyenne du jour', () => {
-    const debut = [profil(20, t('2026-11-02', '06:00')), ev('CigaretteFumee', t('2026-11-02', '08:00'), {})];
-    // 1 seule cigarette : rythme déclaré, 16 h ÷ 19 ≈ 50,5 min.
-    const tdb1 = tableauDeBord(rejouer(debut, TZ)!, t('2026-11-02', '08:10'), TZ, REF);
-    expect(tdb1.prochaine).toMatchObject({ statut: 'attendre', resteMinutes: Math.ceil(960 / 19 - 10) });
-    // 2 cigarettes à 30 min d'écart : rythme mesuré du jour, 30 min.
-    const evs = [...debut, ev('CigaretteFumee', t('2026-11-02', '08:30'), {})];
-    const tdb2 = tableauDeBord(rejouer(evs, TZ)!, t('2026-11-02', '08:40'), TZ, REF);
-    expect(tdb2.prochaine).toEqual({ statut: 'attendre', a: t('2026-11-02', '09:00'), resteMinutes: 20 });
+  it('compte à rebours indicatif pendant l\'observation : recommandation de 60 min', () => {
+    const evs = [profil(40, t('2026-11-02', '06:00')), ev('CigaretteFumee', t('2026-11-02', '08:00'), {})];
+    const tdb = tableauDeBord(rejouer(evs, TZ)!, t('2026-11-02', '08:10'), TZ, REF);
+    expect(tdb.prochaine).toEqual({ statut: 'attendre', a: t('2026-11-02', '09:00'), resteMinutes: 50 });
+    expect(tdb.sourceIntervalle).toBe('habitude');
+    // Aucune notification « prochaine cigarette » pendant l'observation.
+    const c = genererCandidates(rejouer(evs, TZ)!, tdb, t('2026-11-02', '08:10'), TZ, SANS_SANTE);
+    expect(c.some((x) => x.categorie === 'rythme')).toBe(false);
+  });
+
+  it('contextes personnels : libellé dans l\'analyse, ajout unique', () => {
+    const evs = [
+      profil(20, t('2026-11-02', '06:00')),
+      ev('ContexteAjoute', t('2026-11-02', '08:00'), { cle: 'perso:volant', libelle: ' Au volant ' }),
+      ev('ContexteAjoute', t('2026-11-02', '08:01'), { cle: 'perso:volant', libelle: 'Au volant' }),
+      ev('CigaretteFumee', t('2026-11-02', '08:05'), { contexte: 'perso:volant' }),
+    ];
+    const tdb = tableauDeBord(rejouer(evs, TZ)!, t('2026-11-02', '09:00'), TZ, REF);
+    expect(tdb.contextesPerso).toEqual([{ cle: 'perso:volant', libelle: 'Au volant' }]);
+    expect(tdb.analyse.declencheurs[0]).toMatchObject({ contexte: 'perso:volant', libelle: 'Au volant', part: 1 });
   });
 
   it('après 3 journées : consommation, horaires et déclencheurs mesurés, plan proposé', () => {
