@@ -7,6 +7,8 @@ import type { Candidate, DomainEvent } from '../domain';
 export interface EventStore {
   append(event: DomainEvent): Promise<void>;
   all(): Promise<DomainEvent[]>;
+  /** Suppression totale des données (F9.2). */
+  effacer(): Promise<void>;
 }
 
 export interface Clock {

@@ -21,10 +21,10 @@
 
 | Élément | État |
 |---|---|
-| Domaine : plan −1/jour, paliers, rythmes, intervalles, économies, substituts, jalons, planificateur de notifications | ✅ codé, 60 tests (dont tests par propriétés) |
+| Domaine : observation 3 jours, journées définies par les cigarettes, habitudes, déclencheurs, plan −1/jour, intervalles, économies, substituts, jalons, notifications | ✅ codé, 78 tests (dont tests par propriétés) |
 | Cas d'usage (`Declic`) et ports | ✅ |
-| Écrans : profil de départ, tableau de bord, « J'ai fumé », « J'ai résisté », annulation, palier | ✅ prototype |
-| Stockage | ⚠️ en mémoire : **les données sont perdues à la fermeture** (SQLite chiffré : prochaine étape) |
+| Écrans : profil, observation et bilan, tableau de bord, « J'ai fumé » + contexte, intervalles, déclencheurs, palier | ✅ prototype |
+| Stockage | ✅ SQLite sur le téléphone, les données survivent à la fermeture · ⚠️ **non chiffré** dans Expo Go (chiffrement avec le premier build de développement) |
 | Notifications | ⚠️ calculées mais pas encore programmées sur le téléphone (expo-notifications : prochaine étape) |
 | Tables pharmacologique et santé | ⚠️ brouillons non validés : maximums et jalons santé inactifs |
 | Coach IA, montre | ⏳ V2 |

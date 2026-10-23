@@ -22,7 +22,7 @@ describe('événements', () => {
       id: 'x',
       type: 'ProfilCree',
       occurredAt: '2026-11-02T10:00:00Z',
-      payload: { cigarettesParJour: 20, prixPaquetCents: 1300, cigarettesParPaquet: 20, lever: '07:00', coucher: '23:00' },
+      payload: { cigarettesParJour: 20, prixPaquetCents: 1300, cigarettesParPaquet: 20, dejaFumeAujourdhui: false },
     };
     expect(validateEvent(ok)).toEqual([]);
     expect(
@@ -38,5 +38,9 @@ describe('événements', () => {
       validateEvent({ ...base, id: 's', type: 'SubstitutOralPris', occurredAt: ok.occurredAt, payload: { forme: 'gomme', dosageMg: 0 } }),
     ).toHaveLength(1);
     expect(validateEvent({ ...base, id: 'e', type: 'EnvieResistee', occurredAt: ok.occurredAt, payload: {} })).toEqual([]);
+    const plan = { dateDebut: '2026-11-02', strategie: { kind: 'pas' as const, pas: 1, periodeJours: 1 }, debutHabituel: '07:00', finHabituelle: '23:00', origine: 'observation' as const };
+    expect(validateEvent({ ...base, id: 'p1', type: 'PlanDemarre', occurredAt: ok.occurredAt, payload: { ...plan, referenceParJour: 20, quotaDepart: 19 } })).toEqual([]);
+    expect(validateEvent({ ...base, id: 'p2', type: 'PlanDemarre', occurredAt: ok.occurredAt, payload: { ...plan, referenceParJour: 0, quotaDepart: 3 } })).toHaveLength(2);
+    expect(validateEvent({ ...base, id: 'c', type: 'CigaretteCorrigee', occurredAt: ok.occurredAt, payload: { evenementId: 'x', occurredAt: 'hier' } })).toHaveLength(1);
   });
 });

@@ -20,6 +20,11 @@ export class InMemoryEventStore implements EventStore {
   async all(): Promise<DomainEvent[]> {
     return [...this.events];
   }
+
+  async effacer(): Promise<void> {
+    this.events.length = 0;
+    this.ids.clear();
+  }
 }
 
 export class FakeClock implements Clock {

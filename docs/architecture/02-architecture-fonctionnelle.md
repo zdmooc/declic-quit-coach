@@ -43,8 +43,8 @@ Priorités : **MVP** = première version publiable ; **V2** = coach IA et montre
 
 | ID | Fonction | Priorité |
 |---|---|---|
-| F1.1 | Saisir la consommation initiale *n*, le prix du paquet et le nombre de cigarettes par paquet | MVP |
-| F1.2 | Saisir les heures de lever et de coucher (valeurs par défaut 7 h – 23 h) | MVP |
+| F1.1 | Saisir une estimation de la consommation, le prix du paquet, le nombre de cigarettes par paquet et « j'ai déjà fumé aujourd'hui » | MVP |
+| F1.2 | **Observation de 3 journées** (RM-15) : progression, puis bilan (consommation mesurée, première et dernière cigarette habituelles, intervalle moyen, déclencheurs) et bouton « Démarrer mon plan » ; démarrage immédiat possible | MVP |
 | F1.3 | Test de dépendance (Fagerström, 6 questions) | MVP |
 | F1.4 | Saisir ses motivations (texte libre, réutilisé par le SOS envie) | MVP |
 | F1.5 | Choisir le rythme : −1/jour, −1/2 jours, −1/semaine | MVP |
@@ -65,10 +65,11 @@ Priorités : **MVP** = première version publiable ; **V2** = coach IA et montre
 | ID | Fonction | Priorité |
 |---|---|---|
 | F3.1 | Bouton « J'ai fumé » : horodatage automatique, correction possible | MVP |
-| F3.2 | Contexte optionnel : café, stress, repas, alcool, travail, social, ennui | MVP |
+| F3.2 | Contexte proposé en un tap après chaque cigarette (RM-16), avec « Passer » | MVP |
+| F3.6 | Correction de l'heure d'une saisie tardive (« il y a 10 min / 30 min / 1 h ») | MVP |
 | F3.3 | Bouton « J'ai résisté » : enregistrer une envie surmontée et la stratégie utilisée | MVP |
 | F3.4 | Historique et annulation (erreur de saisie) | MVP |
-| F3.5 | Analyse des heures et contextes à risque | V2 |
+| F3.5 | Analyse des déclencheurs (top 3, en %) et des heures à risque sur 14 jours | MVP |
 
 ### F4 — Substituts nicotiniques
 
@@ -85,7 +86,7 @@ Priorités : **MVP** = première version publiable ; **V2** = coach IA et montre
 | ID | Fonction | Priorité |
 |---|---|---|
 | F5.1 | Compte à rebours vers la prochaine cigarette conseillée | MVP |
-| F5.2 | Quota restant du jour, intervalle moyen réel / cible | MVP |
+| F5.2 | Quota du jour ; intervalle cible ; intervalle moyen réel aujourd'hui et sur 7 jours (nuits exclues) ; plus longue pause | MVP |
 | F5.3 | Économies du jour, cumulées, projetées sur 1 mois et 1 an (RM-06, RM-07) | MVP |
 | F5.4 | Objectifs d'épargne (« mon vélo à 400 € ») avec date estimée | MVP |
 | F5.5 | Bénéfices santé débloqués dans le temps (contenus sourcés) | MVP |

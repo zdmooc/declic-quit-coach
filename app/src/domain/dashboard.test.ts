@@ -1,125 +1,191 @@
 import { describe, expect, it } from 'vitest';
 import { genererCandidates } from './candidates';
-import { rejouer, tableauDeBord, historiqueQuotidien } from './dashboard';
-import type { DomainEvent } from './events';
+import { historiqueQuotidien, proposerPlan, rejouer, tableauDeBord, type PropositionPlan } from './dashboard';
+import type { ContexteCigarette, DomainEvent } from './events';
 import type { ContenuSante } from './milestones';
-import { MOINS_UN_PAR_SEMAINE } from './reduction';
 import type { ReferencePharma } from './substitutes';
-import { zonedInstant } from './time';
+import { addMinutes, zonedInstant } from './time';
 
 const TZ = 'Europe/Paris';
 const REF: ReferencePharma = { version: 't', validePar: 'Test', valideLe: '2026-10-23', oraux: [{ forme: 'gomme', maxParJour: 2 }] };
+const SANS_SANTE: ContenuSante = { version: 't', validePar: null, jalons: [] };
+const t = (jour: string, heure: string) => zonedInstant(jour, heure, TZ);
+
 let seq = 0;
-const ev = <T extends DomainEvent['type']>(
-  type: T,
-  quand: string,
-  payload: Extract<DomainEvent, { type: T }>['payload'],
-): DomainEvent =>
-  ({ id: `e${String(++seq).padStart(4, '0')}`, type, schemaVersion: 1, occurredAt: new Date(Date.parse(quand)).toISOString(), tz: TZ, source: 'phone', payload }) as DomainEvent;
+function ev<T extends DomainEvent['type']>(type: T, a: number, payload: Extract<DomainEvent, { type: T }>['payload']): DomainEvent {
+  return {
+    id: `e${String(++seq).padStart(5, '0')}`,
+    type,
+    schemaVersion: 1,
+    occurredAt: new Date(a).toISOString(),
+    tz: TZ,
+    source: 'phone',
+    payload,
+  } as DomainEvent;
+}
 
-const profil = (n = 10): DomainEvent[] => [
-  ev('ProfilCree', '2026-11-01T05:00:00Z', { cigarettesParJour: n, prixPaquetCents: 1000, cigarettesParPaquet: 20, lever: '07:00', coucher: '23:00' }),
-  ev('PlanDemarre', '2026-11-01T05:00:01Z', { dateDebut: '2026-11-01', strategie: { kind: 'pas', pas: 1, periodeJours: 1 } }),
-];
+const profil = (n: number, a: number, dejaFumeAujourdhui = false) =>
+  ev('ProfilCree', a, { cigarettesParJour: n, prixPaquetCents: 1300, cigarettesParPaquet: 20, dejaFumeAujourdhui });
 
-describe('projections du tableau de bord', () => {
-  it('sans profil ou sans plan : rien', () => {
-    expect(rejouer([])).toBeNull();
-    expect(rejouer([profil()[0]!])).toBeNull();
+const plan = (p: PropositionPlan, a: number) => ev('PlanDemarre', a, { ...p, strategie: { kind: 'pas', pas: 1, periodeJours: 1 } });
+
+/** Une journée type : 16 cigarettes de 7 h 30 à 22 h 30, une par heure. */
+const journeeType = (jour: string, contextes: ContexteCigarette[] = ['cafe', 'travail', 'repas', 'stress']) =>
+  Array.from({ length: 16 }, (_, i) => ev('CigaretteFumee', t(jour, '07:30') + i * 3_600_000, { contexte: contextes[i % contextes.length]! }));
+
+const OBSERVATION = [profil(20, t('2026-11-02', '06:00')), ...journeeType('2026-11-02'), ...journeeType('2026-11-03'), ...journeeType('2026-11-04')];
+
+describe('observation (RM-15)', () => {
+  it('sans profil : rien ; profil seul : phase d\'observation sans quota ni économies', () => {
+    expect(rejouer([], TZ)).toBeNull();
+    const etat = rejouer([profil(20, t('2026-11-02', '06:00'))], TZ)!;
+    const tdb = tableauDeBord(etat, t('2026-11-02', '09:00'), TZ, REF);
+    expect(tdb).toMatchObject({ phase: 'observation', quota: null, prochaine: null, economieTotaleCents: 0, jourDuPlan: null });
+    expect(tdb.observation).toMatchObject({ joursMesures: 0, joursRequis: 3, terminee: false });
   });
 
-  it('applique horaires, rythme, prix, substituts et objectifs', () => {
-    const etat = rejouer([
-      ...profil(),
-      ev('HorairesModifies', '2026-11-01T08:00:00Z', { lever: '08:00', coucher: '00:00' }),
-      ev('RythmeModifie', '2026-11-01T08:00:00Z', { aPartirDu: '2026-11-03', strategie: MOINS_UN_PAR_SEMAINE }),
-      ev('PrixModifie', '2026-11-01T08:00:00Z', { prixPaquetCents: 1200, cigarettesParPaquet: 20, aPartirDu: '2026-11-02' }),
-      ev('PatchPose', '2026-11-01T08:00:00Z', { dosageMg: 1, dureePortHeures: 24 }),
-      ev('PatchRetire', '2026-11-01T09:00:00Z', {}),
-      ev('SubstitutOralPris', '2026-11-01T10:00:00Z', { forme: 'gomme', dosageMg: 1 }),
-      ev('ObjectifEpargneDefini', '2026-11-01T10:00:00Z', { libelle: 'Vélo', montantCents: 40000 }),
-      ev('ConsentementModifie', '2026-11-01T10:00:00Z', { finalite: 'notifications', accorde: true }),
-    ])!;
-    expect(etat.horaires).toEqual({ wake: '08:00', bed: '00:00' });
-    expect(etat.plan.rythmes).toHaveLength(2);
-    expect(etat.prix).toHaveLength(2);
-    expect(etat.patch).toBeNull();
-    expect(etat.oraux).toHaveLength(1);
-    expect(etat.objectifs[0]!.libelle).toBe('Vélo');
-    // Aucune cigarette : 10 × 0,50 € le 1er, puis 10 × 0,60 € le 2 (nouveau prix, RM-06).
-    expect(historiqueQuotidien(etat, '2026-11-03', TZ).map((l) => l.economieCents)).toEqual([500, 600]);
+  it('après 3 journées : consommation, horaires et déclencheurs mesurés, plan proposé', () => {
+    const etat = rejouer(OBSERVATION, TZ)!;
+    const matin = tableauDeBord(etat, t('2026-11-05', '06:00'), TZ, REF);
+    expect(matin.jour).toBe('2026-11-05');
+    expect(matin.observation).toMatchObject({
+      terminee: true,
+      joursMesures: 3,
+      habitudes: { cigarettesParJour: 16, debutHabituel: '07:30', finHabituelle: '22:30', dureeActiveMinutes: 900, intervalleMoyenMinutes: 60 },
+      proposition: { referenceParJour: 16, quotaDepart: 15, debutHabituel: '07:30', finHabituelle: '22:30', dateDebut: '2026-11-05', origine: 'observation' },
+    });
+    expect(matin.intervalleMoyen7jMinutes).toBe(60);
+    // 4 contextes à égalité : départage dans l'ordre de la liste des contextes.
+    expect(matin.analyse.declencheurs.map((d) => d.contexte)).toEqual(['cafe', 'stress', 'repas']);
+    expect(matin.analyse.heuresARisque).toHaveLength(3);
   });
 
-  it('suit le patch en cours, le maximum de gommes et l\'objectif d\'épargne', () => {
-    const etat = rejouer([
-      ...profil(),
-      ev('PatchPose', '2026-11-03T07:00:00Z', { dosageMg: 1, dureePortHeures: 24 }),
-      ev('SubstitutOralPris', '2026-11-03T08:00:00Z', { forme: 'gomme', dosageMg: 1 }),
-      ev('SubstitutOralPris', '2026-11-03T09:00:00Z', { forme: 'gomme', dosageMg: 1 }),
-      ev('ObjectifEpargneDefini', '2026-11-03T09:00:00Z', { libelle: 'Vélo', montantCents: 40000 }),
-    ])!;
-    const tdb = tableauDeBord(etat, Date.parse('2026-11-03T10:00:00Z'), TZ, REF);
+  it('journée déjà entamée : le plan démarre la journée suivante', () => {
+    const etat = rejouer([...OBSERVATION, ev('CigaretteFumee', t('2026-11-05', '07:35'), {})], TZ)!;
+    expect(proposerPlan(etat, t('2026-11-05', '08:00'), TZ).proposition.dateDebut).toBe('2026-11-06');
+  });
+
+  it('« déjà fumé aujourd\'hui » : la journée d\'installation ne compte pas', () => {
+    const evs = [profil(20, t('2026-11-02', '06:00'), true), ...OBSERVATION.slice(1)];
+    expect(proposerPlan(rejouer(evs, TZ)!, t('2026-11-05', '06:00'), TZ)).toMatchObject({ joursMesures: 2, terminee: false });
+  });
+
+  it('notification quand le bilan d\'observation est prêt', () => {
+    const etat = rejouer(OBSERVATION, TZ)!;
+    const maintenant = t('2026-11-05', '06:00');
+    const tdb = tableauDeBord(etat, maintenant, TZ, REF);
+    expect(genererCandidates(etat, tdb, maintenant, TZ, SANS_SANTE).map((c) => c.cle)).toEqual(['observation-terminee']);
+  });
+});
+
+describe('plan en cours', () => {
+  const etatObs = rejouer(OBSERVATION, TZ)!;
+  const proposition = proposerPlan(etatObs, t('2026-11-05', '06:00'), TZ).proposition;
+  const debut = [...OBSERVATION, plan(proposition, t('2026-11-05', '06:00'))];
+
+  it('quota, intervalle cible = durée active ÷ (quota − 1), prochaine cigarette', () => {
+    const evs = [...debut, ev('CigaretteFumee', t('2026-11-05', '07:30'), {}), ev('CigaretteFumee', t('2026-11-05', '08:30'), {})];
+    const tdb = tableauDeBord(rejouer(evs, TZ)!, t('2026-11-05', '09:00'), TZ, REF);
+    expect(tdb).toMatchObject({ phase: 'reduction', jourDuPlan: 0, quota: 15, fumees: 2, restant: 13 });
+    expect(tdb.intervalleCibleMinutes).toBeCloseTo(900 / 14);
+    expect(tdb.prochaine?.statut).toBe('attendre');
+    if (tdb.prochaine?.statut === 'attendre') expect(tdb.prochaine.a).toBeCloseTo(t('2026-11-05', '08:30') + (900 / 14) * 60_000);
+    expect(tdb.intervalleMoyenJourMinutes).toBe(60);
+    expect(tdb.economieTotaleCents).toBe(0); // 16 × 90/900 = 1,6 attendues, 2 fumées
+  });
+
+  it('le lendemain : quota − 1, économies de la veille par rapport à la référence mesurée', () => {
+    const veille = Array.from({ length: 10 }, (_, i) => ev('CigaretteFumee', t('2026-11-05', '08:00') + i * 5_400_000, {}));
+    const etat = rejouer([...debut, ...veille], TZ)!;
+    const tdb = tableauDeBord(etat, t('2026-11-06', '06:30'), TZ, REF);
+    expect(tdb).toMatchObject({ jour: '2026-11-06', jourDuPlan: 1, quota: 14, fumees: 0 });
+    expect(historiqueQuotidien(etat, '2026-11-06')).toEqual([{ jour: '2026-11-05', quota: 15, fumees: 10, economieCents: 390 }]);
+    expect(tdb.economieTotaleCents).toBe(390);
+    expect(tdb.prochaine).toEqual({ statut: 'disponible', depuis: null });
+  });
+
+  it('couche-tard : une cigarette à 1 h 30 compte pour la veille', () => {
+    const evs = [...debut, ev('CigaretteFumee', t('2026-11-05', '23:50'), {}), ev('CigaretteFumee', t('2026-11-06', '01:30'), {})];
+    const tdb = tableauDeBord(rejouer(evs, TZ)!, t('2026-11-06', '01:45'), TZ, REF);
+    expect(tdb).toMatchObject({ jour: '2026-11-05', fumees: 2, quota: 15 });
+  });
+
+  it('message du matin à l\'heure habituelle de la première cigarette', () => {
+    const etat = rejouer(debut, TZ)!;
+    const maintenant = t('2026-11-05', '06:00');
+    const tdb = tableauDeBord(etat, maintenant, TZ, REF);
+    const matin = genererCandidates(etat, tdb, maintenant, TZ, SANS_SANTE).find((c) => c.cle === 'plan-2026-11-05');
+    expect(matin).toMatchObject({ a: t('2026-11-05', '07:30'), titre: 'Aujourd\'hui : 15 cigarettes maximum' });
+  });
+
+  it('RM-13 : démarrage immédiat en fin de journée déjà entamée', () => {
+    const avant = Array.from({ length: 12 }, (_, i) => ev('CigaretteFumee', t('2026-11-02', '07:00') + i * 3_600_000, {}));
+    const base = [profil(20, t('2026-11-02', '06:30')), ...avant];
+    const etat0 = rejouer(base, TZ)!;
+    const prop = proposerPlan(etat0, t('2026-11-02', '18:41'), TZ).proposition;
+    expect(prop).toMatchObject({ origine: 'declaration', referenceParJour: 20, quotaDepart: 19, dateDebut: '2026-11-02' });
+    const etat = rejouer([...base, plan(prop, t('2026-11-02', '18:41'))], TZ)!;
+    const tdb = tableauDeBord(etat, t('2026-11-02', '18:45'), TZ, REF);
+    // 701 min déjà écoulées sur 960 : il reste 27 % de la journée → 19 × 0,27 ≈ 5,1 → 6.
+    expect(tdb).toMatchObject({ quota: 6, fumees: 0, jourDuPlan: 0 });
+    expect(tdb.economieTotaleCents).toBe(Math.round(((20 * 4) / 960) * 65));
+  });
+
+  it('corrections : contexte et heure réelle d\'une cigarette', () => {
+    const c = ev('CigaretteFumee', t('2026-11-05', '09:00'), {});
+    const evs = [
+      ...debut,
+      c,
+      ev('CigaretteCorrigee', t('2026-11-05', '09:01'), { evenementId: c.id, contexte: 'alcool' }),
+      ev('CigaretteCorrigee', t('2026-11-05', '09:02'), { evenementId: c.id, occurredAt: new Date(t('2026-11-05', '08:40')).toISOString() }),
+    ];
+    const etat = rejouer(evs, TZ)!;
+    expect(etat.cigarettes.at(-1)).toMatchObject({ id: c.id, a: t('2026-11-05', '08:40'), contexte: 'alcool' });
+    expect(etat.derniereSaisieId).toBe(c.id);
+  });
+
+  it('substituts, objectif d\'épargne et rappel de patch', () => {
+    const evs = [
+      ...debut,
+      ev('PatchPose', t('2026-11-05', '07:00'), { dosageMg: 1, dureePortHeures: 24 }),
+      ev('CigaretteFumee', t('2026-11-05', '07:30'), {}),
+      ev('SubstitutOralPris', t('2026-11-05', '08:00'), { forme: 'gomme', dosageMg: 1 }),
+      ev('SubstitutOralPris', t('2026-11-05', '09:00'), { forme: 'gomme', dosageMg: 1 }),
+      ev('EnvieResistee', t('2026-11-05', '09:30'), {}),
+      ev('ObjectifEpargneDefini', t('2026-11-05', '09:30'), { libelle: 'Vélo', montantCents: 40000 }),
+      ev('PrixModifie', t('2026-11-05', '09:30'), { prixPaquetCents: 1400, cigarettesParPaquet: 20, aPartirDu: '2026-12-01' }),
+      ev('RythmeModifie', t('2026-11-05', '09:30'), { aPartirDu: '2026-11-10', strategie: { kind: 'pas', pas: 1, periodeJours: 7 } }),
+      ev('PatchRetire', t('2026-11-05', '09:40'), {}),
+      ev('PatchPose', t('2026-11-05', '09:45'), { dosageMg: 1, dureePortHeures: 24 }),
+    ];
+    const etat = rejouer(evs, TZ)!;
+    const maintenant = t('2026-11-05', '10:00');
+    const tdb = tableauDeBord(etat, maintenant, TZ, REF);
     expect(tdb.patch.statut).toBe('porte');
+    expect(tdb.enviesResistees).toBe(1);
     expect(tdb.oraux.find((o) => o.forme === 'gomme')).toMatchObject({ prisesAujourdhui: 2, maxAtteint: true });
-    // 2 journées sans fumer à 10 cigarettes × 0,50 € = 5 € / jour.
-    expect(tdb.objectifs[0]!.joursRestants).toBe(Math.ceil((40000 - tdb.economieTotaleCents) / 500));
-    const textes = genererCandidates(etat, tdb, Date.parse('2026-11-03T10:00:00Z'), TZ, { version: 't', validePar: null, jalons: [] });
-    expect(textes.find((c) => c.categorie === 'substitut')?.titre).toBe('Pense à changer ton patch');
+    expect(tdb.objectifs[0]!.joursRestants).toBe(Math.ceil((40000 - tdb.economieTotaleCents) / 65));
+    expect(etat.plan!.input.rythmes).toHaveLength(2);
+    const rappel = genererCandidates(etat, tdb, maintenant, TZ, SANS_SANTE).find((c) => c.categorie === 'substitut');
+    expect(rappel?.titre).toBe('Pense à changer ton patch');
   });
 
   it('phases : avant le début, arrêt puis maintien', () => {
-    const etat = rejouer([...profil(2), ev('CigaretteFumee', '2026-11-02T08:00:00Z', {})])!;
-    expect(tableauDeBord(etat, Date.parse('2026-10-30T10:00:00Z'), TZ, REF)).toMatchObject({ phase: 'avant-debut', economieJourCents: 0 });
-    expect(tableauDeBord(etat, Date.parse('2026-11-04T10:00:00Z'), TZ, REF).phase).toBe('arret');
-    expect(tableauDeBord(etat, Date.parse('2026-11-12T10:00:00Z'), TZ, REF).phase).toBe('maintien');
-    const sansCigarette = rejouer(profil(1))!;
-    expect(tableauDeBord(sansCigarette, Date.parse('2026-11-20T10:00:00Z'), TZ, REF)).toMatchObject({
-      phase: 'maintien',
-      depuisDerniereMinutes: null,
-    });
+    const p2 = { ...proposition, referenceParJour: 2, quotaDepart: 1, dateDebut: '2026-11-06' };
+    const evs = [...OBSERVATION, plan(p2, t('2026-11-05', '06:00')), ev('CigaretteFumee', t('2026-11-06', '08:00'), {})];
+    const etat = rejouer(evs, TZ)!;
+    expect(tableauDeBord(etat, t('2026-11-05', '10:00'), TZ, REF)).toMatchObject({ phase: 'avant-debut', economieJourCents: 0 });
+    expect(tableauDeBord(etat, t('2026-11-07', '10:00'), TZ, REF)).toMatchObject({ phase: 'arret', quota: 0, prochaine: { statut: 'arret' } });
+    expect(tableauDeBord(etat, t('2026-11-14', '10:00'), TZ, REF).phase).toBe('maintien');
   });
 
-  it('RM-13 : un plan créé en fin de journée ne compte pas les heures d\'avant', () => {
-    // Cas réel : 40 cigarettes par jour à 1 € pièce, plan créé à 18 h 41 (lever 7 h, coucher 23 h).
-    const evs: DomainEvent[] = [
-      ev('ProfilCree', '2026-11-02T17:41:00Z', { cigarettesParJour: 40, prixPaquetCents: 2000, cigarettesParPaquet: 20, lever: '07:00', coucher: '23:00' }),
-      ev('PlanDemarre', '2026-11-02T17:41:00Z', { dateDebut: '2026-11-02', strategie: { kind: 'pas', pas: 1, periodeJours: 1 } }),
-      ev('CigaretteFumee', '2026-11-02T17:41:30Z', {}),
-    ];
-    const etat = rejouer(evs)!;
-    const t = (heure: string, jour = '2026-11-02') => zonedInstant(jour, heure, TZ);
-
-    const a1845 = tableauDeBord(etat, t('18:45'), TZ, REF);
-    expect(a1845.economieTotaleCents).toBe(0); // et non 28,40 €
-    expect(a1845.quota).toBe(Math.ceil((40 * 259) / 960)); // 11 sur les 4 h 19 restantes
-    expect(a1845.intervalleCibleMinutes).toBe(24); // le rythme du plan reste 16 h ÷ 40
-    expect(a1845.prochaine).toMatchObject({ statut: 'attendre', a: Date.parse('2026-11-02T17:41:30Z') + 24 * 60_000 });
-    expect(a1845.debutJournee).toBe(t('18:41'));
-
-    // À 20 h : 79 min depuis la création → 40 × 79/960 − 1 = 2,29 cigarettes évitées.
-    expect(tableauDeBord(etat, t('20:00'), TZ, REF).economieTotaleCents).toBe(229);
-
-    // Le lendemain, la journée 0 terminée vaut 40 × 259/960 − 1 = 9,79 cigarettes évitées.
-    expect(historiqueQuotidien(etat, '2026-11-03', TZ)).toEqual([{ jour: '2026-11-02', quota: 11, fumees: 1, economieCents: 979 }]);
-    expect(tableauDeBord(etat, t('07:00', '2026-11-03'), TZ, REF).quota).toBe(39);
-  });
-
-  it('jalons santé : notifiés depuis la dernière cigarette', () => {
+  it('jalons santé depuis la dernière cigarette (contenu validé)', () => {
     const contenu: ContenuSante = { version: 't', validePar: 'Test', jalons: [{ id: '8h', heures: 8, message: 'M' }] };
-    const etat = rejouer([...profil(), ev('CigaretteFumee', '2026-11-02T08:00:00Z', {})])!;
-    const maintenant = Date.parse('2026-11-02T09:00:00Z');
+    const derniere = t('2026-11-05', '08:00');
+    const etat = rejouer([...debut, ev('CigaretteFumee', derniere, {})], TZ)!;
+    const maintenant = addMinutes(derniere, 60);
     const tdb = tableauDeBord(etat, maintenant, TZ, REF);
     const sante = genererCandidates(etat, tdb, maintenant, TZ, contenu).find((c) => c.categorie === 'sante');
-    expect(sante).toMatchObject({ titre: '8 h sans fumer', a: Date.parse('2026-11-02T16:00:00Z'), reportable: true });
-  });
-
-  it('candidates du matin : demain sans tabac si le quota tombe à zéro', () => {
-    const etat = rejouer(profil(1))!;
-    const maintenant = zonedInstant('2026-11-01', '12:00', TZ);
-    const tdb = tableauDeBord(etat, maintenant, TZ, REF);
-    const demain = genererCandidates(etat, tdb, maintenant, TZ, { version: 't', validePar: null, jalons: [] }).find(
-      (c) => c.cle === 'plan-2026-11-02',
-    );
-    expect(demain?.titre).toBe('Journée sans tabac');
+    expect(sante).toMatchObject({ titre: '8 h sans fumer', a: addMinutes(derniere, 480), reportable: true });
   });
 });

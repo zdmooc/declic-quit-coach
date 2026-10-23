@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import type { NouveauProfil } from '../application/declic';
 import { couleurs, espace } from './theme';
 
@@ -7,26 +7,22 @@ interface Props {
   onValider: (profil: NouveauProfil) => Promise<void>;
 }
 
-const HEURE = /^([01]\d|2[0-3]):[0-5]\d$/;
-
 export function OnboardingScreen({ onValider }: Props) {
   const [parJour, setParJour] = useState('20');
   const [prix, setPrix] = useState('13,00');
   const [parPaquet, setParPaquet] = useState('20');
-  const [lever, setLever] = useState('07:00');
-  const [coucher, setCoucher] = useState('23:00');
+  const [dejaFume, setDejaFume] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
 
   async function valider() {
     const n = Number.parseInt(parJour, 10);
     const prixCents = Math.round(Number.parseFloat(prix.replace(',', '.')) * 100);
     const paquet = Number.parseInt(parPaquet, 10);
-    if (!(n >= 1 && n <= 100)) return setErreur('Indique un nombre de cigarettes par jour entre 1 et 100.');
+    if (!(n >= 1 && n <= 100)) return setErreur('Indique environ combien de cigarettes tu fumes par jour (1 à 100).');
     if (!(prixCents > 0)) return setErreur('Indique le prix de ton paquet.');
     if (!(paquet > 0)) return setErreur('Indique le nombre de cigarettes par paquet.');
-    if (!HEURE.test(lever) || !HEURE.test(coucher)) return setErreur('Les heures se saisissent au format HH:MM.');
     setErreur(null);
-    await onValider({ cigarettesParJour: n, prixPaquetCents: prixCents, cigarettesParPaquet: paquet, lever, coucher });
+    await onValider({ cigarettesParJour: n, prixPaquetCents: prixCents, cigarettesParPaquet: paquet, dejaFumeAujourdhui: dejaFume });
   }
 
   return (
@@ -34,29 +30,30 @@ export function OnboardingScreen({ onValider }: Props) {
       <Text style={styles.marque}>Déclic</Text>
       <Text style={styles.titre}>Une cigarette de moins chaque jour.</Text>
       <Text style={styles.texte}>
-        Dis-moi où tu en es. Je calcule ton plan, ton rythme de la journée et ce que tu économises.
+        D’abord, on observe. Pendant 3 jours, fume normalement et appuie sur « J’ai fumé » à chaque cigarette. Je mesure ta
+        vraie consommation, tes horaires et ce qui te donne envie. Ensuite, on lance ton plan.
       </Text>
 
-      <Champ libelle="Cigarettes par jour aujourd'hui" valeur={parJour} onChange={setParJour} clavier="number-pad" />
+      <Champ libelle="Environ combien de cigarettes par jour ?" valeur={parJour} onChange={setParJour} clavier="number-pad" />
       <Champ libelle="Prix du paquet (€)" valeur={prix} onChange={setPrix} clavier="decimal-pad" />
       <Champ libelle="Cigarettes par paquet" valeur={parPaquet} onChange={setParPaquet} clavier="number-pad" />
-      <View style={styles.ligne}>
-        <View style={styles.demi}>
-          <Champ libelle="Lever" valeur={lever} onChange={setLever} clavier="numbers-and-punctuation" />
-        </View>
-        <View style={styles.demi}>
-          <Champ libelle="Coucher" valeur={coucher} onChange={setCoucher} clavier="numbers-and-punctuation" />
-        </View>
+
+      <View style={styles.interrupteur}>
+        <Text style={styles.libelleInterrupteur}>J’ai déjà fumé aujourd’hui</Text>
+        <Switch value={dejaFume} onValueChange={setDejaFume} trackColor={{ true: couleurs.vert, false: couleurs.ligne }} />
       </View>
+      <Text style={styles.aide}>
+        {dejaFume
+          ? 'L’observation commencera demain matin, avec une journée complète.'
+          : 'L’observation commence dès ta première cigarette.'}
+      </Text>
 
       {erreur && <Text style={styles.erreur}>{erreur}</Text>}
 
       <Pressable style={styles.bouton} onPress={valider} accessibilityRole="button">
-        <Text style={styles.boutonTexte}>Commencer mon plan</Text>
+        <Text style={styles.boutonTexte}>Commencer l’observation</Text>
       </Pressable>
-      <Text style={styles.mention}>
-        Tes données restent sur ce téléphone. Déclic ne remplace pas un avis médical.
-      </Text>
+      <Text style={styles.mention}>Tes données restent sur ce téléphone. Déclic ne remplace pas un avis médical.</Text>
     </ScrollView>
   );
 }
@@ -65,7 +62,7 @@ function Champ(props: {
   libelle: string;
   valeur: string;
   onChange: (v: string) => void;
-  clavier: 'number-pad' | 'decimal-pad' | 'numbers-and-punctuation';
+  clavier: 'number-pad' | 'decimal-pad';
 }) {
   return (
     <View style={styles.champ}>
@@ -85,7 +82,7 @@ const styles = StyleSheet.create({
   page: { padding: espace(6), paddingTop: espace(16), backgroundColor: couleurs.fond, flexGrow: 1 },
   marque: { color: couleurs.vert, fontSize: 14, fontWeight: '700', letterSpacing: 2, textTransform: 'uppercase' },
   titre: { color: couleurs.encre, fontSize: 30, fontWeight: '700', marginTop: espace(2), lineHeight: 36 },
-  texte: { color: couleurs.doux, fontSize: 16, marginTop: espace(3), marginBottom: espace(6), lineHeight: 22 },
+  texte: { color: couleurs.doux, fontSize: 16, marginTop: espace(3), marginBottom: espace(6), lineHeight: 23 },
   champ: { marginBottom: espace(4) },
   libelle: { color: couleurs.encre, fontSize: 14, fontWeight: '600', marginBottom: espace(1) },
   input: {
@@ -98,8 +95,19 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: couleurs.encre,
   },
-  ligne: { flexDirection: 'row', gap: espace(3) },
-  demi: { flex: 1 },
+  interrupteur: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: couleurs.carte,
+    borderColor: couleurs.ligne,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: espace(4),
+    paddingVertical: espace(2),
+  },
+  libelleInterrupteur: { color: couleurs.encre, fontSize: 16, fontWeight: '600' },
+  aide: { color: couleurs.doux, fontSize: 13, marginTop: espace(2), marginBottom: espace(4) },
   erreur: { color: couleurs.ambre, marginBottom: espace(3) },
   bouton: { backgroundColor: couleurs.vert, borderRadius: 14, paddingVertical: espace(4), alignItems: 'center', marginTop: espace(2) },
   boutonTexte: { color: '#FFFFFF', fontSize: 17, fontWeight: '700' },

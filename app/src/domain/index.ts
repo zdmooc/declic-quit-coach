@@ -8,3 +8,6 @@ export * from './milestones';
 export * from './notifications';
 export * from './dashboard';
 export * from './candidates';
+export * from './sessions';
+export * from './habitudes';
+export * from './analyse';

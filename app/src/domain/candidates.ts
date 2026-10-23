@@ -4,13 +4,13 @@
  * Ton : jamais culpabilisant (RM-11).
  */
 
-import type { EtatJournal, TableauDeBord } from './dashboard';
+import { debutHabituelDe, dureeActive, type EtatJournal, type TableauDeBord } from './dashboard';
+import { intervalleCibleMinutes } from './intervals';
 import { PALIERS_ECONOMIES_CENTS, prochainsJalons, type ContenuSante } from './milestones';
 import type { Candidate } from './notifications';
 import { quotaDuJour } from './reduction';
 import { prixDuJour } from './savings';
-import { addDays, awakeWindow, isoWeekday, zonedInstant, type Instant } from './time';
-import { intervalleCibleMinutes } from './intervals';
+import { addDays, daysBetween, isoWeekday, zonedInstant, type Instant } from './time';
 
 export function formatDuree(minutes: number): string {
   if (minutes < 1) return 'moins d’1 min';
@@ -29,15 +29,29 @@ export function genererCandidates(
   sante: ContenuSante,
 ): Candidate[] {
   const out: Candidate[] = [];
+  const plan = etat.plan;
 
-  // Message du matin : quota et intervalle du jour (aujourd'hui si le lever est à venir, et demain).
-  for (const jour of [tdb.jour, addDays(tdb.jour, 1)]) {
-    const quota = quotaDuJour(etat.plan, jour);
-    const fenetre = awakeWindow(jour, etat.horaires, tz);
-    const intervalle = intervalleCibleMinutes(fenetre, quota);
+  // Observation terminée : on prévient que le bilan et la proposition de plan sont prêts.
+  if (!plan && tdb.observation?.terminee) {
+    out.push({
+      cle: 'observation-terminee',
+      a: maintenant + 60_000,
+      categorie: 'plan',
+      critique: false,
+      reportable: true,
+      titre: 'Ton bilan d’observation est prêt',
+      corps: 'Ta consommation réelle, tes horaires et tes déclencheurs : on peut lancer ton plan.',
+    });
+  }
+
+  // Message du matin, à l'heure habituelle de la première cigarette : quota et intervalle du jour.
+  for (const jour of plan ? [tdb.jour, addDays(tdb.jour, 1)] : []) {
+    if (!plan || daysBetween(plan.input.dateDebut, jour) < 0) continue;
+    const quota = quotaDuJour(plan.input, jour);
+    const intervalle = intervalleCibleMinutes(dureeActive(plan.horaires), quota);
     out.push({
       cle: `plan-${jour}`,
-      a: fenetre.start,
+      a: debutHabituelDe(etat, jour, tz),
       categorie: 'plan',
       critique: false,
       titre: quota === 0 ? 'Journée sans tabac' : `Aujourd'hui : ${quota} cigarette${quota > 1 ? 's' : ''} maximum`,
@@ -49,7 +63,7 @@ export function genererCandidates(
   }
 
   // Prochaine cigarette possible, avec une invitation à repousser.
-  if (tdb.prochaine.statut === 'attendre') {
+  if (tdb.prochaine?.statut === 'attendre') {
     out.push({
       cle: `prochaine-${tdb.jour}-${tdb.fumees}`,
       a: tdb.prochaine.a,
@@ -90,11 +104,11 @@ export function genererCandidates(
   }
 
   // Prochain palier d'économies (s'il est atteint aujourd'hui sans autre cigarette).
-  const palier = prochainPalierEconomies(etat, tdb, maintenant, tz);
+  const palier = prochainPalierEconomies(etat, tdb, maintenant);
   if (palier) out.push(palier);
 
-  // Bilan hebdomadaire : dimanche à 19 h.
-  for (let i = 0; i < 7; i++) {
+  // Bilan hebdomadaire : dimanche à 19 h, une fois le plan lancé.
+  for (let i = 0; plan && i < 7; i++) {
     const jour = addDays(tdb.jour, i);
     if (isoWeekday(jour) === 7) {
       out.push({
@@ -122,12 +136,11 @@ export function prochainPalierEconomies(
   etat: EtatJournal,
   tdb: TableauDeBord,
   maintenant: Instant,
-  tz: string,
 ): Candidate | null {
-  if (tdb.phase === 'avant-debut') return null;
+  if (!etat.plan || tdb.phase === 'avant-debut' || tdb.phase === 'observation') return null;
   const palier = PALIERS_ECONOMIES_CENTS.find((p) => p > tdb.economieTotaleCents);
   if (palier === undefined) return null;
-  const fenetre = awakeWindow(tdb.jour, etat.horaires, tz);
+  const fenetre = tdb.fenetreJour;
   const dureeMinutes = (fenetre.end - fenetre.start) / 60_000;
   if (dureeMinutes <= 0) return null;
   const prix = prixDuJour(etat.prix, tdb.jour);
@@ -135,8 +148,8 @@ export function prochainPalierEconomies(
   // Économie du jour à l'instant t : (initial × fraction(t) − fumées) × prix unitaire, si positive.
   const historiqueCents = tdb.economieTotaleCents - tdb.economieJourCents;
   const eviteesNecessaires = (palier - historiqueCents) / prixUnitaire;
-  const fraction = (eviteesNecessaires + tdb.fumees) / etat.initial;
-  // Le comptage démarre au lever, ou à la création du plan le premier jour (RM-13).
+  const fraction = (eviteesNecessaires + tdb.fumees) / etat.plan.reference;
+  // Le comptage démarre avec la journée, ou au démarrage du plan le premier jour (RM-13).
   const a = tdb.debutJournee + Math.ceil(fraction * dureeMinutes) * 60_000;
   if (a > fenetre.end || a <= maintenant) return null;
   return candidatePalierEconomies(palier, a);

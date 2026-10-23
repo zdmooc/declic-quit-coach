@@ -4,10 +4,10 @@
 
 import {
   genererCandidates,
-  localDateOf,
   MOINS_UN_PAR_JOUR,
   planifier,
   PREFERENCES_PAR_DEFAUT,
+  proposerPlan,
   rejouer,
   tableauDeBord,
   validateEvent,
@@ -15,6 +15,7 @@ import {
   type ContenuSante,
   type ContexteCigarette,
   type DomainEvent,
+  type EtatJournal,
   type PreferencesNotif,
   type ReductionStrategy,
   type ReferencePharma,
@@ -34,14 +35,11 @@ export interface DeclicDeps {
 }
 
 export interface NouveauProfil {
+  /** Estimation déclarée : la vraie consommation est mesurée pendant l'observation. */
   cigarettesParJour: number;
   prixPaquetCents: number;
   cigarettesParPaquet: number;
-  lever: string;
-  coucher: string;
-  strategie?: ReductionStrategy;
-  /** Par défaut : aujourd'hui. */
-  dateDebut?: string;
+  dejaFumeAujourdhui: boolean;
 }
 
 type Source = DomainEvent['source'];
@@ -75,26 +73,52 @@ export class Declic {
     await this.replanifierNotifications();
   }
 
+  private async etat(): Promise<EtatJournal | null> {
+    return rejouer(await this.deps.store.all(), this.deps.clock.timeZone());
+  }
+
+  /** Supprime toutes les données (F9.2) et les notifications programmées. */
+  async effacerToutesLesDonnees(): Promise<void> {
+    await this.deps.store.effacer();
+    await this.deps.notifier.remplacer([]);
+  }
+
   async aUnProfil(): Promise<boolean> {
-    return rejouer(await this.deps.store.all()) !== null;
+    return (await this.etat()) !== null;
   }
 
-  async creerProfil(p: NouveauProfil): Promise<void> {
-    const dateDebut = p.dateDebut ?? localDateOf(this.deps.clock.now(), this.deps.clock.timeZone());
-    await this.ajouter(
-      this.evenement('ProfilCree', {
-        cigarettesParJour: p.cigarettesParJour,
-        prixPaquetCents: p.prixPaquetCents,
-        cigarettesParPaquet: p.cigarettesParPaquet,
-        lever: p.lever,
-        coucher: p.coucher,
-      }),
-      this.evenement('PlanDemarre', { dateDebut, strategie: p.strategie ?? MOINS_UN_PAR_JOUR }),
-    );
+  /** Crée le profil : la phase d'observation commence (RM-15). */
+  creerProfil(p: NouveauProfil): Promise<void> {
+    return this.ajouter(this.evenement('ProfilCree', { ...p }));
   }
 
-  enregistrerCigarette(contexte?: ContexteCigarette, source: Source = 'phone'): Promise<void> {
-    return this.ajouter(this.evenement('CigaretteFumee', contexte ? { contexte } : {}, source));
+  /**
+   * Démarre le plan avec la proposition courante : mesurée si l'observation est terminée,
+   * sinon à partir de la consommation déclarée (démarrage immédiat).
+   */
+  async demarrerPlan(strategie: ReductionStrategy = MOINS_UN_PAR_JOUR): Promise<void> {
+    const etat = await this.etat();
+    if (!etat || etat.plan) return;
+    const { proposition } = proposerPlan(etat, this.deps.clock.now(), this.deps.clock.timeZone());
+    await this.ajouter(this.evenement('PlanDemarre', { ...proposition, strategie }));
+  }
+
+  /** Enregistre une cigarette maintenant et renvoie son identifiant (pour préciser le contexte ensuite). */
+  async enregistrerCigarette(contexte?: ContexteCigarette, source: Source = 'phone'): Promise<string> {
+    const e = this.evenement('CigaretteFumee', contexte ? { contexte } : {}, source);
+    await this.ajouter(e);
+    return e.id;
+  }
+
+  /** Précise une cigarette : contexte (RM-16) et/ou heure réelle (« il y a 20 min »). */
+  async preciserCigarette(evenementId: string, precision: { contexte?: ContexteCigarette; ilYaMinutes?: number }): Promise<void> {
+    const payload: { evenementId: string; contexte?: ContexteCigarette; occurredAt?: string } = { evenementId };
+    if (precision.contexte) payload.contexte = precision.contexte;
+    if (precision.ilYaMinutes && precision.ilYaMinutes > 0) {
+      payload.occurredAt = new Date(this.deps.clock.now() - precision.ilYaMinutes * 60_000).toISOString();
+    }
+    if (!payload.contexte && !payload.occurredAt) return;
+    await this.ajouter(this.evenement('CigaretteCorrigee', payload));
   }
 
   enregistrerEnvieResistee(strategieUtilisee?: string, source: Source = 'phone'): Promise<void> {
@@ -102,7 +126,7 @@ export class Declic {
   }
 
   async annulerDerniereSaisie(): Promise<boolean> {
-    const etat = rejouer(await this.deps.store.all());
+    const etat = await this.etat();
     if (!etat?.derniereSaisieId) return false;
     await this.ajouter(this.evenement('SaisieAnnulee', { evenementId: etat.derniereSaisieId }));
     return true;
@@ -110,7 +134,7 @@ export class Declic {
 
   async demanderPalier(): Promise<void> {
     const tdb = await this.tableauDeBord();
-    if (!tdb) return;
+    if (!tdb || tdb.phase === 'observation') return;
     await this.ajouter(this.evenement('PalierDemande', { jour: tdb.jour }));
   }
 
@@ -131,15 +155,15 @@ export class Declic {
   }
 
   async tableauDeBord(): Promise<TableauDeBord | null> {
-    const etat = rejouer(await this.deps.store.all());
+    const etat = await this.etat();
     if (!etat) return null;
     return tableauDeBord(etat, this.deps.clock.now(), this.deps.clock.timeZone(), this.deps.referencePharma);
   }
 
   /** Recalcule et reprogramme les notifications (à appeler aussi à chaque ouverture de l'app). */
-  async replanifierNotifications(extra: Candidate[] = []): Promise<Candidate[]> {
-    const { store, clock, notifier, contenuSante } = this.deps;
-    const etat = rejouer(await store.all());
+  async replanifierNotifications(): Promise<Candidate[]> {
+    const { clock, notifier, contenuSante } = this.deps;
+    const etat = await this.etat();
     if (!etat) {
       await notifier.remplacer([]);
       return [];
@@ -150,7 +174,7 @@ export class Declic {
     // Contenus santé non validés : jamais notifiés.
     const sante = contenuSante.validePar ? contenuSante : { ...contenuSante, jalons: [] };
     const planifiees = planifier(
-      [...genererCandidates(etat, tdb, maintenant, tz, sante), ...extra],
+      genererCandidates(etat, tdb, maintenant, tz, sante),
       this.deps.preferencesNotif ?? PREFERENCES_PAR_DEFAUT,
       maintenant,
       tz,

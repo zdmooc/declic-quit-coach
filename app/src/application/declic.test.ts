@@ -7,8 +7,8 @@ import { Declic } from './declic';
 const TZ = 'Europe/Paris';
 const REF: ReferencePharma = { version: 't', validePar: null, valideLe: null, oraux: [] };
 const SANTE: ContenuSante = { version: 't', validePar: null, jalons: [] };
+const PROFIL = { cigarettesParJour: 20, prixPaquetCents: 1300, cigarettesParPaquet: 20, dejaFumeAujourdhui: false };
 
-// Plan créé avant le lever (6 h 30) : le premier jour est complet (voir RM-13 pour le cas partiel).
 function monter(debut = zonedInstant('2026-11-02', '06:30', TZ)) {
   const clock = new FakeClock(debut, TZ);
   const store = new InMemoryEventStore();
@@ -18,111 +18,107 @@ function monter(debut = zonedInstant('2026-11-02', '06:30', TZ)) {
   return { app, clock, store, notifier };
 }
 
-const PROFIL = { cigarettesParJour: 20, prixPaquetCents: 1300, cigarettesParPaquet: 20, lever: '07:00', coucher: '23:00' };
+/** Simule une journée : `n` cigarettes à partir de l'heure courante, toutes les `ecart` minutes. */
+async function journee(app: Declic, clock: FakeClock, n: number, ecart: number) {
+  for (let i = 0; i < n; i++) {
+    await app.enregistrerCigarette(i % 2 === 0 ? 'cafe' : 'stress');
+    if (i < n - 1) clock.avancerMinutes(ecart);
+  }
+}
 
 describe('Declic (cas d\'usage)', () => {
   it('sans profil, pas de tableau de bord', async () => {
     const { app } = monter();
     expect(await app.aUnProfil()).toBe(false);
     expect(await app.tableauDeBord()).toBeNull();
+    expect(await app.replanifierNotifications()).toEqual([]);
   });
 
-  it('parcours : profil, cigarette, intervalle, annulation', async () => {
+  it('parcours complet : observation 3 jours, bilan, plan mesuré, réduction', async () => {
     const { app, clock, notifier } = monter();
     await app.creerProfil(PROFIL);
-    clock.avancerMinutes(90); // 8 h : hors des heures calmes, la notification « prochaine » est gardée
-    let tdb = (await app.tableauDeBord())!;
-    expect(tdb.jourDuPlan).toBe(0);
-    expect(tdb.quota).toBe(20);
-    expect(tdb.intervalleCibleMinutes).toBe(48);
-    expect(tdb.phase).toBe('reduction');
+    expect((await app.tableauDeBord())!.phase).toBe('observation');
 
-    await app.enregistrerCigarette('cafe');
+    // 3 journées de 15 cigarettes, de 7 h 30 à 21 h 30 (une toutes les 60 min).
+    for (let j = 0; j < 3; j++) {
+      clock.avancerMinutes(j === 0 ? 60 : 10 * 60); // 7 h 30 le 1er jour ; puis 21 h 30 → 7 h 30
+      await journee(app, clock, 15, 60);
+    }
+    clock.avancerMinutes(9 * 60); // lendemain 6 h 30, avant la 1re cigarette
+    let tdb = (await app.tableauDeBord())!;
+    expect(tdb.observation).toMatchObject({
+      terminee: true,
+      proposition: { referenceParJour: 15, quotaDepart: 14, debutHabituel: '07:30', finHabituelle: '21:30', dateDebut: '2026-11-05' },
+    });
+    expect(tdb.analyse.declencheurs[0]!.contexte).toBe('cafe');
+    expect(notifier.planifiees).toEqual([]); // replanifié à la dernière saisie, avant la fin de l'observation
+
+    await app.demarrerPlan();
+    await app.demarrerPlan(); // idempotent : un seul plan
+    tdb = (await app.tableauDeBord())!;
+    expect(tdb).toMatchObject({ phase: 'reduction', jourDuPlan: 0, quota: 14 });
+    expect(tdb.intervalleCibleMinutes).toBeCloseTo((14 * 60) / 13);
+    expect(notifier.planifiees.some((n) => n.cle === 'plan-2026-11-05')).toBe(true);
+
+    clock.avancerMinutes(60);
+    const id = await app.enregistrerCigarette();
+    await app.preciserCigarette(id, { contexte: 'repas' });
     tdb = (await app.tableauDeBord())!;
     expect(tdb.fumees).toBe(1);
-    expect(tdb.restant).toBe(19);
-    expect(tdb.prochaine).toMatchObject({ statut: 'attendre', resteMinutes: 48 });
+    expect(tdb.prochaine?.statut).toBe('attendre');
     expect(notifier.planifiees.some((n) => n.categorie === 'rythme')).toBe(true);
-
-    clock.avancerMinutes(10);
-    expect(await app.annulerDerniereSaisie()).toBe(true);
-    tdb = (await app.tableauDeBord())!;
-    expect(tdb.fumees).toBe(0);
   });
 
-  it('le lendemain, le quota baisse de 1 et les économies de la veille sont comptées', async () => {
-    const { app, clock } = monter();
-    await app.creerProfil(PROFIL);
-    for (let i = 0; i < 18; i++) {
-      await app.enregistrerCigarette();
-      clock.avancerMinutes(50);
-    }
-    // Lendemain 12 h (6 h 30 + 18 × 50 min = 21 h 30, puis 14 h 30 de plus).
-    clock.avancerMinutes(24 * 60 - 18 * 50 + 5.5 * 60);
+  it('démarrage immédiat sans observation, à partir de la consommation déclarée', async () => {
+    const { app, clock } = monter(zonedInstant('2026-11-02', '18:00', TZ));
+    await app.creerProfil({ ...PROFIL, dejaFumeAujourdhui: true });
+    await app.demarrerPlan();
+    clock.avancerMinutes(30);
     const tdb = (await app.tableauDeBord())!;
-    expect(tdb.jourDuPlan).toBe(1);
-    expect(tdb.quota).toBe(19);
-    // Veille : 2 cigarettes évitées = 1,30 € ; aujourd'hui à 12 h : 5/16 de 20 = 6,25 évitées ≈ 4,06 €.
-    expect(tdb.economieTotaleCents).toBe(130 + 406);
-    expect(tdb.proposerPalier).toBe(false);
+    expect(tdb).toMatchObject({ phase: 'reduction', quota: 19, jourDuPlan: 0 });
   });
 
-  it('dépassement du quota : un palier est proposé, puis appliqué', async () => {
+  it('préciser l\'heure : « il y a 20 min »', async () => {
     const { app, clock } = monter();
-    await app.creerProfil({ ...PROFIL, cigarettesParJour: 3 });
-    for (let i = 0; i < 4; i++) {
-      await app.enregistrerCigarette();
-      clock.avancerMinutes(60);
-    }
-    clock.avancerMinutes(24 * 60);
-    let tdb = (await app.tableauDeBord())!;
-    expect(tdb.quota).toBe(2);
-    expect(tdb.proposerPalier).toBe(true);
-    await app.demanderPalier();
-    tdb = (await app.tableauDeBord())!;
-    expect(tdb.quota).toBe(3);
-    expect(tdb.proposerPalier).toBe(false);
-  });
-
-  it('programme la célébration du prochain palier d\'économies à l\'heure où il sera atteint', async () => {
-    const { app, clock, notifier } = monter();
     await app.creerProfil(PROFIL);
-    // 0,65 € par cigarette, 20 cigarettes sur 16 h : 10 € = 15,38 cigarettes évitées,
-    // atteintes à 7 h + 15,38/20 × 960 min = 7 h + 738,5 min → 19 h 19 (minute supérieure).
-    const celebration = notifier.planifiees.find((n) => n.cle === 'economies-1000');
-    expect(celebration).toBeDefined();
-    expect(celebration!.a).toBe(zonedInstant('2026-11-02', '19:19', TZ));
-    // Une cigarette fumée repousse la célébration d'un « intervalle » de 48 min.
-    await app.enregistrerCigarette();
-    const repoussee = notifier.planifiees.find((n) => n.cle === 'economies-1000');
-    expect(repoussee!.a).toBe(celebration!.a + 48 * 60_000);
-    expect(clock.now()).toBe(zonedInstant('2026-11-02', '06:30', TZ));
+    clock.avancerMinutes(120);
+    const id = await app.enregistrerCigarette();
+    await app.preciserCigarette(id, { ilYaMinutes: 20 });
+    await app.preciserCigarette(id, {}); // sans effet
+    const tdb = (await app.tableauDeBord())!;
+    expect(tdb.depuisDerniereMinutes).toBe(20);
   });
 
-  it('patch : rappel critique programmé à l\'heure de retrait', async () => {
-    const { app, notifier, clock } = monter();
-    await app.creerProfil(PROFIL);
-    await app.poserPatch(1, 16);
-    const rappel = notifier.planifiees.find((n) => n.categorie === 'substitut');
-    expect(rappel?.critique).toBe(true);
-    expect(rappel?.a).toBe(clock.now() + 16 * 3_600_000);
-  });
-
-  it('substituts oraux, retrait du patch, objectif, saisie depuis la montre', async () => {
-    const { app, store } = monter();
+  it('annulation, palier, substituts, objectif, saisie depuis la montre', async () => {
+    const { app, clock, store } = monter();
     expect(await app.annulerDerniereSaisie()).toBe(false);
     await app.demanderPalier(); // sans profil : sans effet
-    await app.creerProfil(PROFIL);
-    expect(await app.aUnProfil()).toBe(true);
-    await app.poserPatch(1, 24);
+    await app.creerProfil({ ...PROFIL, cigarettesParJour: 3 });
+    await app.demanderPalier(); // pendant l'observation : sans effet
+    await app.demarrerPlan(); // immédiat : quota 2 dès aujourd'hui
+    clock.avancerMinutes(60);
+    await journee(app, clock, 4, 30);
+    expect(await app.annulerDerniereSaisie()).toBe(true);
+    expect((await app.tableauDeBord())!.fumees).toBe(3);
+
+    clock.avancerMinutes(24 * 60);
+    let tdb = (await app.tableauDeBord())!;
+    expect(tdb).toMatchObject({ quota: 1, proposerPalier: true });
+    await app.demanderPalier();
+    tdb = (await app.tableauDeBord())!;
+    expect(tdb).toMatchObject({ quota: 2, proposerPalier: false });
+
+    await app.poserPatch(1, 16);
     await app.retirerPatch();
     await app.prendreSubstitutOral('pastille', 1);
     await app.definirObjectif('Vélo', 40000);
+    await app.enregistrerEnvieResistee('respiration');
     await app.enregistrerCigarette('stress', 'watch');
-    const tdb = (await app.tableauDeBord())!;
+    tdb = (await app.tableauDeBord())!;
     expect(tdb.patch.statut).toBe('aucun');
     expect(tdb.oraux.find((o) => o.forme === 'pastille')?.prisesAujourdhui).toBe(1);
     expect(tdb.objectifs).toHaveLength(1);
+    expect(tdb.enviesResistees).toBe(1);
     expect((await store.all()).at(-1)?.source).toBe('watch');
     await expect(app.definirObjectif('Rien', 0)).rejects.toThrow(/invalide/);
   });
@@ -134,5 +130,17 @@ describe('Declic (cas d\'usage)', () => {
     expect(new Set(ids).size).toBe(200);
     expect([...ids].sort()).toEqual(ids);
     expect(ids[0]).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  });
+});
+
+describe('suppression des données', () => {
+  it('efface tout et revient à l\'écran de départ', async () => {
+    const { app, notifier } = monter();
+    await app.creerProfil(PROFIL);
+    await app.demarrerPlan();
+    expect(notifier.planifiees.length).toBeGreaterThan(0);
+    await app.effacerToutesLesDonnees();
+    expect(await app.aUnProfil()).toBe(false);
+    expect(notifier.planifiees).toEqual([]);
   });
 });

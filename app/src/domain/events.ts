@@ -33,21 +33,37 @@ interface Base<T extends string, P> {
   payload: P;
 }
 
+/** Création du profil : démarre la phase d'observation (RM-15). */
 export type ProfilCree = Base<
   'ProfilCree',
   {
+    /** Consommation déclarée (estimation) ; la référence du plan est mesurée pendant l'observation. */
     cigarettesParJour: number;
     prixPaquetCents: number;
     cigarettesParPaquet: number;
-    lever: TimeOfDay;
-    coucher: TimeOfDay;
+    /** Si l'utilisateur a déjà fumé avant d'installer l'app, la journée en cours n'est pas mesurable. */
+    dejaFumeAujourdhui: boolean;
   }
 >;
 
-export type PlanDemarre = Base<'PlanDemarre', { dateDebut: LocalDate; strategie: ReductionStrategy }>;
+/** Démarrage du plan, à l'issue de l'observation ou tout de suite. */
+export type PlanDemarre = Base<
+  'PlanDemarre',
+  {
+    dateDebut: LocalDate;
+    strategie: ReductionStrategy;
+    /** Consommation de référence (base des économies, RM-07). */
+    referenceParJour: number;
+    /** Quota du premier jour du plan (référence − 1). */
+    quotaDepart: number;
+    /** Heures habituelles de la première et de la dernière cigarette (mesurées ou par défaut). */
+    debutHabituel: TimeOfDay;
+    finHabituelle: TimeOfDay;
+    origine: 'observation' | 'declaration';
+  }
+>;
 export type RythmeModifie = Base<'RythmeModifie', { aPartirDu: LocalDate; strategie: ReductionStrategy }>;
 export type PalierDemande = Base<'PalierDemande', { jour: LocalDate }>;
-export type HorairesModifies = Base<'HorairesModifies', { lever: TimeOfDay; coucher: TimeOfDay }>;
 
 export type CigaretteFumee = Base<
   'CigaretteFumee',
@@ -55,6 +71,11 @@ export type CigaretteFumee = Base<
 >;
 export type EnvieResistee = Base<'EnvieResistee', { strategieUtilisee?: string }>;
 export type SaisieAnnulee = Base<'SaisieAnnulee', { evenementId: string }>;
+/** Précise une cigarette après coup : contexte (RM-16) et/ou heure réelle. */
+export type CigaretteCorrigee = Base<
+  'CigaretteCorrigee',
+  { evenementId: string; contexte?: ContexteCigarette; occurredAt?: string }
+>;
 
 export type PatchPose = Base<'PatchPose', { dosageMg: number; dureePortHeures: 16 | 24; site?: string }>;
 export type PatchRetire = Base<'PatchRetire', Record<string, never>>;
@@ -75,10 +96,10 @@ export type DomainEvent =
   | PlanDemarre
   | RythmeModifie
   | PalierDemande
-  | HorairesModifies
   | CigaretteFumee
   | EnvieResistee
   | SaisieAnnulee
+  | CigaretteCorrigee
   | PatchPose
   | PatchRetire
   | SubstitutOralPris
@@ -121,6 +142,15 @@ export function validateEvent(e: DomainEvent): string[] {
       if (!isInt(e.payload.prixPaquetCents) || e.payload.prixPaquetCents <= 0) errors.push('prixPaquetCents invalide');
       if (!isInt(e.payload.cigarettesParPaquet) || e.payload.cigarettesParPaquet <= 0)
         errors.push('cigarettesParPaquet invalide');
+      break;
+    case 'PlanDemarre':
+      if (!isInt(e.payload.referenceParJour) || e.payload.referenceParJour < 1) errors.push('referenceParJour invalide');
+      if (!isInt(e.payload.quotaDepart) || e.payload.quotaDepart < 0 || e.payload.quotaDepart > e.payload.referenceParJour)
+        errors.push('quotaDepart invalide');
+      break;
+    case 'CigaretteCorrigee':
+      if (e.payload.occurredAt !== undefined && Number.isNaN(Date.parse(e.payload.occurredAt)))
+        errors.push('occurredAt corrigé invalide');
       break;
     case 'PrixModifie':
       if (!isInt(e.payload.prixPaquetCents) || e.payload.prixPaquetCents <= 0) errors.push('prixPaquetCents invalide');

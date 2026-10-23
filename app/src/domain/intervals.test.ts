@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as fc from 'fast-check';
-import { addMinutes, awakeWindow } from './time';
+import { addMinutes, zonedInstant } from './time';
 import {
   intervalleCibleMinutes,
   intervalleMoyenMinutes,
@@ -8,35 +8,37 @@ import {
   prochaineCigarette,
 } from './intervals';
 
-const PARIS = 'Europe/Paris';
-const fenetre = awakeWindow('2026-11-02', { wake: '07:00', bed: '23:00' }, PARIS); // 16 h
+const t0 = zonedInstant('2026-11-02', '07:30', 'Europe/Paris');
 
 describe('intervalles', () => {
-  it('intervalle cible = temps éveillé ÷ quota (RM-02)', () => {
-    expect(intervalleCibleMinutes(fenetre, 20)).toBe(48);
-    expect(intervalleCibleMinutes(fenetre, 10)).toBe(96);
-    expect(intervalleCibleMinutes(fenetre, 0)).toBeNull();
+  it('intervalle cible = durée active ÷ (quota − 1) (RM-02)', () => {
+    // 15 h entre la première et la dernière cigarette, 16 cigarettes → toutes les heures.
+    expect(intervalleCibleMinutes(15 * 60, 16)).toBe(60);
+    expect(intervalleCibleMinutes(15 * 60, 2)).toBe(900);
+    expect(intervalleCibleMinutes(15 * 60, 1)).toBeNull();
+    expect(intervalleCibleMinutes(15 * 60, 0)).toBeNull();
+    expect(intervalleCibleMinutes(0, 10)).toBeNull();
   });
 
-  it('première cigarette possible au lever', () => {
-    const r = prochaineCigarette({ maintenant: addMinutes(fenetre.start, -60), fenetre, quota: 20, fumeesAujourdhui: [] });
-    expect(r).toEqual({ statut: 'attendre', a: fenetre.start, resteMinutes: 60 });
+  it('la première cigarette de la journée n\'a pas d\'heure imposée', () => {
+    expect(prochaineCigarette({ maintenant: t0, quota: 10, fumeesAujourdhui: [], intervalleMinutes: 60 })).toEqual({
+      statut: 'disponible',
+      depuis: null,
+    });
   });
 
   it('prochaine = dernière + intervalle (RM-03)', () => {
-    const derniere = addMinutes(fenetre.start, 120);
-    const r = prochaineCigarette({ maintenant: addMinutes(derniere, 30), fenetre, quota: 20, fumeesAujourdhui: [derniere] });
-    expect(r).toEqual({ statut: 'attendre', a: addMinutes(derniere, 48), resteMinutes: 18 });
-    const r2 = prochaineCigarette({ maintenant: addMinutes(derniere, 50), fenetre, quota: 20, fumeesAujourdhui: [derniere] });
-    expect(r2).toEqual({ statut: 'disponible', depuis: addMinutes(derniere, 48) });
+    const r = prochaineCigarette({ maintenant: addMinutes(t0, 30), quota: 16, fumeesAujourdhui: [t0], intervalleMinutes: 60 });
+    expect(r).toEqual({ statut: 'attendre', a: addMinutes(t0, 60), resteMinutes: 30 });
+    const r2 = prochaineCigarette({ maintenant: addMinutes(t0, 70), quota: 16, fumeesAujourdhui: [t0], intervalleMinutes: 60 });
+    expect(r2).toEqual({ statut: 'disponible', depuis: addMinutes(t0, 60) });
   });
 
   it('quota atteint et mode arrêt', () => {
-    const t = [fenetre.start, addMinutes(fenetre.start, 60)];
-    expect(prochaineCigarette({ maintenant: addMinutes(fenetre.start, 90), fenetre, quota: 2, fumeesAujourdhui: t }).statut).toBe(
+    expect(prochaineCigarette({ maintenant: t0, quota: 1, fumeesAujourdhui: [t0], intervalleMinutes: null }).statut).toBe(
       'quota-atteint',
     );
-    expect(prochaineCigarette({ maintenant: fenetre.start, fenetre, quota: 0, fumeesAujourdhui: [] }).statut).toBe('arret');
+    expect(prochaineCigarette({ maintenant: t0, quota: 0, fumeesAujourdhui: [], intervalleMinutes: null }).statut).toBe('arret');
   });
 
   it('intervalle moyen réel', () => {
@@ -45,28 +47,23 @@ describe('intervalles', () => {
   });
 
   it('plus longue pause, y compris la pause en cours', () => {
-    const t0 = fenetre.start;
     expect(plusLonguePauseMinutes([t0, addMinutes(t0, 30), addMinutes(t0, 200)], addMinutes(t0, 260), t0)).toBe(170);
     expect(plusLonguePauseMinutes([t0], addMinutes(t0, 500), t0)).toBe(500);
     expect(plusLonguePauseMinutes([], addMinutes(t0, 90), t0)).toBe(90);
   });
 
-  it('propriété : la prochaine cigarette n\'est jamais avant le lever ni avant dernière + intervalle', () => {
+  it('propriété : la prochaine n\'arrive jamais avant dernière + intervalle', () => {
     fc.assert(
       fc.property(
-        fc.integer({ min: 1, max: 40 }),
-        fc.array(fc.integer({ min: 0, max: 16 * 60 }), { maxLength: 39 }),
-        fc.integer({ min: -120, max: 18 * 60 }),
-        (quota, minutes, maintenantMin) => {
-          const fumees = minutes.slice(0, quota - 1).map((m) => addMinutes(fenetre.start, m));
-          const maintenant = addMinutes(fenetre.start, maintenantMin);
-          const r = prochaineCigarette({ maintenant, fenetre, quota, fumeesAujourdhui: fumees });
+        fc.integer({ min: 2, max: 40 }),
+        fc.array(fc.integer({ min: 0, max: 16 * 60 }), { minLength: 1, maxLength: 39 }),
+        fc.integer({ min: 10, max: 240 }),
+        fc.integer({ min: 0, max: 18 * 60 }),
+        (quota, minutes, intervalle, maintenantMin) => {
+          const fumees = minutes.slice(0, quota - 1).map((m) => addMinutes(t0, m));
+          const r = prochaineCigarette({ maintenant: addMinutes(t0, maintenantMin), quota, fumeesAujourdhui: fumees, intervalleMinutes: intervalle });
           const instant = r.statut === 'attendre' ? r.a : r.statut === 'disponible' ? r.depuis : null;
-          expect(instant).not.toBeNull();
-          expect(instant!).toBeGreaterThanOrEqual(fenetre.start);
-          if (fumees.length > 0) {
-            expect(instant!).toBeGreaterThanOrEqual(addMinutes(Math.max(...fumees), intervalleCibleMinutes(fenetre, quota)!));
-          }
+          expect(instant).toBe(addMinutes(Math.max(...fumees), intervalle));
         },
       ),
     );

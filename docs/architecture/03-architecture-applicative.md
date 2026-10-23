@@ -70,7 +70,10 @@ Règle de dépendance : **les flèches pointent vers le domaine**. Le domaine ne
 | Module | Responsabilité | Entrées | Sorties |
 |---|---|---|---|
 | `domain/events` | Types des événements et validation | — | `DomainEvent` |
-| `domain/reduction` | Stratégies `ReductionStrategy` : −1/j, −1/2j, −1/semaine, palier | profil, date | quota du jour |
+| `domain/sessions` | Journées de fumeur (RM-14) : étiquetage des cigarettes, journée d'un instant, intervalles hors nuit | cigarettes | journées |
+| `domain/habitudes` | Habitudes mesurées (RM-17) sur les journées terminées | cigarettes étiquetées | consommation, horaires, durée active |
+| `domain/analyse` | Déclencheurs et heures à risque (RM-16) | cigarettes et contextes | top 3 |
+| `domain/reduction` | Stratégies `ReductionStrategy` : −1/j, −1/2j, −1/semaine, palier | plan, date | quota du jour |
 | `domain/intervals` | Intervalle cible, prochaine cigarette, moyennes réelles | quota, horaires, événements | fenêtre du jour |
 | `domain/savings` | Économies par jour, cumul, projection, objectifs | événements, historique des prix | montants |
 | `domain/substitutes` | Modèles `NicotineModel` (patch, pastille, gomme), limites de la notice | prises, table de référence | courbe estimée, alertes |
@@ -83,13 +86,14 @@ Règle de dépendance : **les flèches pointent vers le domaine**. Le domaine ne
 
 | Événement | Charge utile principale | Émis par |
 |---|---|---|
-| `ProfilCree` | n, prix, cigarettes par paquet, horaires, rythme | Onboarding |
-| `PlanDemarre` | date de début, stratégie | Onboarding |
+| `ProfilCree` | consommation déclarée, prix, cigarettes par paquet, « déjà fumé aujourd'hui » — démarre l'observation | Onboarding |
+| `PlanDemarre` | date de début, stratégie, référence (mesurée ou déclarée), quota de départ, heures habituelles de première et dernière cigarette, origine | Bilan d'observation |
 | `RythmeModifie` | nouvelle stratégie | Réglages |
 | `PalierDemande` | date | Coach / utilisateur |
 | `CigaretteFumee` | horodatage, contexte?, intensité? | App, notification, montre |
 | `EnvieResistee` | horodatage, stratégie? | App, notification, montre |
 | `SaisieAnnulee` | id de l'événement annulé | Journal |
+| `CigaretteCorrigee` | id de la cigarette, contexte?, heure réelle? | Feuille de contexte |
 | `PatchPose` / `PatchRetire` | dosage, durée de port, site | Substituts |
 | `PastillePrise` / `GommePrise` | dosage, horodatage | Substituts, montre |
 | `PrixModifie` | nouveau prix, date d'effet | Réglages |
