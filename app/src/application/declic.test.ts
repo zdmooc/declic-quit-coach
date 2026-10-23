@@ -8,7 +8,8 @@ const TZ = 'Europe/Paris';
 const REF: ReferencePharma = { version: 't', validePar: null, valideLe: null, oraux: [] };
 const SANTE: ContenuSante = { version: 't', validePar: null, jalons: [] };
 
-function monter(debut = zonedInstant('2026-11-02', '08:00', TZ)) {
+// Plan créé avant le lever (6 h 30) : le premier jour est complet (voir RM-13 pour le cas partiel).
+function monter(debut = zonedInstant('2026-11-02', '06:30', TZ)) {
   const clock = new FakeClock(debut, TZ);
   const store = new InMemoryEventStore();
   const notifier = new MemoryNotifier();
@@ -29,6 +30,7 @@ describe('Declic (cas d\'usage)', () => {
   it('parcours : profil, cigarette, intervalle, annulation', async () => {
     const { app, clock, notifier } = monter();
     await app.creerProfil(PROFIL);
+    clock.avancerMinutes(90); // 8 h : hors des heures calmes, la notification « prochaine » est gardée
     let tdb = (await app.tableauDeBord())!;
     expect(tdb.jourDuPlan).toBe(0);
     expect(tdb.quota).toBe(20);
@@ -55,8 +57,8 @@ describe('Declic (cas d\'usage)', () => {
       await app.enregistrerCigarette();
       clock.avancerMinutes(50);
     }
-    // Lendemain 12 h.
-    clock.avancerMinutes(24 * 60 - 18 * 50 + 4 * 60);
+    // Lendemain 12 h (6 h 30 + 18 × 50 min = 21 h 30, puis 14 h 30 de plus).
+    clock.avancerMinutes(24 * 60 - 18 * 50 + 5.5 * 60);
     const tdb = (await app.tableauDeBord())!;
     expect(tdb.jourDuPlan).toBe(1);
     expect(tdb.quota).toBe(19);
@@ -94,7 +96,7 @@ describe('Declic (cas d\'usage)', () => {
     await app.enregistrerCigarette();
     const repoussee = notifier.planifiees.find((n) => n.cle === 'economies-1000');
     expect(repoussee!.a).toBe(celebration!.a + 48 * 60_000);
-    expect(clock.now()).toBe(zonedInstant('2026-11-02', '08:00', TZ));
+    expect(clock.now()).toBe(zonedInstant('2026-11-02', '06:30', TZ));
   });
 
   it('patch : rappel critique programmé à l\'heure de retrait', async () => {

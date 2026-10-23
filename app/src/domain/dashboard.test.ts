@@ -18,8 +18,8 @@ const ev = <T extends DomainEvent['type']>(
   ({ id: `e${String(++seq).padStart(4, '0')}`, type, schemaVersion: 1, occurredAt: new Date(Date.parse(quand)).toISOString(), tz: TZ, source: 'phone', payload }) as DomainEvent;
 
 const profil = (n = 10): DomainEvent[] => [
-  ev('ProfilCree', '2026-11-01T07:00:00Z', { cigarettesParJour: n, prixPaquetCents: 1000, cigarettesParPaquet: 20, lever: '07:00', coucher: '23:00' }),
-  ev('PlanDemarre', '2026-11-01T07:00:01Z', { dateDebut: '2026-11-01', strategie: { kind: 'pas', pas: 1, periodeJours: 1 } }),
+  ev('ProfilCree', '2026-11-01T05:00:00Z', { cigarettesParJour: n, prixPaquetCents: 1000, cigarettesParPaquet: 20, lever: '07:00', coucher: '23:00' }),
+  ev('PlanDemarre', '2026-11-01T05:00:01Z', { dateDebut: '2026-11-01', strategie: { kind: 'pas', pas: 1, periodeJours: 1 } }),
 ];
 
 describe('projections du tableau de bord', () => {
@@ -47,7 +47,7 @@ describe('projections du tableau de bord', () => {
     expect(etat.oraux).toHaveLength(1);
     expect(etat.objectifs[0]!.libelle).toBe('Vélo');
     // Aucune cigarette : 10 × 0,50 € le 1er, puis 10 × 0,60 € le 2 (nouveau prix, RM-06).
-    expect(historiqueQuotidien(etat, '2026-11-03').map((l) => l.economieCents)).toEqual([500, 600]);
+    expect(historiqueQuotidien(etat, '2026-11-03', TZ).map((l) => l.economieCents)).toEqual([500, 600]);
   });
 
   it('suit le patch en cours, le maximum de gommes et l\'objectif d\'épargne', () => {
@@ -77,6 +77,31 @@ describe('projections du tableau de bord', () => {
       phase: 'maintien',
       depuisDerniereMinutes: null,
     });
+  });
+
+  it('RM-13 : un plan créé en fin de journée ne compte pas les heures d\'avant', () => {
+    // Cas réel : 40 cigarettes par jour à 1 € pièce, plan créé à 18 h 41 (lever 7 h, coucher 23 h).
+    const evs: DomainEvent[] = [
+      ev('ProfilCree', '2026-11-02T17:41:00Z', { cigarettesParJour: 40, prixPaquetCents: 2000, cigarettesParPaquet: 20, lever: '07:00', coucher: '23:00' }),
+      ev('PlanDemarre', '2026-11-02T17:41:00Z', { dateDebut: '2026-11-02', strategie: { kind: 'pas', pas: 1, periodeJours: 1 } }),
+      ev('CigaretteFumee', '2026-11-02T17:41:30Z', {}),
+    ];
+    const etat = rejouer(evs)!;
+    const t = (heure: string, jour = '2026-11-02') => zonedInstant(jour, heure, TZ);
+
+    const a1845 = tableauDeBord(etat, t('18:45'), TZ, REF);
+    expect(a1845.economieTotaleCents).toBe(0); // et non 28,40 €
+    expect(a1845.quota).toBe(Math.ceil((40 * 259) / 960)); // 11 sur les 4 h 19 restantes
+    expect(a1845.intervalleCibleMinutes).toBe(24); // le rythme du plan reste 16 h ÷ 40
+    expect(a1845.prochaine).toMatchObject({ statut: 'attendre', a: Date.parse('2026-11-02T17:41:30Z') + 24 * 60_000 });
+    expect(a1845.debutJournee).toBe(t('18:41'));
+
+    // À 20 h : 79 min depuis la création → 40 × 79/960 − 1 = 2,29 cigarettes évitées.
+    expect(tableauDeBord(etat, t('20:00'), TZ, REF).economieTotaleCents).toBe(229);
+
+    // Le lendemain, la journée 0 terminée vaut 40 × 259/960 − 1 = 9,79 cigarettes évitées.
+    expect(historiqueQuotidien(etat, '2026-11-03', TZ)).toEqual([{ jour: '2026-11-02', quota: 11, fumees: 1, economieCents: 979 }]);
+    expect(tableauDeBord(etat, t('07:00', '2026-11-03'), TZ, REF).quota).toBe(39);
   });
 
   it('jalons santé : notifiés depuis la dernière cigarette', () => {

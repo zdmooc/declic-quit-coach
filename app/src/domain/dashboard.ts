@@ -12,6 +12,7 @@ import {
   joursAvantObjectif,
   prixDuJour,
   projectionArret,
+  valeurCents,
   type Prix,
   type Projection,
 } from './savings';
@@ -29,6 +30,8 @@ export interface EtatJournal {
   patch: PatchEnCours | null;
   oraux: { a: Instant; jour: LocalDate; forme: TypeSubstitutOral }[];
   objectifs: { libelle: string; montantCents: number }[];
+  /** Instant de création du plan (RM-13 : le premier jour ne compte qu'à partir de là). */
+  demarreLe: Instant;
   /** Identifiant du dernier événement saisi par l'utilisateur (pour « annuler »). */
   derniereSaisieId: string | null;
 }
@@ -61,6 +64,7 @@ export function rejouer(events: readonly DomainEvent[]): EtatJournal | null {
     patch: null,
     oraux: [],
     objectifs: [],
+    demarreLe: instantOf(demarrage),
     derniereSaisieId: null,
   };
 
@@ -116,6 +120,26 @@ export function rejouer(events: readonly DomainEvent[]): EtatJournal | null {
   return etat;
 }
 
+/**
+ * RM-13 : si le plan a été créé en cours de journée, le premier jour ne compte qu'à partir
+ * de sa création. Renvoie le début du comptage et la part de la journée éveillée restante.
+ */
+export function premierJourPartiel(etat: EtatJournal, tz: string): { debut: Instant; fraction: number } | null {
+  if (planDayOf(etat.demarreLe, etat.horaires, tz) !== etat.plan.dateDebut) return null;
+  const f = awakeWindow(etat.plan.dateDebut, etat.horaires, tz);
+  const total = f.end - f.start;
+  if (total <= 0 || etat.demarreLe <= f.start) return null;
+  const debut = Math.min(etat.demarreLe, f.end);
+  return { debut, fraction: (f.end - debut) / total };
+}
+
+/** Quota affiché d'un jour : celui du plan, réduit au prorata le premier jour partiel. */
+export function quotaEffectif(etat: EtatJournal, jour: LocalDate, tz: string): number {
+  const q = quotaDuJour(etat.plan, jour);
+  const p = jour === etat.plan.dateDebut ? premierJourPartiel(etat, tz) : null;
+  return p ? Math.min(q, Math.max(1, Math.ceil(q * p.fraction))) : q;
+}
+
 export interface LigneHistorique {
   jour: LocalDate;
   quota: number;
@@ -124,15 +148,25 @@ export interface LigneHistorique {
 }
 
 /** Historique des journées terminées, du début du plan jusqu'à la veille de `aujourdhui`. */
-export function historiqueQuotidien(etat: EtatJournal, aujourdhui: LocalDate): LigneHistorique[] {
+export function historiqueQuotidien(etat: EtatJournal, aujourdhui: LocalDate, tz: string): LigneHistorique[] {
   const hier = addDays(aujourdhui, -1);
   if (daysBetween(etat.plan.dateDebut, hier) < 0) return [];
   const parJour = new Map<LocalDate, number>();
   for (const c of etat.cigarettes) parJour.set(c.jour, (parJour.get(c.jour) ?? 0) + 1);
   const out: LigneHistorique[] = [];
-  for (const [jour, quota] of quotas(etat.plan, hier)) {
+  const p0 = premierJourPartiel(etat, tz);
+  for (const [jour, quotaPlan] of quotas(etat.plan, hier)) {
     const fumees = parJour.get(jour) ?? 0;
-    out.push({ jour, quota, fumees, economieCents: economieJourneeCents(etat.initial, fumees, prixDuJour(etat.prix, jour)) });
+    const prix = prixDuJour(etat.prix, jour);
+    const partiel = jour === etat.plan.dateDebut ? p0 : null;
+    out.push({
+      jour,
+      quota: partiel ? quotaEffectif(etat, jour, tz) : quotaPlan,
+      fumees,
+      economieCents: partiel
+        ? valeurCents(Math.max(0, etat.initial * partiel.fraction - fumees), prix)
+        : economieJourneeCents(etat.initial, fumees, prix),
+    });
   }
   return out;
 }
@@ -161,24 +195,32 @@ export interface TableauDeBord {
   oraux: EtatOral[];
   objectifs: { libelle: string; montantCents: number; joursRestants: number | null }[];
   proposerPalier: boolean;
+  /** Début du comptage de la journée (lever, ou création du plan le premier jour). */
+  debutJournee: Instant;
 }
 
 export function tableauDeBord(etat: EtatJournal, maintenant: Instant, tz: string, ref: ReferencePharma): TableauDeBord {
   const jour = planDayOf(maintenant, etat.horaires, tz);
   const jourDuPlan = daysBetween(etat.plan.dateDebut, jour);
-  const quota = quotaDuJour(etat.plan, jour);
+  const quotaPlan = quotaDuJour(etat.plan, jour);
+  const quota = quotaEffectif(etat, jour, tz);
   const fenetre = awakeWindow(jour, etat.horaires, tz);
+  const p0 = jour === etat.plan.dateDebut ? premierJourPartiel(etat, tz) : null;
+  // Le rythme du plan reste « temps éveillé ÷ quota du plan », même le premier jour partiel.
+  const intervalle = intervalleCibleMinutes(fenetre, p0 ? quotaPlan : quota);
   const duJour = etat.cigarettes.filter((c) => c.jour === jour).map((c) => c.a);
   const toutes = etat.cigarettes.map((c) => c.a);
   const derniere = toutes.length > 0 ? Math.max(...toutes) : null;
 
   const prix = prixDuJour(etat.prix, jour);
-  const historique = historiqueQuotidien(etat, jour);
+  const historique = historiqueQuotidien(etat, jour, tz);
   const economieJour =
-    jourDuPlan < 0 ? 0 : economieEnCoursCents({ initial: etat.initial, fumees: duJour.length, prix, fenetre, maintenant });
+    jourDuPlan < 0
+      ? 0
+      : economieEnCoursCents({ initial: etat.initial, fumees: duJour.length, prix, fenetre, maintenant, debutComptage: p0?.debut });
   const economieTotale = historique.reduce((s, l) => s + l.economieCents, 0) + economieJour;
 
-  const debutPlan = zonedInstant(etat.plan.dateDebut, etat.horaires.wake, tz);
+  const debutPlan = premierJourPartiel(etat, tz)?.debut ?? zonedInstant(etat.plan.dateDebut, etat.horaires.wake, tz);
   const depuisDerniere = derniere === null ? null : Math.max(0, minutesBetween(derniere, maintenant));
   const sansTabacMinutes = depuisDerniere ?? Math.max(0, minutesBetween(debutPlan, maintenant));
   const phase: Phase =
@@ -190,7 +232,7 @@ export function tableauDeBord(etat: EtatJournal, maintenant: Instant, tz: string
   const rythme =
     recents.length > 0
       ? recents.reduce((s, l) => s + l.economieCents, 0) / recents.length
-      : economieJourneeCents(etat.initial, quota, prix);
+      : economieJourneeCents(etat.initial, quotaPlan, prix);
 
   return {
     jour,
@@ -199,8 +241,8 @@ export function tableauDeBord(etat: EtatJournal, maintenant: Instant, tz: string
     quota,
     fumees: duJour.length,
     restant: Math.max(0, quota - duJour.length),
-    prochaine: prochaineCigarette({ maintenant, fenetre, quota, fumeesAujourdhui: duJour }),
-    intervalleCibleMinutes: intervalleCibleMinutes(fenetre, quota),
+    prochaine: prochaineCigarette({ maintenant, fenetre, quota, fumeesAujourdhui: duJour, intervalleMinutes: intervalle ?? undefined }),
+    intervalleCibleMinutes: intervalle,
     intervalleMoyenMinutes: intervalleMoyenMinutes(duJour),
     enviesResistees: etat.envies.filter((e) => e.jour === jour).length,
     depuisDerniereMinutes: depuisDerniere,
@@ -218,5 +260,6 @@ export function tableauDeBord(etat: EtatJournal, maintenant: Instant, tz: string
       joursRestants: joursAvantObjectif(o.montantCents, economieTotale, rythme),
     })),
     proposerPalier: hier !== undefined && hier.fumees > hier.quota && !etat.plan.paliers.includes(jour),
+    debutJournee: p0?.debut ?? fenetre.start,
   };
 }

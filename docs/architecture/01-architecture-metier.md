@@ -112,6 +112,7 @@ stateDiagram-v2
 | RM-10 | **Coach IA** : il n'émet aucun conseil de dosage ni de diagnostic ; tout symptôme ou signe de détresse déclenche une **orientation** vers le 39 89, le médecin ou le 15/112. |
 | RM-11 | **Ton** : aucun message culpabilisant ; le vocabulaire est « faux pas », jamais « échec ». |
 | RM-12 | **Notifications** : au plus 4 notifications non critiques par jour, aucune pendant les heures calmes. |
+| RM-13 | **Premier jour partiel** : si le plan est créé après l'heure de lever, la journée 0 ne compte qu'à partir de la création — économies au prorata du temps restant, quota du jour réduit d'autant (arrondi au supérieur), intervalle inchangé (temps éveillé ÷ *n*). |
 
 ## 6. Objets métier
 

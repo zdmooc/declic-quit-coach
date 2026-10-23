@@ -41,10 +41,13 @@ export function economieEnCoursCents(params: {
   prix: Prix;
   fenetre: Fenetre;
   maintenant: Instant;
+  /** Début du comptage (premier jour : heure de création du plan, RM-13). Par défaut : le lever. */
+  debutComptage?: Instant;
 }): number {
   const { initial, fumees, prix, fenetre, maintenant } = params;
   const total = minutesBetween(fenetre.start, fenetre.end);
-  const ecoule = Math.min(Math.max(minutesBetween(fenetre.start, maintenant), 0), total);
+  const debut = Math.min(Math.max(params.debutComptage ?? fenetre.start, fenetre.start), fenetre.end);
+  const ecoule = Math.min(Math.max(minutesBetween(debut, maintenant), 0), minutesBetween(debut, fenetre.end));
   const fraction = total > 0 ? ecoule / total : 1;
   return valeurCents(Math.max(0, initial * fraction - fumees), prix);
 }

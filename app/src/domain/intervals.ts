@@ -27,11 +27,13 @@ export function prochaineCigarette(params: {
   fenetre: Fenetre;
   quota: number;
   fumeesAujourdhui: readonly Instant[];
+  /** Intervalle imposé (premier jour partiel, RM-13) ; par défaut temps éveillé ÷ quota. */
+  intervalleMinutes?: number;
 }): StatutProchaine {
   const { maintenant, fenetre, quota, fumeesAujourdhui } = params;
   if (quota <= 0) return { statut: 'arret' };
   if (fumeesAujourdhui.length >= quota) return { statut: 'quota-atteint' };
-  const intervalle = intervalleCibleMinutes(fenetre, quota) ?? 0;
+  const intervalle = params.intervalleMinutes ?? intervalleCibleMinutes(fenetre, quota) ?? 0;
   const derniere = fumeesAujourdhui.length > 0 ? Math.max(...fumeesAujourdhui) : null;
   const a = Math.max(derniere === null ? fenetre.start : addMinutes(derniere, intervalle), fenetre.start);
   if (a <= maintenant) return { statut: 'disponible', depuis: a };

@@ -135,9 +135,9 @@ export function prochainPalierEconomies(
   const historiqueCents = tdb.economieTotaleCents - tdb.economieJourCents;
   const eviteesNecessaires = (palier - historiqueCents) / prixUnitaire;
   const fraction = (eviteesNecessaires + tdb.fumees) / etat.initial;
-  if (fraction > 1) return null;
-  const a = fenetre.start + Math.ceil(fraction * dureeMinutes) * 60_000;
-  if (a <= maintenant) return null;
+  // Le comptage démarre au lever, ou à la création du plan le premier jour (RM-13).
+  const a = tdb.debutJournee + Math.ceil(fraction * dureeMinutes) * 60_000;
+  if (a > fenetre.end || a <= maintenant) return null;
   return candidatePalierEconomies(palier, a);
 }
 

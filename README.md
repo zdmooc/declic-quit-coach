@@ -21,7 +21,7 @@
 
 | Élément | État |
 |---|---|
-| Domaine : plan −1/jour, paliers, rythmes, intervalles, économies, substituts, jalons, planificateur de notifications | ✅ codé, 58 tests (dont tests par propriétés) |
+| Domaine : plan −1/jour, paliers, rythmes, intervalles, économies, substituts, jalons, planificateur de notifications | ✅ codé, 59 tests (dont tests par propriétés) |
 | Cas d'usage (`Declic`) et ports | ✅ |
 | Écrans : profil de départ, tableau de bord, « J'ai fumé », « J'ai résisté », annulation, palier | ✅ prototype |
 | Stockage | ⚠️ en mémoire : **les données sont perdues à la fermeture** (SQLite chiffré : prochaine étape) |

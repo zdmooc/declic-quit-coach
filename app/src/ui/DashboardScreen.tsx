@@ -93,7 +93,7 @@ export function DashboardScreen({ tdb, tz, onFume, onResiste, onAnnuler, onPalie
           <Text style={styles.petit}>Envies résistées</Text>
           <Text style={styles.valeur}>{tdb.enviesResistees}</Text>
           <Text style={styles.sous}>
-            {tdb.intervalleMoyenMinutes ? `moyenne ${formatDuree(tdb.intervalleMoyenMinutes)}` : 'aujourd\'hui'}
+            {tdb.intervalleMoyenMinutes ? `moyenne ${formatDuree(tdb.intervalleMoyenMinutes)}` : 'aujourd’hui'}
           </Text>
         </View>
       </View>
