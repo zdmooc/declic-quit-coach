@@ -86,3 +86,18 @@ export class ExpoNotifier implements Notifier {
     this.signature = signature;
   }
 }
+
+/** Abonnement aux réponses (boutons d'action ou appui sur une notification), y compris à froid. */
+export function ecouterReponses(
+  traiter: (r: { cle: string; action: 'fume' | 'resiste' | 'ouvrir' }) => void,
+): { remove: () => void } {
+  const convertir = (r: Notifications.NotificationResponse) => {
+    const cle = `${r.notification.request.identifier}|${r.actionIdentifier}|${r.notification.date}`;
+    const action = r.actionIdentifier === ACTION_FUME ? 'fume' : r.actionIdentifier === ACTION_RESISTE ? 'resiste' : 'ouvrir';
+    Notifications.clearLastNotificationResponse();
+    traiter({ cle, action });
+  };
+  const derniere = Notifications.getLastNotificationResponse();
+  if (derniere) convertir(derniere);
+  return Notifications.addNotificationResponseReceivedListener(convertir);
+}

@@ -16,6 +16,8 @@ interface Props {
   /** Appelé quand le compte à rebours arrive à zéro (pour rafraîchir l'état). */
   onEcheance: () => void;
   onSos: () => void;
+  /** Vrai si les notifications n'ont pas pu être activées (Expo Go trop ancien). */
+  notificationsIndisponibles?: boolean;
 }
 
 const heure = (t: number, tz: string) =>
@@ -229,7 +231,11 @@ export function DashboardScreen(props: Props) {
             <Text style={styles.lien}>Effacer</Text>
           </Pressable>
         </View>
-        <Text style={styles.mention}>Aide : Tabac Info Service 39 89 · Ne remplace pas un avis médical</Text>
+        <Text style={styles.mention}>
+          {props.notificationsIndisponibles
+            ? 'Notifications indisponibles : mets à jour Expo Go · Aide : 39 89'
+            : 'Aide : Tabac Info Service 39 89 · Ne remplace pas un avis médical'}
+        </Text>
       </View>
     </SafeAreaView>
   );

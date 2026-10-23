@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, AppState, StyleSheet, Text, View } from 'react-native';
-import * as Notifications from 'expo-notifications';
 import { StatusBar } from 'expo-status-bar';
 import { getRandomValues } from 'expo-crypto';
 import * as SQLite from 'expo-sqlite';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Declic, type NouveauProfil } from './src/application/declic';
-import { ACTION_FUME, ACTION_RESISTE, configurerNotifications, ExpoNotifier } from './src/adapters/expoNotifications';
-import { SystemClock, UuidV7Generator } from './src/adapters/memory';
+import { MemoryNotifier, SystemClock, UuidV7Generator } from './src/adapters/memory';
+import { modulesNotificationsManquants } from './src/adapters/notificationsDisponibles';
+import type { Notifier } from './src/ports';
 import { SqliteEventStore } from './src/adapters/sqlite';
 import type { ContenuSante, ReferencePharma, TableauDeBord } from './src/domain';
 import { ContexteSheet, type Precision } from './src/ui/ContexteSheet';
@@ -18,16 +18,38 @@ import { couleurs } from './src/ui/theme';
 import pharma from './config/pharma-reference.json';
 import sante from './config/health-milestones.json';
 
+type ModuleNotifications = typeof import('./src/adapters/expoNotifications');
+
 interface Application {
   declic: Declic;
   clock: SystemClock;
+  /** `null` si les notifications sont indisponibles (Expo Go trop ancien, par exemple). */
+  notifications: ModuleNotifications | null;
+}
+
+/** Charge expo-notifications seulement si ses modules natifs sont présents (sinon l'app planterait). */
+async function chargerNotifications(): Promise<ModuleNotifications | null> {
+  const manquants = modulesNotificationsManquants();
+  if (manquants.length > 0) {
+    console.warn(`Notifications désactivées, modules natifs absents : ${manquants.join(', ')}`);
+    return null;
+  }
+  try {
+    const mod = await import('./src/adapters/expoNotifications');
+    // Un refus de permission ne bloque pas l'app : les notifications ne seront pas programmées.
+    await mod.configurerNotifications().catch(() => false);
+    return mod;
+  } catch (e) {
+    console.warn('Notifications désactivées', e);
+    return null;
+  }
 }
 
 // Journal enregistré dans SQLite sur le téléphone (non chiffré dans Expo Go, voir adapters/sqlite.ts).
 // Notifications locales programmées sur le téléphone (ADR-0007).
 async function creerApplication(): Promise<Application> {
-  // Un refus de permission ne bloque pas l'app : les notifications ne seront simplement pas programmées.
-  await configurerNotifications().catch(() => false);
+  const notifications = await chargerNotifications();
+  const notifier: Notifier = notifications ? new notifications.ExpoNotifier() : new MemoryNotifier();
   const clock = new SystemClock();
   const db = await SQLite.openDatabaseAsync('declic.db');
   const store = await SqliteEventStore.ouvrir(db);
@@ -37,12 +59,12 @@ async function creerApplication(): Promise<Application> {
     ids: new UuidV7Generator((b) => {
       getRandomValues(b);
     }),
-    notifier: new ExpoNotifier(),
+    notifier,
     referencePharma: pharma as ReferencePharma,
     contenuSante: sante as ContenuSante,
   });
   await declic.replanifierNotifications();
-  return { declic, clock };
+  return { declic, clock, notifications };
 }
 
 export default function App() {
@@ -85,23 +107,20 @@ export default function App() {
 
   // Boutons « J'ai fumé » / « J'ai résisté » dans les notifications (et ouverture à froid).
   useEffect(() => {
-    if (!app) return;
-    const traiter = async (r: Notifications.NotificationResponse) => {
-      const cle = `${r.notification.request.identifier}|${r.actionIdentifier}|${r.notification.date}`;
+    if (!app?.notifications) return;
+    const sub = app.notifications.ecouterReponses(({ cle, action }) => {
       if (reponsesTraitees.current.has(cle)) return;
       reponsesTraitees.current.add(cle);
-      Notifications.clearLastNotificationResponse();
-      if (r.actionIdentifier === ACTION_FUME) {
-        const id = await app.declic.enregistrerCigarette(undefined, 'notification');
-        setAPreciser(id);
-      } else if (r.actionIdentifier === ACTION_RESISTE) {
-        await app.declic.enregistrerEnvieResistee(undefined, 'notification');
-      }
-      await rafraichir();
-    };
-    const derniere = Notifications.getLastNotificationResponse();
-    if (derniere) void traiter(derniere);
-    const sub = Notifications.addNotificationResponseReceivedListener((r) => void traiter(r));
+      void (async () => {
+        if (action === 'fume') {
+          const id = await app.declic.enregistrerCigarette(undefined, 'notification');
+          setAPreciser(id);
+        } else if (action === 'resiste') {
+          await app.declic.enregistrerEnvieResistee(undefined, 'notification');
+        }
+        await rafraichir();
+      })();
+    });
     return () => sub.remove();
   }, [app, rafraichir]);
 
@@ -178,6 +197,7 @@ export default function App() {
           onEffacer={onEffacer}
           onEcheance={() => void rafraichir()}
           onSos={() => setSos(true)}
+          notificationsIndisponibles={app.notifications === null}
         />
       )}
       {sos && (
