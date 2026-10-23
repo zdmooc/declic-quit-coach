@@ -218,51 +218,45 @@ Les montants sont stockés **en centimes (entiers)** pour éviter les erreurs d'
 
 ## 8. Table de référence pharmacologique
 
-Fichier `config/pharma-reference.json`, versionné et **validé par un professionnel** avant publication :
+Fichier [`app/config/pharma-reference.json`](../../app/config/pharma-reference.json), versionné et **validé par un professionnel** avant publication. Version actuelle (brouillon, aucune valeur pharmacologique renseignée volontairement) :
 
 ```json
 {
-  "version": "0.0.0-draft",
-  "validatedBy": null,
-  "products": [
-    {
-      "type": "patch",
-      "wearHours": 16,
-      "dosagesMg": ["à valider"],
-      "model": { "kind": "slow-release", "riseHours": "à valider", "plateau": true }
-    },
-    {
-      "type": "lozenge",
-      "dosagesMg": ["à valider"],
-      "model": { "kind": "fast-peak", "peakMinutes": "à valider", "durationMinutes": "à valider" },
-      "maxPerDay": "selon la notice — à valider"
-    }
-  ],
-  "disclaimer": "Courbes indicatives. Suivre la notice et l'avis d'un professionnel."
+  "version": "0.0.0-brouillon",
+  "validePar": null,
+  "valideLe": null,
+  "oraux": [
+    { "forme": "pastille", "maxParJour": null },
+    { "forme": "gomme", "maxParJour": null }
+  ]
 }
 ```
 
-Tant que `validatedBy` est vide, l'app **n'affiche pas** les courbes estimées (fonction F4.4 désactivée).
+Tant que `validePar` est vide, l'app **n'affiche ni maximum de prises ni courbe estimée** (RM-09 et F4.4 inactifs). Les paramètres des modèles de nicotine (F4.4, V2) seront ajoutés à ce fichier au moment de leur validation.
+
+Les contenus santé suivent la même règle : [`app/config/health-milestones.json`](../../app/config/health-milestones.json) n'est pas notifié tant que `validePar` est vide.
 
 ## 9. Structure du dépôt (cible)
 
 ```
 declic-quit-coach/
 ├── app/                      # application Expo (React Native)
+│   ├── config/               # tables de référence versionnées (validées par un professionnel)
+│   │   ├── pharma-reference.json
+│   │   └── health-milestones.json
 │   └── src/
-│       ├── domain/           # pur, testé à 100 %
+│       ├── domain/           # pur, testé (objectif 100 %)
 │       ├── application/      # cas d'usage
 │       ├── ports/            # interfaces
-│       ├── adapters/         # sqlite, notifications, coach-http, watch-bridge
-│       └── ui/               # écrans par fonctionnalité
-├── watch/
+│       ├── adapters/         # mémoire (actuel) ; sqlite, notifications, coach-http, watch-bridge (à venir)
+│       └── ui/               # écrans
+├── watch/                    # V2
 │   ├── ios/                  # app watchOS (SwiftUI)
 │   └── wearos/               # app Wear OS (Kotlin, Compose)
 ├── bff/                      # API du coach (V2, serverless)
-├── config/
-│   ├── pharma-reference.json
-│   └── health-milestones.json
 └── docs/
     └── architecture/
         └── adr/
 ```
+
+Les tables de configuration sont dans `app/` pour être embarquées par le bundler sans configuration particulière de Metro.

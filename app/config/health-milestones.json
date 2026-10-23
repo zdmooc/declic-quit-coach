@@ -1,0 +1,13 @@
+{
+  "version": "0.0.0-brouillon",
+  "validePar": null,
+  "note": "BROUILLON. Messages repris des bénéfices de l'arrêt couramment communiqués par les autorités de santé ; chaque ligne doit être vérifiée et sourcée (ex. Tabac Info Service) puis validée par un professionnel avant publication. Tant que validePar est null, l'application ne les notifie pas.",
+  "jalons": [
+    { "id": "20min", "heures": 0.333, "message": "Ta pression artérielle et ton pouls commencent à revenir à la normale." },
+    { "id": "8h", "heures": 8, "message": "Le monoxyde de carbone dans ton sang a nettement diminué ; tes cellules sont mieux oxygénées." },
+    { "id": "48h", "heures": 48, "message": "Ton goût et ton odorat commencent à s'améliorer." },
+    { "id": "72h", "heures": 72, "message": "Respirer devient plus facile." },
+    { "id": "3mois", "heures": 2160, "message": "La toux et la fatigue diminuent, le souffle revient." },
+    { "id": "1an", "heures": 8760, "message": "Ton risque d'infarctus a fortement baissé par rapport à quand tu fumais." }
+  ]
+}

@@ -49,14 +49,14 @@ flowchart LR
 | Couche | Choix | Justification | Alternative écartée |
 |---|---|---|---|
 | Framework mobile | **React Native + Expo** (TypeScript strict) | Une base iOS + Android, build cloud, mises à jour OTA, plugins natifs | Flutter (Dart, moins de réutilisation côté BFF) ; PWA (notifications limitées sur iOS) |
-| Navigation | Expo Router | Navigation par fichiers, liens profonds (depuis les notifications) | React Navigation seul |
+| Navigation | Expo Router (à ajouter avec le 2e écran ; le prototype actuel n’a qu’un écran) | Navigation par fichiers, liens profonds (depuis les notifications) | React Navigation seul |
 | État réactif | Zustand | Léger, abonnements aux projections | Redux (trop lourd ici) |
 | Stockage local | **SQLite** (`expo-sqlite`) avec chiffrement (SQLCipher) | Requêtes, transactions, journal d'événements | AsyncStorage (pas transactionnel) |
 | Secrets locaux | `expo-secure-store` (Keychain iOS / Keystore Android) | Clé de chiffrement de la base, jeton du BFF | — |
 | Notifications | `expo-notifications` (locales au MVP) | Notifications programmées et actionnables | — |
 | Biométrie | `expo-local-authentication` | Verrouillage de l'app (F9.3) | — |
 | Dates et fuseaux | `Temporal` (polyfill) ou `date-fns-tz` | Jours locaux, changement d'heure, voyage | `Date` natif seul (piégeux) |
-| Tests du domaine | Vitest ou Jest + tests par propriétés (`fast-check`) | Calculs santé : invariants vérifiés automatiquement | — |
+| Tests du domaine | **Vitest** + tests par propriétés (`fast-check`) | Calculs santé : invariants vérifiés automatiquement | — |
 | Tests E2E | Maestro | Parcours sur simulateur, simple à écrire | Detox (plus lourd) |
 | Montre iOS | Swift / SwiftUI + WatchConnectivity, cible ajoutée via plugin de configuration Expo | Seule voie pour watchOS | — |
 | Montre Android | Kotlin / Jetpack Compose for Wear OS + Wearable Data Layer | Seule voie pour Wear OS | — |
@@ -110,8 +110,8 @@ Les canaux EAS Update sont alignés sur ces environnements.
 
 | Niveau | Cible | Outil |
 |---|---|---|
-| Domaine | 100 % des lignes et des branches ; invariants par propriétés (le quota ne monte jamais sans palier, les économies ne sont jamais négatives, la somme des économies quotidiennes est égale au cumul) | Vitest / Jest + fast-check |
-| Application | Cas d'usage avec des ports en mémoire (`FakeClock`, `InMemoryEventStore`) | Vitest / Jest |
+| Domaine | 100 % des lignes et des branches ; invariants par propriétés (le quota ne monte jamais sans palier, les économies ne sont jamais négatives, la somme des économies quotidiennes est égale au cumul) | Vitest + fast-check |
+| Application | Cas d'usage avec des ports en mémoire (`FakeClock`, `InMemoryEventStore`) | Vitest |
 | Adapters | SQLite et notifications en intégration | Jest + simulateur |
 | E2E | Onboarding, « J'ai fumé », SOS, patch | Maestro |
 | Coach (V2) | Jeu d'évaluation des garde-fous : questions de dosage, messages de détresse, tentatives de contournement | Script d'évaluation dans la CI du BFF |

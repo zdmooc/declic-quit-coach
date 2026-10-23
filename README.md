@@ -17,7 +17,28 @@
 
 ## Statut
 
-🟡 **Cadrage** — le dossier d'architecture est en cours ; le code n'est pas encore initialisé.
+🟡 **Prototype** — le moteur de calcul (domaine) est codé et testé ; l'application affiche un premier écran.
+
+| Élément | État |
+|---|---|
+| Domaine : plan −1/jour, paliers, rythmes, intervalles, économies, substituts, jalons, planificateur de notifications | ✅ codé, 58 tests (dont tests par propriétés) |
+| Cas d'usage (`Declic`) et ports | ✅ |
+| Écrans : profil de départ, tableau de bord, « J'ai fumé », « J'ai résisté », annulation, palier | ✅ prototype |
+| Stockage | ⚠️ en mémoire : **les données sont perdues à la fermeture** (SQLite chiffré : prochaine étape) |
+| Notifications | ⚠️ calculées mais pas encore programmées sur le téléphone (expo-notifications : prochaine étape) |
+| Tables pharmacologique et santé | ⚠️ brouillons non validés : maximums et jalons santé inactifs |
+| Coach IA, montre | ⏳ V2 |
+
+## Démarrer
+
+```bash
+cd app
+npm install
+npm start          # puis scanner le QR code avec l'app Expo Go
+npm test           # tests du domaine et des cas d'usage
+npm run typecheck
+npm run lint
+```
 
 ## Documentation
 

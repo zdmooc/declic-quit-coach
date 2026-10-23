@@ -1,0 +1,10 @@
+{
+  "version": "0.0.0-brouillon",
+  "validePar": null,
+  "valideLe": null,
+  "note": "BROUILLON NON VALIDÉ. Aucune valeur pharmacologique n'est renseignée volontairement. À compléter et valider par un tabacologue ou un pharmacien avant toute publication (ADR-0004). Tant que validePar est null, l'application n'affiche ni maximum de prises ni courbe de nicotine.",
+  "oraux": [
+    { "forme": "pastille", "maxParJour": null },
+    { "forme": "gomme", "maxParJour": null }
+  ]
+}
