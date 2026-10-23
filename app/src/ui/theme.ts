@@ -8,6 +8,8 @@ export const couleurs = {
   vertClair: '#E2EFE7',
   ambre: '#B7791F',
   ambreClair: '#FBF0DC',
+  rouge: '#B42318',
+  rougeClair: '#FDECEA',
 };
 
 export const espace = (n: number) => n * 4;

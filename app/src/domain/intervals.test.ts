@@ -6,6 +6,7 @@ import {
   intervalleMoyenMinutes,
   plusLonguePauseMinutes,
   prochaineCigarette,
+  respectIntervalle,
 } from './intervals';
 
 const t0 = zonedInstant('2026-11-02', '07:30', 'Europe/Paris');
@@ -50,6 +51,22 @@ describe('intervalles', () => {
     expect(plusLonguePauseMinutes([t0, addMinutes(t0, 30), addMinutes(t0, 200)], addMinutes(t0, 260), t0)).toBe(170);
     expect(plusLonguePauseMinutes([t0], addMinutes(t0, 500), t0)).toBe(500);
     expect(plusLonguePauseMinutes([], addMinutes(t0, 90), t0)).toBe(90);
+  });
+
+  it('RM-18 : respect de l\'intervalle, la première de la journée ne compte pas', () => {
+    const c = [0, 60, 100, 165, 224].map((m) => addMinutes(t0, m)); // écarts : 60, 40, 65, 59
+    expect(respectIntervalle(c, 60)).toEqual({ intervalleMinutes: 60, respectees: 3, nonRespectees: 1 });
+    expect(respectIntervalle([t0], 60)).toEqual({ intervalleMinutes: 60, respectees: 0, nonRespectees: 0 });
+    expect(respectIntervalle(c, null)).toEqual({ intervalleMinutes: null, respectees: 0, nonRespectees: 0 });
+  });
+
+  it('propriété : respectées + non respectées = cigarettes − 1', () => {
+    fc.assert(
+      fc.property(fc.array(fc.integer({ min: 0, max: 16 * 60 }), { minLength: 1, maxLength: 60 }), fc.integer({ min: 1, max: 180 }), (m, i) => {
+        const r = respectIntervalle(m.map((x) => addMinutes(t0, x)), i);
+        expect(r.respectees + r.nonRespectees).toBe(m.length - 1);
+      }),
+    );
   });
 
   it('propriété : la prochaine n\'arrive jamais avant dernière + intervalle', () => {

@@ -60,3 +60,28 @@ export function plusLonguePauseMinutes(instants: readonly Instant[], maintenant:
   if (tries.length > 0) max = Math.max(max, minutesBetween(precedent, maintenant));
   return Math.max(0, max);
 }
+
+/** Tolérance : une cigarette fumée jusqu'à 1 min avant la fin de l'intervalle compte comme respectée. */
+export const TOLERANCE_INTERVALLE_MINUTES = 1;
+
+export interface RespectIntervalle {
+  intervalleMinutes: number | null;
+  respectees: number;
+  nonRespectees: number;
+}
+
+/**
+ * RM-18 : chaque cigarette de la journée, sauf la première, est comparée à la précédente.
+ * Écart ≥ intervalle (à 1 min près) : respectée ; sinon : non respectée.
+ */
+export function respectIntervalle(instants: readonly Instant[], intervalleMinutes: number | null): RespectIntervalle {
+  if (intervalleMinutes === null || intervalleMinutes <= 0) return { intervalleMinutes, respectees: 0, nonRespectees: 0 };
+  const tries = [...instants].sort((a, b) => a - b);
+  let respectees = 0;
+  let nonRespectees = 0;
+  for (let i = 1; i < tries.length; i++) {
+    if (minutesBetween(tries[i - 1]!, tries[i]!) >= intervalleMinutes - TOLERANCE_INTERVALLE_MINUTES) respectees++;
+    else nonRespectees++;
+  }
+  return { intervalleMinutes, respectees, nonRespectees };
+}

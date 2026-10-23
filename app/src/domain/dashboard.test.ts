@@ -56,6 +56,9 @@ describe('observation (RM-15)', () => {
     const tdb = tableauDeBord(rejouer(evs, TZ)!, t('2026-11-02', '08:10'), TZ, REF);
     expect(tdb.prochaine).toEqual({ statut: 'attendre', a: t('2026-11-02', '09:00'), resteMinutes: 50 });
     expect(tdb.sourceIntervalle).toBe('habitude');
+    expect(tdb.respect).toEqual({ intervalleMinutes: 60, respectees: 0, nonRespectees: 0 });
+    const plusTot = [...evs, ev('CigaretteFumee', t('2026-11-02', '08:30'), {}), ev('CigaretteFumee', t('2026-11-02', '09:45'), {})];
+    expect(tableauDeBord(rejouer(plusTot, TZ)!, t('2026-11-02', '10:00'), TZ, REF).respect).toMatchObject({ respectees: 1, nonRespectees: 1 });
     // Aucune notification « prochaine cigarette » pendant l'observation.
     const c = genererCandidates(rejouer(evs, TZ)!, tdb, t('2026-11-02', '08:10'), TZ, SANS_SANTE);
     expect(c.some((x) => x.categorie === 'rythme')).toBe(false);

@@ -88,7 +88,7 @@ function Rebours({ tdb, tz, onEcheance, onDemarrerPlan }: Pick<Props, 'tdb' | 't
     grand = '0 restante';
     sous = 'Une envie ? « J’ai résisté » est là.';
   } else if (p.statut === 'attendre' && reste !== null && reste > 0) {
-    petit = indicatif ? 'À ton rythme habituel, prochaine dans' : 'Prochaine cigarette possible dans';
+    petit = 'Prochaine cigarette recommandée dans';
     grand = formatRebours(reste);
     sous = `à ${heure(p.a, tz)}${indicatif ? ' · indicatif, fume normalement' : ''}`;
   } else if (p.statut === 'disponible' && p.depuis === null) {
@@ -96,7 +96,7 @@ function Rebours({ tdb, tz, onEcheance, onDemarrerPlan }: Pick<Props, 'tdb' | 't
     grand = '—';
     sous = indicatif ? 'Ta première cigarette ouvrira la journée.' : 'Et si tu repoussais la première un peu ?';
   } else {
-    petit = indicatif ? 'Rythme habituel atteint' : 'Tu peux fumer ta prochaine';
+    petit = indicatif ? 'Intervalle recommandé atteint' : 'Tu peux fumer ta prochaine';
     grand = '00:00';
     sous = indicatif ? 'Fume normalement, et note-la.' : 'Ou tiens 10 minutes de plus : chaque minute compte.';
   }
@@ -113,10 +113,26 @@ function Rebours({ tdb, tz, onEcheance, onDemarrerPlan }: Pick<Props, 'tdb' | 't
 }
 
 /** Pastille d'information : aspect de bouton, mais non cliquable. */
-function Pastille({ valeur, libelle }: { valeur: string; libelle: string }) {
+type Ton = 'neutre' | 'vert' | 'rouge';
+
+interface InfoPastille {
+  valeur: string;
+  libelle: string;
+  ton?: Ton;
+}
+
+function Pastille({ valeur, libelle, ton = 'neutre' }: InfoPastille) {
   return (
-    <View style={styles.pastille} accessible accessibilityLabel={`${libelle} : ${valeur}`}>
-      <Text style={styles.pastilleValeur} numberOfLines={1} adjustsFontSizeToFit>
+    <View
+      style={[styles.pastille, ton === 'vert' && styles.pastilleVerte, ton === 'rouge' && styles.pastilleRouge]}
+      accessible
+      accessibilityLabel={`${libelle} : ${valeur}`}
+    >
+      <Text
+        style={[styles.pastilleValeur, ton === 'vert' && styles.texteVert, ton === 'rouge' && styles.texteRouge]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+      >
         {valeur}
       </Text>
       <Text style={styles.pastilleLibelle} numberOfLines={1}>
@@ -141,11 +157,15 @@ export function DashboardScreen(props: Props) {
         ? 'Prêt à démarrer'
         : `Jour ${(tdb.jourDuPlan ?? 0) + 1} du plan${tdb.dateDuZero && tdb.phase === 'reduction' ? ` · zéro le ${dateCourte(tdb.dateDuZero)}` : ''}`;
 
-  const pastilles: { valeur: string; libelle: string }[] = [
+  const intervalleRef = tdb.respect.intervalleMinutes;
+  const pastilles: InfoPastille[] = [
     {
       valeur: tdb.quota === null || tdb.phase === 'avant-debut' ? String(tdb.fumees) : `${tdb.fumees} / ${tdb.quota}`,
-      libelle: tdb.quota === null ? 'fumées aujourd’hui' : 'aujourd’hui / quota',
+      libelle: tdb.quota === null ? 'fumées' : 'fumées / quota',
     },
+    // RM-18 : en vert les cigarettes qui ont respecté l'intervalle, en rouge les autres.
+    { valeur: String(tdb.respect.respectees), libelle: 'intervalle tenu', ton: 'vert' },
+    { valeur: String(tdb.respect.nonRespectees), libelle: 'trop tôt', ton: tdb.respect.nonRespectees > 0 ? 'rouge' : 'neutre' },
     { valeur: String(tdb.enviesResistees), libelle: 'envies résistées' },
     tdb.phase === 'observation'
       ? { valeur: duree(tdb.depuisDerniereMinutes), libelle: 'depuis la dernière' }
@@ -153,9 +173,8 @@ export function DashboardScreen(props: Props) {
     { valeur: duree(tdb.intervalleMoyenJourMinutes), libelle: 'intervalle du jour' },
     { valeur: duree(tdb.intervalleMoyen7jMinutes), libelle: 'intervalle 7 jours' },
     { valeur: duree(tdb.plusLonguePauseMinutes), libelle: 'plus longue pause' },
-    tdb.intervalleCibleMinutes && tdb.phase === 'reduction'
-      ? { valeur: duree(tdb.intervalleCibleMinutes), libelle: 'objectif d’intervalle' }
-      : { valeur: tdb.analyse.cigarettes > 0 ? String(tdb.analyse.cigarettes) : '—', libelle: 'notées (14 jours)' },
+    { valeur: duree(intervalleRef), libelle: 'intervalle recommandé' },
+    { valeur: tdb.analyse.cigarettes > 0 ? String(tdb.analyse.cigarettes) : '—', libelle: 'notées (14 jours)' },
     { valeur: top ? `${Math.round(top.part * 100)} %` : '—', libelle: top ? top.libelle : 'déclencheur n° 1' },
     { valeur: heureRisque ? `${heureRisque.heure} h` : '—', libelle: 'heure à risque' },
   ];
@@ -248,6 +267,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: espace(1),
     paddingVertical: espace(2),
   },
+  pastilleVerte: { backgroundColor: couleurs.vertClair, borderColor: couleurs.vert },
+  pastilleRouge: { backgroundColor: couleurs.rougeClair, borderColor: couleurs.rouge },
+  texteVert: { color: couleurs.vert },
+  texteRouge: { color: couleurs.rouge },
   pastilleValeur: { color: couleurs.encre, fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums'] },
   pastilleLibelle: { color: couleurs.doux, fontSize: 11, marginTop: 2 },
 

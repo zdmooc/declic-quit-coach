@@ -8,7 +8,14 @@
 import { analyser, type Analyse, type ContextePerso } from './analyse';
 import { effectiveEvents, instantOf, type ContexteCigarette, type DomainEvent, type TypeSubstitutOral } from './events';
 import { DUREE_ACTIVE_PAR_DEFAUT, mesurerHabitudes, type Habitudes } from './habitudes';
-import { intervalleCibleMinutes, plusLonguePauseMinutes, prochaineCigarette, type StatutProchaine } from './intervals';
+import {
+  intervalleCibleMinutes,
+  plusLonguePauseMinutes,
+  prochaineCigarette,
+  respectIntervalle,
+  type RespectIntervalle,
+  type StatutProchaine,
+} from './intervals';
 import { dateDuZero, quotaDuJour, quotas, MOINS_UN_PAR_JOUR, type PlanInput } from './reduction';
 import {
   economieEnCoursCents,
@@ -354,6 +361,8 @@ export interface TableauDeBord {
    * recommandation de 60 min — indicative, sans notification.
    */
   sourceIntervalle: 'plan' | 'habitude';
+  /** RM-18 : cigarettes du jour qui ont respecté (ou non) l'intervalle recommandé. */
+  respect: RespectIntervalle;
   intervalleCibleMinutes: number | null;
   /** Intervalle moyen entre deux cigarettes aujourd'hui (nuit exclue). */
   intervalleMoyenJourMinutes: number | null;
@@ -435,6 +444,10 @@ export function tableauDeBord(etat: EtatJournal, maintenant: Instant, tz: string
         intervalleMinutes: INTERVALLE_RECOMMANDE_OBSERVATION_MINUTES,
       }),
       sourceIntervalle: 'habitude',
+      respect: respectIntervalle(
+        duJour.map((c) => c.a),
+        INTERVALLE_RECOMMANDE_OBSERVATION_MINUTES,
+      ),
       intervalleCibleMinutes: null,
       plusLonguePauseMinutes: plusLonguePauseMinutes(toutes, maintenant, Math.min(etat.profilCreeLe, maintenant)),
       economieJourCents: 0,
@@ -487,6 +500,10 @@ export function tableauDeBord(etat: EtatJournal, maintenant: Instant, tz: string
     quota,
     restant: Math.max(0, quota - duJour.length),
     sourceIntervalle: 'plan',
+    respect: respectIntervalle(
+      duJour.map((c) => c.a),
+      intervalle,
+    ),
     prochaine: prochaineCigarette({
       maintenant,
       quota,
