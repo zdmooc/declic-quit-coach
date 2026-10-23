@@ -63,7 +63,8 @@ export function genererCandidates(
   }
 
   // Prochaine cigarette possible, avec une invitation à repousser.
-  if (tdb.prochaine?.statut === 'attendre') {
+  // Pendant l'observation, on ne pousse pas à fumer : le compte à rebours reste indicatif à l'écran.
+  if (tdb.prochaine?.statut === 'attendre' && tdb.sourceIntervalle === 'plan') {
     out.push({
       cle: `prochaine-${tdb.jour}-${tdb.fumees}`,
       a: tdb.prochaine.a,

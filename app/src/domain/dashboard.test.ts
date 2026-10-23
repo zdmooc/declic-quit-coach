@@ -40,8 +40,26 @@ describe('observation (RM-15)', () => {
     expect(rejouer([], TZ)).toBeNull();
     const etat = rejouer([profil(20, t('2026-11-02', '06:00'))], TZ)!;
     const tdb = tableauDeBord(etat, t('2026-11-02', '09:00'), TZ, REF);
-    expect(tdb).toMatchObject({ phase: 'observation', quota: null, prochaine: null, economieTotaleCents: 0, jourDuPlan: null });
+    expect(tdb).toMatchObject({
+      phase: 'observation',
+      quota: null,
+      prochaine: { statut: 'disponible', depuis: null },
+      sourceIntervalle: 'habitude',
+      economieTotaleCents: 0,
+      jourDuPlan: null,
+    });
     expect(tdb.observation).toMatchObject({ joursMesures: 0, joursRequis: 3, terminee: false });
+  });
+
+  it('compte à rebours indicatif au rythme habituel : déclaration, puis moyenne du jour', () => {
+    const debut = [profil(20, t('2026-11-02', '06:00')), ev('CigaretteFumee', t('2026-11-02', '08:00'), {})];
+    // 1 seule cigarette : rythme déclaré, 16 h ÷ 19 ≈ 50,5 min.
+    const tdb1 = tableauDeBord(rejouer(debut, TZ)!, t('2026-11-02', '08:10'), TZ, REF);
+    expect(tdb1.prochaine).toMatchObject({ statut: 'attendre', resteMinutes: Math.ceil(960 / 19 - 10) });
+    // 2 cigarettes à 30 min d'écart : rythme mesuré du jour, 30 min.
+    const evs = [...debut, ev('CigaretteFumee', t('2026-11-02', '08:30'), {})];
+    const tdb2 = tableauDeBord(rejouer(evs, TZ)!, t('2026-11-02', '08:40'), TZ, REF);
+    expect(tdb2.prochaine).toEqual({ statut: 'attendre', a: t('2026-11-02', '09:00'), resteMinutes: 20 });
   });
 
   it('après 3 journées : consommation, horaires et déclencheurs mesurés, plan proposé', () => {

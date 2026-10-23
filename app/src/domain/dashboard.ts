@@ -341,6 +341,11 @@ export interface TableauDeBord {
   fumees: number;
   restant: number | null;
   prochaine: StatutProchaine | null;
+  /**
+   * Origine de l'intervalle du compte à rebours : le plan, ou pendant l'observation le rythme
+   * habituel (intervalle moyen mesuré, sinon déclaration) — indicatif, rien n'est imposé.
+   */
+  sourceIntervalle: 'plan' | 'habitude';
   intervalleCibleMinutes: number | null;
   /** Intervalle moyen entre deux cigarettes aujourd'hui (nuit exclue). */
   intervalleMoyenJourMinutes: number | null;
@@ -410,7 +415,13 @@ export function tableauDeBord(etat: EtatJournal, maintenant: Instant, tz: string
       observation: proposerPlan(etat, maintenant, tz),
       quota: null,
       restant: null,
-      prochaine: null,
+      prochaine: prochaineCigarette({
+        maintenant,
+        quota: Number.POSITIVE_INFINITY,
+        fumeesAujourdhui: duJour.map((c) => c.a),
+        intervalleMinutes: rythmeHabituel(etat, commun.intervalleMoyenJourMinutes, commun.intervalleMoyen7jMinutes),
+      }),
+      sourceIntervalle: 'habitude',
       intervalleCibleMinutes: null,
       plusLonguePauseMinutes: plusLonguePauseMinutes(toutes, maintenant, Math.min(etat.profilCreeLe, maintenant)),
       economieJourCents: 0,
@@ -462,6 +473,7 @@ export function tableauDeBord(etat: EtatJournal, maintenant: Instant, tz: string
     observation: null,
     quota,
     restant: Math.max(0, quota - duJour.length),
+    sourceIntervalle: 'plan',
     prochaine: prochaineCigarette({
       maintenant,
       quota,
@@ -481,6 +493,13 @@ export function tableauDeBord(etat: EtatJournal, maintenant: Instant, tz: string
     proposerPalier: hier !== undefined && hier.fumees > hier.quota && !plan.input.paliers.includes(jour),
     debutJournee: p0?.debut ?? fenetre.start,
   };
+}
+
+/** Rythme habituel pendant l'observation : moyenne du jour, sinon des 7 jours, sinon la déclaration. */
+function rythmeHabituel(etat: EtatJournal, jour: number | null, septJours: number | null): number | null {
+  if (jour !== null && jour > 0) return jour;
+  if (septJours !== null && septJours > 0) return septJours;
+  return etat.declare > 1 ? DUREE_ACTIVE_PAR_DEFAUT / (etat.declare - 1) : null;
 }
 
 /** Instant de l'heure habituelle de début d'une journée (message du matin). */

@@ -85,7 +85,8 @@ Priorités : **MVP** = première version publiable ; **V2** = coach IA et montre
 
 | ID | Fonction | Priorité |
 |---|---|---|
-| F5.1 | Compte à rebours vers la prochaine cigarette conseillée | MVP |
+| F5.1 | Compte à rebours (mm:ss, à la seconde) en haut de l'écran vers la prochaine cigarette conseillée ; pendant l'observation, compte à rebours **indicatif** au rythme habituel (intervalle moyen mesuré, sinon déclaration), sans notification | MVP |
+| F5.7 | Écran principal sur **une seule page** sans défilement : compte à rebours, pastilles d'information non cliquables (fumées / quota, envies résistées, économies, intervalles, plus longue pause, déclencheur n° 1, heure à risque), puis les actions | MVP |
 | F5.2 | Quota du jour ; intervalle cible ; intervalle moyen réel aujourd'hui et sur 7 jours (nuits exclues) ; plus longue pause | MVP |
 | F5.3 | Économies du jour, cumulées, projetées sur 1 mois et 1 an (RM-06, RM-07) | MVP |
 | F5.4 | Objectifs d'épargne (« mon vélo à 400 € ») avec date estimée | MVP |

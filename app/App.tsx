@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { getRandomValues } from 'expo-crypto';
 import * as SQLite from 'expo-sqlite';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Declic, type NouveauProfil } from './src/application/declic';
 import { MemoryNotifier, SystemClock, UuidV7Generator } from './src/adapters/memory';
 import { SqliteEventStore } from './src/adapters/sqlite';
@@ -120,6 +121,7 @@ export default function App() {
     ]);
 
   return (
+    <SafeAreaProvider>
     <View style={styles.racine}>
       <StatusBar style="dark" />
       {tdb === null ? (
@@ -134,10 +136,12 @@ export default function App() {
           onPalier={agir(() => declic.demanderPalier())}
           onDemarrerPlan={agir(() => declic.demarrerPlan())}
           onEffacer={onEffacer}
+          onEcheance={() => void rafraichir()}
         />
       )}
       <ContexteSheet visible={aPreciser !== null} onChoisir={(p) => void onPreciser(p)} />
     </View>
+    </SafeAreaProvider>
   );
 }
 
