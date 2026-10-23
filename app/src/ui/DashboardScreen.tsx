@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { formatDuree, formatEuros, type TableauDeBord } from '../domain';
 import { couleurs, espace } from './theme';
@@ -91,7 +91,7 @@ function Rebours({ tdb, tz, onEcheance, onDemarrerPlan }: Pick<Props, 'tdb' | 't
     grand = '0 restante';
     sous = 'Une envie ? « J’ai résisté » est là.';
   } else if (p.statut === 'attendre' && reste !== null && reste > 0) {
-    petit = 'Prochaine cigarette recommandée dans';
+    petit = 'Prochaine recommandée dans';
     grand = formatRebours(reste);
     sous = `à ${heure(p.a, tz)}${indicatif ? ' · indicatif, fume normalement' : ''}`;
   } else if (p.statut === 'disponible' && p.depuis === null) {
@@ -176,7 +176,7 @@ export function DashboardScreen(props: Props) {
     { valeur: duree(tdb.intervalleMoyenJourMinutes), libelle: 'intervalle du jour' },
     { valeur: duree(tdb.intervalleMoyen7jMinutes), libelle: 'intervalle 7 jours' },
     { valeur: duree(tdb.plusLonguePauseMinutes), libelle: 'plus longue pause' },
-    { valeur: duree(intervalleRef), libelle: 'intervalle recommandé' },
+    { valeur: duree(intervalleRef), libelle: 'recommandé' },
     { valeur: tdb.analyse.cigarettes > 0 ? String(tdb.analyse.cigarettes) : '—', libelle: 'notées (14 jours)' },
     { valeur: top ? `${Math.round(top.part * 100)} %` : '—', libelle: top ? top.libelle : 'déclencheur n° 1' },
     { valeur: heureRisque ? `${heureRisque.heure} h` : '—', libelle: 'heure à risque' },
@@ -184,6 +184,8 @@ export function DashboardScreen(props: Props) {
 
   return (
     <SafeAreaView style={styles.page} edges={['top', 'bottom']}>
+      {/* Tient sur une page ; ne défile que sur les petits écrans, sans jamais se chevaucher. */}
+      <ScrollView contentContainerStyle={styles.defilement} showsVerticalScrollIndicator={false} bounces={false}>
       <View style={styles.entete}>
         <Text style={styles.marque}>Déclic</Text>
         <Text style={styles.statut} numberOfLines={1}>
@@ -237,12 +239,14 @@ export function DashboardScreen(props: Props) {
             : 'Aide : Tabac Info Service 39 89 · Ne remplace pas un avis médical'}
         </Text>
       </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: couleurs.fond, paddingHorizontal: espace(4) },
+  page: { flex: 1, backgroundColor: couleurs.fond },
+  defilement: { flexGrow: 1, paddingHorizontal: espace(4), justifyContent: 'space-between' },
   entete: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingTop: espace(2), paddingRight: espace(14) },
   marque: { color: couleurs.vert, fontSize: 13, fontWeight: '800', letterSpacing: 2, textTransform: 'uppercase' },
   statut: { color: couleurs.doux, fontSize: 13, fontWeight: '600', flexShrink: 1, marginLeft: espace(3) },
@@ -250,13 +254,13 @@ const styles = StyleSheet.create({
   hero: {
     backgroundColor: couleurs.vertClair,
     borderRadius: 22,
-    paddingVertical: espace(4),
+    paddingVertical: espace(3),
     paddingHorizontal: espace(4),
-    marginTop: espace(3),
+    marginTop: espace(2),
     alignItems: 'center',
   },
   heroPetit: { color: couleurs.vert, fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'center' },
-  rebours: { color: couleurs.vert, fontSize: 64, fontWeight: '800', fontVariant: ['tabular-nums'], marginVertical: espace(1) },
+  rebours: { color: couleurs.vert, fontSize: 56, fontWeight: '800', fontVariant: ['tabular-nums'] },
   heroTitre: { color: couleurs.encre, fontSize: 26, fontWeight: '800', marginTop: espace(1) },
   heroSous: { color: couleurs.doux, fontSize: 13, textAlign: 'center', lineHeight: 18 },
   heroBouton: { backgroundColor: couleurs.vert, borderRadius: 999, paddingHorizontal: espace(6), paddingVertical: espace(3), marginTop: espace(3) },
@@ -266,10 +270,10 @@ const styles = StyleSheet.create({
   bandeauTexte: { color: couleurs.encre, fontSize: 13 },
   bandeauAction: { color: couleurs.ambre, fontSize: 13, fontWeight: '700', textDecorationLine: 'underline' },
 
-  grille: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignContent: 'center', justifyContent: 'space-between', rowGap: espace(2), marginVertical: espace(2) },
+  grille: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: espace(2), marginVertical: espace(3) },
   pastille: {
     width: '32%',
-    minHeight: 64,
+    minHeight: 58,
     backgroundColor: couleurs.carte,
     borderRadius: 16,
     borderWidth: 1.5,
@@ -283,7 +287,7 @@ const styles = StyleSheet.create({
   pastilleRouge: { backgroundColor: couleurs.rougeClair, borderColor: couleurs.rouge },
   texteVert: { color: couleurs.vert },
   texteRouge: { color: couleurs.rouge },
-  pastilleValeur: { color: couleurs.encre, fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  pastilleValeur: { color: couleurs.encre, fontSize: 17, fontWeight: '800', fontVariant: ['tabular-nums'] },
   pastilleLibelle: { color: couleurs.doux, fontSize: 11, marginTop: 2 },
 
   actions: { paddingBottom: espace(1) },
