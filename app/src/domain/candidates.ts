@@ -13,6 +13,7 @@ import { addDays, awakeWindow, isoWeekday, zonedInstant, type Instant } from './
 import { intervalleCibleMinutes } from './intervals';
 
 export function formatDuree(minutes: number): string {
+  if (minutes < 1) return 'moins d’1 min';
   const m = Math.round(minutes);
   const h = Math.floor(m / 60);
   const r = m % 60;

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { getRandomValues } from 'expo-crypto';
 import { Declic, type NouveauProfil } from './src/application/declic';
@@ -51,6 +51,20 @@ export default function App() {
     await rafraichir();
   };
 
+  // Protection contre le double appui : confirmation si la dernière cigarette date de moins de 2 min.
+  const onFume = () => {
+    const enregistrer = agir(() => declic.enregistrerCigarette());
+    const depuis = tdb?.depuisDerniereMinutes;
+    if (depuis === null || depuis === undefined || depuis >= 2) {
+      void enregistrer();
+      return;
+    }
+    Alert.alert('Encore une ?', 'Tu en as enregistré une il y a moins de 2 minutes. On compte bien une cigarette de plus ?', [
+      { text: 'Non, erreur', style: 'cancel' },
+      { text: 'Oui, compter', onPress: () => void enregistrer() },
+    ]);
+  };
+
   if (chargement) {
     return (
       <View style={styles.centre}>
@@ -68,7 +82,7 @@ export default function App() {
         <DashboardScreen
           tdb={tdb}
           tz={clock.timeZone()}
-          onFume={agir(() => declic.enregistrerCigarette())}
+          onFume={onFume}
           onResiste={agir(() => declic.enregistrerEnvieResistee())}
           onAnnuler={agir(() => declic.annulerDerniereSaisie())}
           onPalier={agir(() => declic.demanderPalier())}

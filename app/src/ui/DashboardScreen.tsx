@@ -86,14 +86,15 @@ export function DashboardScreen({ tdb, tz, onFume, onResiste, onAnnuler, onPalie
             {tdb.fumees} / {tdb.quota}
           </Text>
           <Text style={styles.sous}>
-            {tdb.intervalleCibleMinutes ? `1 toutes les ${formatDuree(tdb.intervalleCibleMinutes)}` : 'objectif zéro'}
+            {tdb.intervalleCibleMinutes ? `objectif : 1 toutes les ${formatDuree(tdb.intervalleCibleMinutes)}` : 'objectif zéro'}
+            {tdb.intervalleMoyenMinutes !== null ? `\nen réalité : 1 toutes les ${formatDuree(tdb.intervalleMoyenMinutes)}` : ''}
           </Text>
         </View>
         <View style={[styles.carte, styles.demi]}>
           <Text style={styles.petit}>Envies résistées</Text>
           <Text style={styles.valeur}>{tdb.enviesResistees}</Text>
           <Text style={styles.sous}>
-            {tdb.intervalleMoyenMinutes ? `moyenne ${formatDuree(tdb.intervalleMoyenMinutes)}` : 'aujourd’hui'}
+            aujourd’hui
           </Text>
         </View>
       </View>
