@@ -1,16 +1,19 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, AppState, StyleSheet, Text, View } from 'react-native';
+import * as Notifications from 'expo-notifications';
 import { StatusBar } from 'expo-status-bar';
 import { getRandomValues } from 'expo-crypto';
 import * as SQLite from 'expo-sqlite';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Declic, type NouveauProfil } from './src/application/declic';
-import { MemoryNotifier, SystemClock, UuidV7Generator } from './src/adapters/memory';
+import { ACTION_FUME, ACTION_RESISTE, configurerNotifications, ExpoNotifier } from './src/adapters/expoNotifications';
+import { SystemClock, UuidV7Generator } from './src/adapters/memory';
 import { SqliteEventStore } from './src/adapters/sqlite';
 import type { ContenuSante, ReferencePharma, TableauDeBord } from './src/domain';
 import { ContexteSheet, type Precision } from './src/ui/ContexteSheet';
 import { DashboardScreen } from './src/ui/DashboardScreen';
 import { OnboardingScreen } from './src/ui/OnboardingScreen';
+import { SosEnvie } from './src/ui/SosEnvie';
 import { couleurs } from './src/ui/theme';
 import pharma from './config/pharma-reference.json';
 import sante from './config/health-milestones.json';
@@ -21,8 +24,10 @@ interface Application {
 }
 
 // Journal enregistré dans SQLite sur le téléphone (non chiffré dans Expo Go, voir adapters/sqlite.ts).
-// Notifications : calculées mais pas encore programmées (expo-notifications : prochaine étape).
+// Notifications locales programmées sur le téléphone (ADR-0007).
 async function creerApplication(): Promise<Application> {
+  // Un refus de permission ne bloque pas l'app : les notifications ne seront simplement pas programmées.
+  await configurerNotifications().catch(() => false);
   const clock = new SystemClock();
   const db = await SQLite.openDatabaseAsync('declic.db');
   const store = await SqliteEventStore.ouvrir(db);
@@ -32,7 +37,7 @@ async function creerApplication(): Promise<Application> {
     ids: new UuidV7Generator((b) => {
       getRandomValues(b);
     }),
-    notifier: new MemoryNotifier(),
+    notifier: new ExpoNotifier(),
     referencePharma: pharma as ReferencePharma,
     contenuSante: sante as ContenuSante,
   });
@@ -47,6 +52,9 @@ export default function App() {
   const [tdb, setTdb] = useState<TableauDeBord | null>(null);
   /** Cigarette qui vient d'être enregistrée et dont on demande le contexte. */
   const [aPreciser, setAPreciser] = useState<string | null>(null);
+  const [sos, setSos] = useState(false);
+  /** Réponses aux notifications déjà traitées (une action ne doit compter qu'une fois). */
+  const reponsesTraitees = useRef(new Set<string>());
 
   useEffect(() => {
     creerApplication()
@@ -65,6 +73,37 @@ export default function App() {
     const timer = setInterval(() => void rafraichir(), 30_000);
     return () => clearInterval(timer);
   }, [rafraichir]);
+
+  // Retour au premier plan : on recalcule l'écran et on reprogramme les notifications.
+  useEffect(() => {
+    if (!app) return;
+    const sub = AppState.addEventListener('change', (etat) => {
+      if (etat === 'active') void app.declic.replanifierNotifications().then(rafraichir);
+    });
+    return () => sub.remove();
+  }, [app, rafraichir]);
+
+  // Boutons « J'ai fumé » / « J'ai résisté » dans les notifications (et ouverture à froid).
+  useEffect(() => {
+    if (!app) return;
+    const traiter = async (r: Notifications.NotificationResponse) => {
+      const cle = `${r.notification.request.identifier}|${r.actionIdentifier}|${r.notification.date}`;
+      if (reponsesTraitees.current.has(cle)) return;
+      reponsesTraitees.current.add(cle);
+      Notifications.clearLastNotificationResponse();
+      if (r.actionIdentifier === ACTION_FUME) {
+        const id = await app.declic.enregistrerCigarette(undefined, 'notification');
+        setAPreciser(id);
+      } else if (r.actionIdentifier === ACTION_RESISTE) {
+        await app.declic.enregistrerEnvieResistee(undefined, 'notification');
+      }
+      await rafraichir();
+    };
+    const derniere = Notifications.getLastNotificationResponse();
+    if (derniere) void traiter(derniere);
+    const sub = Notifications.addNotificationResponseReceivedListener((r) => void traiter(r));
+    return () => sub.remove();
+  }, [app, rafraichir]);
 
   if (erreur) {
     return (
@@ -138,7 +177,20 @@ export default function App() {
           onDemarrerPlan={agir(() => declic.demarrerPlan())}
           onEffacer={onEffacer}
           onEcheance={() => void rafraichir()}
+          onSos={() => setSos(true)}
         />
+      )}
+      {sos && (
+      <SosEnvie
+        raisons={tdb?.raisons ?? []}
+        economieAnCents={tdb?.projection.parAnCents ?? 0}
+        onResiste={() => {
+          setSos(false);
+          void agir(() => declic.enregistrerEnvieResistee('respiration'))();
+        }}
+        onFermer={() => setSos(false)}
+        onAjouterRaison={(texte) => void agir(() => declic.ajouterRaison(texte))()}
+      />
       )}
       <ContexteSheet
         visible={aPreciser !== null}

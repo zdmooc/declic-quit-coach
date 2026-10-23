@@ -161,3 +161,17 @@ describe('contextes personnels', () => {
     await expect(app.ajouterContexte('   ')).rejects.toThrow(/invalide/);
   });
 });
+
+describe('SOS envie', () => {
+  it('raisons d\'arrêter et envie résistée par respiration', async () => {
+    const { app, store } = monter();
+    await app.creerProfil(PROFIL);
+    await app.ajouterRaison('  Pour courir avec mes enfants ');
+    await expect(app.ajouterRaison(' ')).rejects.toThrow(/invalide/);
+    await app.enregistrerEnvieResistee('respiration');
+    const tdb = (await app.tableauDeBord())!;
+    expect(tdb.raisons).toEqual(['Pour courir avec mes enfants']);
+    expect(tdb.enviesResistees).toBe(1);
+    expect((await store.all()).at(-1)).toMatchObject({ type: 'EnvieResistee', payload: { strategieUtilisee: 'respiration' } });
+  });
+});

@@ -113,7 +113,7 @@ Règles transverses : plafond de 4 notifications non critiques par jour, heures 
 
 | ID | Fonction | Priorité |
 |---|---|---|
-| F7.1 | SOS envie **scripté** (hors ligne) : respiration guidée, rappel des motivations, minuteur de 3 à 5 min | MVP |
+| F7.1 | SOS envie **scripté** (hors ligne) : respiration guidée (cohérence cardiaque 5 s / 5 s, 3 min), rappel des raisons d'arrêter (saisies par l'utilisateur) et des économies annuelles, « L'envie est passée » = envie résistée | MVP |
 | F7.2 | SOS envie **conversationnel** (IA) | V2 |
 | F7.3 | Bilan du soir et ajustement proposé | V2 |
 | F7.4 | Analyse bienveillante d'un faux pas | V2 |

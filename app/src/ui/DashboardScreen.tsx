@@ -15,6 +15,7 @@ interface Props {
   onEffacer: () => void;
   /** Appelé quand le compte à rebours arrive à zéro (pour rafraîchir l'état). */
   onEcheance: () => void;
+  onSos: () => void;
 }
 
 const heure = (t: number, tz: string) =>
@@ -145,7 +146,7 @@ function Pastille({ valeur, libelle, ton = 'neutre' }: InfoPastille) {
 const duree = (m: number | null) => (m === null || m <= 0 ? '—' : formatDuree(m));
 
 export function DashboardScreen(props: Props) {
-  const { tdb, onFume, onResiste, onAnnuler, onPalier, onDemarrerPlan, onEffacer } = props;
+  const { tdb, onFume, onResiste, onAnnuler, onPalier, onDemarrerPlan, onEffacer, onSos } = props;
   const obs = tdb.observation;
   const top = tdb.analyse.declencheurs[0];
   const heureRisque = tdb.analyse.heuresARisque[0];
@@ -207,9 +208,14 @@ export function DashboardScreen(props: Props) {
         <Pressable style={styles.bouton} onPress={onFume} accessibilityRole="button">
           <Text style={styles.boutonTexte}>J’ai fumé</Text>
         </Pressable>
-        <Pressable style={[styles.bouton, styles.boutonSecondaire]} onPress={onResiste} accessibilityRole="button">
-          <Text style={[styles.boutonTexte, styles.boutonTexteSecondaire]}>J’ai résisté à une envie</Text>
-        </Pressable>
+        <View style={styles.ligneBoutons}>
+          <Pressable style={[styles.bouton, styles.boutonSecondaire, styles.boutonDemi]} onPress={onSos} accessibilityRole="button">
+            <Text style={[styles.boutonTexte, styles.boutonTexteSecondaire]}>SOS envie</Text>
+          </Pressable>
+          <Pressable style={[styles.bouton, styles.boutonSecondaire, styles.boutonDemi]} onPress={onResiste} accessibilityRole="button">
+            <Text style={[styles.boutonTexte, styles.boutonTexteSecondaire]}>J’ai résisté</Text>
+          </Pressable>
+        </View>
         <View style={styles.liens}>
           <Pressable onPress={onAnnuler} accessibilityRole="button" hitSlop={8}>
             <Text style={styles.lien}>Annuler</Text>
@@ -276,7 +282,9 @@ const styles = StyleSheet.create({
 
   actions: { paddingBottom: espace(1) },
   bouton: { backgroundColor: couleurs.vert, borderRadius: 16, paddingVertical: espace(4), alignItems: 'center' },
-  boutonSecondaire: { backgroundColor: couleurs.carte, borderWidth: 2, borderColor: couleurs.vert, marginTop: espace(2) },
+  boutonSecondaire: { backgroundColor: couleurs.carte, borderWidth: 2, borderColor: couleurs.vert },
+  ligneBoutons: { flexDirection: 'row', gap: espace(2), marginTop: espace(2) },
+  boutonDemi: { flex: 1 },
   boutonTexte: { color: '#FFFFFF', fontSize: 18, fontWeight: '700' },
   boutonTexteSecondaire: { color: couleurs.vert },
   liens: { flexDirection: 'row', justifyContent: 'center', gap: espace(5), marginTop: espace(3) },

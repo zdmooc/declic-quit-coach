@@ -21,11 +21,12 @@
 
 | Élément | État |
 |---|---|
-| Domaine : observation 3 jours, journées définies par les cigarettes, habitudes, déclencheurs, plan −1/jour, intervalles, économies, substituts, jalons, notifications | ✅ codé, 83 tests (dont tests par propriétés) |
+| Domaine : observation 3 jours, journées définies par les cigarettes, habitudes, déclencheurs, plan −1/jour, intervalles, économies, substituts, jalons, notifications | ✅ codé, 84 tests (dont tests par propriétés) |
 | Cas d'usage (`Declic`) et ports | ✅ |
 | Écrans : profil, page unique (compte à rebours, pastilles, actions), observation et bilan, « J'ai fumé » + contexte, palier | ✅ prototype |
 | Stockage | ✅ SQLite sur le téléphone, les données survivent à la fermeture · ⚠️ **non chiffré** dans Expo Go (chiffrement avec le premier build de développement) |
-| Notifications | ⚠️ calculées mais pas encore programmées sur le téléphone (expo-notifications : prochaine étape) |
+| Notifications | ✅ locales sur le téléphone (expo-notifications), avec boutons « J'ai fumé » / « J'ai résisté » ; pendant l'observation, seul le « bilan prêt » est notifié |
+| SOS envie | ✅ respiration guidée 3 min, raisons d'arrêter, envie résistée |
 | Tables pharmacologique et santé | ⚠️ brouillons non validés : maximums et jalons santé inactifs |
 | Coach IA, montre | ⏳ V2 |
 

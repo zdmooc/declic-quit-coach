@@ -142,6 +142,11 @@ export class Declic {
     return cle;
   }
 
+  /** Ajoute une raison personnelle d'arrêter, rappelée pendant le SOS envie. */
+  ajouterRaison(texte: string): Promise<void> {
+    return this.ajouter(this.evenement('RaisonAjoutee', { texte: texte.trim() }));
+  }
+
   enregistrerEnvieResistee(strategieUtilisee?: string, source: Source = 'phone'): Promise<void> {
     return this.ajouter(this.evenement('EnvieResistee', strategieUtilisee ? { strategieUtilisee } : {}, source));
   }

@@ -78,6 +78,8 @@ export interface EtatJournal {
   objectifs: { libelle: string; montantCents: number }[];
   /** Contextes ajoutés par l'utilisateur (RM-16). */
   contextesPerso: ContextePerso[];
+  /** Raisons personnelles d'arrêter (SOS envie). */
+  raisons: string[];
   /** Dernier événement saisi par l'utilisateur (pour « annuler »). */
   derniereSaisieId: string | null;
   derniereCigaretteId: string | null;
@@ -116,6 +118,7 @@ export function rejouer(events: readonly DomainEvent[], tz: string): EtatJournal
     oraux: [],
     objectifs: [],
     contextesPerso: [],
+    raisons: [],
     derniereSaisieId: null,
     derniereCigaretteId: null,
   };
@@ -188,6 +191,9 @@ export function rejouer(events: readonly DomainEvent[], tz: string): EtatJournal
         break;
       case 'ObjectifEpargneDefini':
         etat.objectifs.push({ libelle: e.payload.libelle, montantCents: e.payload.montantCents });
+        break;
+      case 'RaisonAjoutee':
+        etat.raisons.push(e.payload.texte.trim());
         break;
       case 'ContexteAjoute':
         if (!etat.contextesPerso.some((c) => c.cle === e.payload.cle)) {
@@ -383,6 +389,8 @@ export interface TableauDeBord {
   analyse: Analyse;
   /** Contextes personnels à proposer dans la feuille de contexte. */
   contextesPerso: ContextePerso[];
+  /** Raisons personnelles d'arrêter, rappelées pendant le SOS envie. */
+  raisons: string[];
   /** Fenêtre de comptage de la journée (pour les notifications). */
   fenetreJour: Fenetre;
   /** Début du comptage des économies du jour (fenêtre, ou démarrage du plan le jour 0). */
@@ -423,6 +431,7 @@ export function tableauDeBord(etat: EtatJournal, maintenant: Instant, tz: string
       etat.contextesPerso,
     ),
     contextesPerso: etat.contextesPerso,
+    raisons: etat.raisons,
     fenetreJour: fenetre,
     derniereCigaretteId: etat.derniereCigaretteId,
   };

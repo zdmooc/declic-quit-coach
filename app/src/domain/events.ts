@@ -67,6 +67,8 @@ export type CigaretteFumee = Base<
 >;
 /** Nouveau contexte saisi par l'utilisateur, proposé ensuite comme les autres (RM-16). */
 export type ContexteAjoute = Base<'ContexteAjoute', { cle: `perso:${string}`; libelle: string }>;
+/** Une raison personnelle d'arrêter, rappelée pendant le SOS envie (F7.1). */
+export type RaisonAjoutee = Base<'RaisonAjoutee', { texte: string }>;
 export type EnvieResistee = Base<'EnvieResistee', { strategieUtilisee?: string }>;
 export type SaisieAnnulee = Base<'SaisieAnnulee', { evenementId: string }>;
 /** Précise une cigarette après coup : contexte (RM-16) et/ou heure réelle. */
@@ -99,6 +101,7 @@ export type DomainEvent =
   | SaisieAnnulee
   | CigaretteCorrigee
   | ContexteAjoute
+  | RaisonAjoutee
   | PatchPose
   | PatchRetire
   | SubstitutOralPris
@@ -155,6 +158,9 @@ export function validateEvent(e: DomainEvent): string[] {
       if (!e.payload.cle.startsWith('perso:')) errors.push('clé de contexte invalide');
       if (e.payload.libelle.trim().length < 1 || e.payload.libelle.trim().length > 30)
         errors.push('libellé de contexte : 1 à 30 caractères');
+      break;
+    case 'RaisonAjoutee':
+      if (e.payload.texte.trim().length < 1 || e.payload.texte.trim().length > 120) errors.push('raison : 1 à 120 caractères');
       break;
     case 'PrixModifie':
       if (!isInt(e.payload.prixPaquetCents) || e.payload.prixPaquetCents <= 0) errors.push('prixPaquetCents invalide');
