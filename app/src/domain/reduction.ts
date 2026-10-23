@@ -35,6 +35,11 @@ function strategieActive(plan: PlanInput, jour: LocalDate): { depuis: LocalDate;
   return active;
 }
 
+/** Stratégie en vigueur un jour donné (y compris un changement programmé pour ce jour). */
+export function strategieCourante(plan: PlanInput, jour: LocalDate): ReductionStrategy {
+  return strategieActive(plan, jour).strategie;
+}
+
 /**
  * Quota de chaque jour, du premier jour du plan jusqu'à `jusquAu` inclus.
  * Le quota ne remonte jamais ; un jour de palier garde le quota de la veille.

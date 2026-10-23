@@ -14,6 +14,8 @@ interface Props {
   visible: boolean;
   contextesPerso: readonly ContextePerso[];
   onChoisir: (precision: Precision) => void;
+  /** Afficher le choix « C'était il y a… » (faux pour une cigarette passée, depuis l'historique). */
+  avecMoment?: boolean;
 }
 
 const MOMENTS: { libelle: string; minutes: number }[] = [
@@ -30,7 +32,7 @@ const LONGUEUR_MAX = 30;
  * « + Ajouter un contexte » ouvre un champ de saisie ; le contexte saisi est ensuite proposé
  * comme les autres. « Passer » ferme sans contexte.
  */
-export function ContexteSheet({ visible, contextesPerso, onChoisir }: Props) {
+export function ContexteSheet({ visible, contextesPerso, onChoisir, avecMoment = true }: Props) {
   const [ilYa, setIlYa] = useState(0);
   const [saisie, setSaisie] = useState<string | null>(null);
 
@@ -94,7 +96,8 @@ export function ContexteSheet({ visible, contextesPerso, onChoisir }: Props) {
             </View>
           )}
 
-          <Text style={styles.section}>C’était</Text>
+          {avecMoment && <Text style={styles.section}>C’était</Text>}
+          {avecMoment && (
           <View style={styles.grille}>
             {MOMENTS.map((m) => (
               <Pressable
@@ -108,6 +111,7 @@ export function ContexteSheet({ visible, contextesPerso, onChoisir }: Props) {
               </Pressable>
             ))}
           </View>
+          )}
           <Pressable style={styles.passer} onPress={() => fermer()} accessibilityRole="button">
             <Text style={styles.passerTexte}>Passer</Text>
           </Pressable>

@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, Share, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { getRandomValues } from 'expo-crypto';
 import * as SQLite from 'expo-sqlite';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Declic, type NouveauProfil } from './src/application/declic';
+import { Declic, type NouveauProfil, type Reglages } from './src/application/declic';
 import { MemoryNotifier, SystemClock, UuidV7Generator } from './src/adapters/memory';
 import { modulesNotificationsManquants } from './src/adapters/notificationsDisponibles';
 import type { Notifier } from './src/ports';
 import { SqliteEventStore } from './src/adapters/sqlite';
-import type { ContenuSante, ReferencePharma, TableauDeBord } from './src/domain';
+import type { ContenuSante, JourneeHistorique, ReferencePharma, TableauDeBord } from './src/domain';
+import { HistoriqueScreen } from './src/ui/HistoriqueScreen';
+import { ReglagesScreen } from './src/ui/ReglagesScreen';
 import { ContexteSheet, type Precision } from './src/ui/ContexteSheet';
 import { DashboardScreen } from './src/ui/DashboardScreen';
 import { OnboardingScreen } from './src/ui/OnboardingScreen';
@@ -75,6 +77,9 @@ export default function App() {
   /** Cigarette qui vient d'être enregistrée et dont on demande le contexte. */
   const [aPreciser, setAPreciser] = useState<string | null>(null);
   const [sos, setSos] = useState(false);
+  /** Écrans secondaires ouverts par-dessus la page principale. */
+  const [historique, setHistorique] = useState<JourneeHistorique[] | null>(null);
+  const [reglages, setReglages] = useState<Reglages | null>(null);
   /** Réponses aux notifications déjà traitées (une action ne doit compter qu'une fois). */
   const reponsesTraitees = useRef(new Set<string>());
 
@@ -176,8 +181,36 @@ export default function App() {
   const onEffacer = () =>
     Alert.alert('Effacer toutes mes données ?', 'Ton profil, ton historique et ton plan seront supprimés de ce téléphone.', [
       { text: 'Annuler', style: 'cancel' },
-      { text: 'Effacer', style: 'destructive', onPress: () => void agir(() => declic.effacerToutesLesDonnees())() },
+      {
+        text: 'Effacer',
+        style: 'destructive',
+        onPress: () =>
+          void agir(async () => {
+            await declic.effacerToutesLesDonnees();
+            setReglages(null);
+            setHistorique(null);
+          })(),
+      },
     ]);
+
+  const ouvrirHistorique = async () => setHistorique(await declic.historique(60));
+  const ouvrirReglages = async () => setReglages(await declic.reglages());
+  /** Exécute une action depuis un écran secondaire, puis rafraîchit l'écran et la page principale. */
+  const depuisHistorique = (action: () => Promise<unknown>) =>
+    void agir(async () => {
+      await action();
+      setHistorique(await declic.historique(60));
+    })();
+  const depuisReglages = (action: () => Promise<unknown>) =>
+    void agir(async () => {
+      await action();
+      setReglages(await declic.reglages());
+    })();
+
+  const onExporter = async () => {
+    const donnees = await declic.exporterDonnees();
+    await Share.share({ title: 'Export Déclic', message: donnees });
+  };
 
   return (
     <SafeAreaProvider>
@@ -194,10 +227,40 @@ export default function App() {
           onAnnuler={agir(() => declic.annulerDerniereSaisie())}
           onPalier={agir(() => declic.demanderPalier())}
           onDemarrerPlan={agir(() => declic.demarrerPlan())}
-          onEffacer={onEffacer}
+          onHistorique={() => void ouvrirHistorique()}
+          onReglages={() => void ouvrirReglages()}
           onEcheance={() => void rafraichir()}
           onSos={() => setSos(true)}
           notificationsIndisponibles={app.notifications === null}
+        />
+      )}
+      {historique && (
+        <HistoriqueScreen
+          journees={historique}
+          tz={clock.timeZone()}
+          contextesPerso={tdb?.contextesPerso ?? []}
+          onFermer={() => setHistorique(null)}
+          onSupprimer={(id) => depuisHistorique(() => declic.annulerSaisie(id))}
+          onPreciser={(id, { nouveauContexte, contexte }) =>
+            depuisHistorique(async () => {
+              const c = nouveauContexte ? await declic.ajouterContexte(nouveauContexte) : contexte;
+              if (c) await declic.preciserCigarette(id, { contexte: c });
+            })
+          }
+        />
+      )}
+      {reglages && (
+        <ReglagesScreen
+          reglages={reglages}
+          onFermer={() => setReglages(null)}
+          onPrix={(p, n) => depuisReglages(() => declic.modifierPrix(p, n))}
+          onIntervalle={(m) => depuisReglages(() => declic.modifierIntervalleRecommande(m))}
+          onRythme={(st) => depuisReglages(() => declic.modifierRythme(st))}
+          onRenommerContexte={(cle, l) => depuisReglages(() => declic.renommerContexte(cle, l))}
+          onArchiverContexte={(cle) => depuisReglages(() => declic.archiverContexte(cle))}
+          onDemarrerPlan={() => depuisReglages(() => declic.demarrerPlan())}
+          onExporter={() => void onExporter()}
+          onEffacer={onEffacer}
         />
       )}
       {sos && (

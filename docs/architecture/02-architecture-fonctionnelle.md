@@ -58,7 +58,8 @@ Priorités : **MVP** = première version publiable ; **V2** = coach IA et montre
 | F2.2 | Calculer l'intervalle cible et la prochaine cigarette conseillée (RM-02, RM-03) | MVP |
 | F2.3 | Proposer un palier en cas de dépassement (RM-04) | MVP |
 | F2.4 | Visualiser le plan complet (courbe jusqu'à zéro) | MVP |
-| F2.5 | Modifier le rythme en cours de route | MVP |
+| F2.5 | Modifier le rythme en cours de route (Réglages ; effet le lendemain) | MVP |
+| F2.6 | Réglages : prix du paquet (à partir du jour même, RM-06), intervalle recommandé d'observation (30 min à 2 h), contextes personnels (renommer, retirer), démarrage du plan | MVP |
 
 ### F3 — Journal
 
@@ -68,7 +69,7 @@ Priorités : **MVP** = première version publiable ; **V2** = coach IA et montre
 | F3.2 | Contexte proposé en un tap après chaque cigarette (RM-16), avec « Passer » ; « + Ajouter un contexte » ouvre un champ de saisie, le nouveau contexte rejoint la liste | MVP |
 | F3.6 | Correction de l'heure d'une saisie tardive (« il y a 10 min / 30 min / 1 h ») | MVP |
 | F3.3 | Bouton « J'ai résisté » : enregistrer une envie surmontée et la stratégie utilisée | MVP |
-| F3.4 | Historique et annulation (erreur de saisie) | MVP |
+| F3.4 | Historique : graphique des 14 derniers jours (fumées / quota), détail par journée (heure, contexte, intervalle tenu ou non), changer le contexte ou supprimer une cigarette passée | MVP |
 | F3.5 | Analyse des déclencheurs (top 3, en %) et des heures à risque sur 14 jours | MVP |
 
 ### F4 — Substituts nicotiniques
@@ -134,7 +135,7 @@ Règles transverses : plafond de 4 notifications non critiques par jour, heures 
 
 | ID | Fonction | Priorité |
 |---|---|---|
-| F9.1 | Export complet des données (JSON chiffré) | MVP |
+| F9.1 | Export complet des données : JSON partagé via la feuille de partage du téléphone (chiffrement de l'export : à faire) | MVP |
 | F9.2 | Suppression totale en un geste | MVP |
 | F9.3 | Verrouillage de l'app (Face ID, empreinte) | MVP |
 | F9.4 | Gestion des consentements | MVP |

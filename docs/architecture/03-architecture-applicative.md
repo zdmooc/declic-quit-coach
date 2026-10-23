@@ -95,6 +95,9 @@ Règle de dépendance : **les flèches pointent vers le domaine**. Le domaine ne
 | `SaisieAnnulee` | id de l'événement annulé | Journal |
 | `CigaretteCorrigee` | id de la cigarette, contexte?, heure réelle? | Feuille de contexte |
 | `ContexteAjoute` | clé `perso:<id>`, libellé | Feuille de contexte (« + Ajouter un contexte ») |
+| `ContexteRenomme` / `ContexteArchive` | clé, libellé | Réglages |
+| `IntervalleRecommandeModifie` | minutes (10 à 240) | Réglages |
+| `RaisonAjoutee` | texte | SOS envie |
 | `PatchPose` / `PatchRetire` | dosage, durée de port, site | Substituts |
 | `PastillePrise` / `GommePrise` | dosage, horodatage | Substituts, montre |
 | `PrixModifie` | nouveau prix, date d'effet | Réglages |

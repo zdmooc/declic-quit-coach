@@ -5,7 +5,7 @@
  * Les journées sont définies par les cigarettes (RM-14, ADR-0008), pas par l'horloge.
  */
 
-import { analyser, type Analyse, type ContextePerso } from './analyse';
+import { analyser, libelleContexte, type Analyse, type ContextePerso } from './analyse';
 import { effectiveEvents, instantOf, type ContexteCigarette, type DomainEvent, type TypeSubstitutOral } from './events';
 import { DUREE_ACTIVE_PAR_DEFAUT, mesurerHabitudes, type Habitudes } from './habitudes';
 import {
@@ -13,6 +13,7 @@ import {
   plusLonguePauseMinutes,
   prochaineCigarette,
   respectIntervalle,
+  TOLERANCE_INTERVALLE_MINUTES,
   type RespectIntervalle,
   type StatutProchaine,
 } from './intervals';
@@ -78,6 +79,8 @@ export interface EtatJournal {
   objectifs: { libelle: string; montantCents: number }[];
   /** Contextes ajoutés par l'utilisateur (RM-16). */
   contextesPerso: ContextePerso[];
+  /** Intervalle recommandé pendant l'observation (réglage). */
+  intervalleRecommande: number;
   /** Raisons personnelles d'arrêter (SOS envie). */
   raisons: string[];
   /** Dernier événement saisi par l'utilisateur (pour « annuler »). */
@@ -118,6 +121,7 @@ export function rejouer(events: readonly DomainEvent[], tz: string): EtatJournal
     oraux: [],
     objectifs: [],
     contextesPerso: [],
+    intervalleRecommande: INTERVALLE_RECOMMANDE_OBSERVATION_MINUTES,
     raisons: [],
     derniereSaisieId: null,
     derniereCigaretteId: null,
@@ -194,6 +198,19 @@ export function rejouer(events: readonly DomainEvent[], tz: string): EtatJournal
         break;
       case 'RaisonAjoutee':
         etat.raisons.push(e.payload.texte.trim());
+        break;
+      case 'ContexteRenomme': {
+        const c = etat.contextesPerso.find((x) => x.cle === e.payload.cle);
+        if (c) c.libelle = e.payload.libelle.trim();
+        break;
+      }
+      case 'ContexteArchive': {
+        const c = etat.contextesPerso.find((x) => x.cle === e.payload.cle);
+        if (c) c.archive = true;
+        break;
+      }
+      case 'IntervalleRecommandeModifie':
+        etat.intervalleRecommande = e.payload.minutes;
         break;
       case 'ContexteAjoute':
         if (!etat.contextesPerso.some((c) => c.cle === e.payload.cle)) {
@@ -430,7 +447,7 @@ export function tableauDeBord(etat: EtatJournal, maintenant: Instant, tz: string
       3,
       etat.contextesPerso,
     ),
-    contextesPerso: etat.contextesPerso,
+    contextesPerso: etat.contextesPerso.filter((c) => !c.archive),
     raisons: etat.raisons,
     fenetreJour: fenetre,
     derniereCigaretteId: etat.derniereCigaretteId,
@@ -450,12 +467,12 @@ export function tableauDeBord(etat: EtatJournal, maintenant: Instant, tz: string
         maintenant,
         quota: Number.POSITIVE_INFINITY,
         fumeesAujourdhui: duJour.map((c) => c.a),
-        intervalleMinutes: INTERVALLE_RECOMMANDE_OBSERVATION_MINUTES,
+        intervalleMinutes: etat.intervalleRecommande,
       }),
       sourceIntervalle: 'habitude',
       respect: respectIntervalle(
         duJour.map((c) => c.a),
-        INTERVALLE_RECOMMANDE_OBSERVATION_MINUTES,
+        etat.intervalleRecommande,
       ),
       intervalleCibleMinutes: null,
       plusLonguePauseMinutes: plusLonguePauseMinutes(toutes, maintenant, Math.min(etat.profilCreeLe, maintenant)),
@@ -540,3 +557,76 @@ export const INTERVALLE_RECOMMANDE_OBSERVATION_MINUTES = 60;
 /** Instant de l'heure habituelle de début d'une journée (message du matin). */
 export const debutHabituelDe = (etat: EtatJournal, jour: LocalDate, tz: string): Instant =>
   zonedInstant(jour, (etat.plan?.horaires ?? HORAIRES_PAR_DEFAUT).wake, tz);
+
+/* ------------------------------------------------------------------ */
+/* Historique détaillé (écran Historique)                               */
+/* ------------------------------------------------------------------ */
+
+export interface CigaretteHistorique {
+  id: string;
+  a: Instant;
+  contexte?: ContexteCigarette;
+  libelleContexte?: string;
+  /** Respect de l'intervalle par rapport à la précédente (RM-18) ; `null` pour la première de la journée. */
+  respectee: boolean | null;
+}
+
+export interface JourneeHistorique {
+  jour: LocalDate;
+  enPlan: boolean;
+  fumees: number;
+  quota: number | null;
+  intervalleMinutes: number | null;
+  respectees: number;
+  nonRespectees: number;
+  /** Économie de la journée terminée (plan seulement) ; `null` pour la journée en cours ou en observation. */
+  economieCents: number | null;
+  envies: number;
+  cigarettes: CigaretteHistorique[];
+}
+
+/** Journées, de la plus récente à la plus ancienne (au plus `nbJours`), avec leurs cigarettes. */
+export function historiqueJournees(etat: EtatJournal, maintenant: Instant, tz: string, nbJours = 30): JourneeHistorique[] {
+  const aujourdhui = journeeCourante(etat, maintenant, tz);
+  const plan = etat.plan;
+  const lignesPlan = new Map(historiqueQuotidien(etat, aujourdhui).map((l) => [l.jour, l]));
+  const jours = new Set<LocalDate>(etat.cigarettes.map((c) => c.jour));
+  jours.add(aujourdhui);
+  for (const l of lignesPlan.keys()) jours.add(l);
+  const tries = [...jours].filter((j) => daysBetween(j, aujourdhui) >= 0).sort().reverse().slice(0, nbJours);
+
+  return tries.map((jour) => {
+    const enPlan = plan !== null && daysBetween(plan.input.dateDebut, jour) >= 0;
+    const comptees = enPlan ? fumeesDuJour(etat, jour) : etat.cigarettes.filter((c) => c.jour === jour);
+    const liste = [...comptees].sort((x, y) => x.a - y.a);
+    const intervalle =
+      enPlan && plan
+        ? intervalleCibleMinutes(dureeActive(plan.horaires), quotaDuJour(plan.input, jour))
+        : etat.intervalleRecommande;
+    const cigarettes: CigaretteHistorique[] = liste.map((c, i) => ({
+      id: c.id,
+      a: c.a,
+      ...(c.contexte ? { contexte: c.contexte, libelleContexte: libelleContexte(c.contexte, etat.contextesPerso) } : {}),
+      respectee:
+        i === 0 || intervalle === null
+          ? null
+          : minutesBetween(liste[i - 1]!.a, c.a) >= intervalle - TOLERANCE_INTERVALLE_MINUTES,
+    }));
+    const respect = respectIntervalle(
+      liste.map((c) => c.a),
+      intervalle,
+    );
+    return {
+      jour,
+      enPlan,
+      fumees: liste.length,
+      quota: enPlan ? quotaEffectif(etat, jour) : null,
+      intervalleMinutes: intervalle,
+      respectees: respect.respectees,
+      nonRespectees: respect.nonRespectees,
+      economieCents: lignesPlan.get(jour)?.economieCents ?? null,
+      envies: etat.envies.filter((e) => e.jour === jour).length,
+      cigarettes,
+    };
+  });
+}

@@ -175,3 +175,59 @@ describe('SOS envie', () => {
     expect((await store.all()).at(-1)).toMatchObject({ type: 'EnvieResistee', payload: { strategieUtilisee: 'respiration' } });
   });
 });
+
+describe('historique et réglages', () => {
+  it('historique : journées, respect de l\'intervalle, contexte ; suppression d\'une saisie', async () => {
+    const { app, clock } = monter();
+    await app.creerProfil(PROFIL);
+    clock.avancerMinutes(60); // 7 h 30
+    const premiere = await app.enregistrerCigarette('cafe');
+    clock.avancerMinutes(30);
+    const deuxieme = await app.enregistrerCigarette();
+    clock.avancerMinutes(70);
+    await app.enregistrerCigarette('stress');
+    let h = await app.historique();
+    expect(h).toHaveLength(1);
+    expect(h[0]).toMatchObject({ jour: '2026-11-02', enPlan: false, fumees: 3, quota: null, intervalleMinutes: 60, respectees: 1, nonRespectees: 1 });
+    expect(h[0]!.cigarettes.map((c) => c.respectee)).toEqual([null, false, true]);
+    expect(h[0]!.cigarettes[0]).toMatchObject({ id: premiere, libelleContexte: 'Café' });
+
+    await app.annulerSaisie(deuxieme);
+    h = await app.historique();
+    expect(h[0]).toMatchObject({ fumees: 2, respectees: 1, nonRespectees: 0 });
+  });
+
+  it('réglages : prix, intervalle recommandé, rythme, contextes perso, export', async () => {
+    const { app, clock } = monter();
+    await app.creerProfil(PROFIL);
+    let r = (await app.reglages())!;
+    expect(r).toMatchObject({ prixPaquetCents: 1300, cigarettesParPaquet: 20, intervalleRecommande: 60, planDemarre: false, strategie: null });
+
+    await app.modifierPrix(1400, 20);
+    await app.modifierIntervalleRecommande(45);
+    await expect(app.modifierIntervalleRecommande(5)).rejects.toThrow(/invalide/);
+    clock.avancerMinutes(60);
+    await app.enregistrerCigarette();
+    let tdb = (await app.tableauDeBord())!;
+    expect(tdb.prochaine).toMatchObject({ statut: 'attendre', resteMinutes: 45 });
+
+    const cle = (await app.ajouterContexte('Au volant')) as `perso:${string}`;
+    await app.renommerContexte(cle, 'En voiture');
+    r = (await app.reglages())!;
+    expect(r).toMatchObject({ prixPaquetCents: 1400, intervalleRecommande: 45, contextesPerso: [{ cle, libelle: 'En voiture' }] });
+    await app.archiverContexte(cle);
+    expect((await app.reglages())!.contextesPerso).toEqual([]);
+    expect((await app.tableauDeBord())!.contextesPerso).toEqual([]);
+
+    await app.modifierRythme({ kind: 'pas', pas: 1, periodeJours: 7 }); // sans plan : sans effet
+    await app.demarrerPlan();
+    await app.modifierRythme({ kind: 'pas', pas: 1, periodeJours: 7 });
+    expect((await app.reglages())!.strategie).toEqual({ kind: 'pas', pas: 1, periodeJours: 7 });
+    tdb = (await app.tableauDeBord())!;
+    expect(tdb.phase).toBe('reduction');
+
+    const exp = JSON.parse(await app.exporterDonnees()) as { format: string; events: unknown[] };
+    expect(exp.format).toBe('declic-export');
+    expect(exp.events.length).toBeGreaterThan(5);
+  });
+});

@@ -12,7 +12,8 @@ interface Props {
   onAnnuler: () => void;
   onPalier: () => void;
   onDemarrerPlan: () => void;
-  onEffacer: () => void;
+  onHistorique: () => void;
+  onReglages: () => void;
   /** Appelé quand le compte à rebours arrive à zéro (pour rafraîchir l'état). */
   onEcheance: () => void;
   onSos: () => void;
@@ -148,7 +149,7 @@ function Pastille({ valeur, libelle, ton = 'neutre' }: InfoPastille) {
 const duree = (m: number | null) => (m === null || m <= 0 ? '—' : formatDuree(m));
 
 export function DashboardScreen(props: Props) {
-  const { tdb, onFume, onResiste, onAnnuler, onPalier, onDemarrerPlan, onEffacer, onSos } = props;
+  const { tdb, onFume, onResiste, onAnnuler, onPalier, onHistorique, onReglages, onSos } = props;
   const obs = tdb.observation;
   const top = tdb.analyse.declencheurs[0];
   const heureRisque = tdb.analyse.heuresARisque[0];
@@ -224,13 +225,11 @@ export function DashboardScreen(props: Props) {
           <Pressable onPress={onAnnuler} accessibilityRole="button" hitSlop={8}>
             <Text style={styles.lien}>Annuler</Text>
           </Pressable>
-          {tdb.phase === 'observation' && !obs?.terminee && (
-            <Pressable onPress={onDemarrerPlan} accessibilityRole="button" hitSlop={8}>
-              <Text style={styles.lien}>Démarrer le plan maintenant</Text>
-            </Pressable>
-          )}
-          <Pressable onPress={onEffacer} accessibilityRole="button" hitSlop={8}>
-            <Text style={styles.lien}>Effacer</Text>
+          <Pressable onPress={onHistorique} accessibilityRole="button" hitSlop={8}>
+            <Text style={styles.lien}>Historique</Text>
+          </Pressable>
+          <Pressable onPress={onReglages} accessibilityRole="button" hitSlop={8}>
+            <Text style={styles.lien}>Réglages</Text>
           </Pressable>
         </View>
         <Text style={styles.mention}>

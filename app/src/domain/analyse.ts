@@ -23,6 +23,8 @@ export const CONTEXTES: ContextePredefini[] = ['cafe', 'stress', 'repas', 'alcoo
 export interface ContextePerso {
   cle: `perso:${string}`;
   libelle: string;
+  /** Archivé : n'est plus proposé, mais reste connu pour l'historique et l'analyse. */
+  archive?: boolean;
 }
 
 /** Libellé d'un contexte, prédéfini ou personnel. */

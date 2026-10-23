@@ -3,7 +3,11 @@
  */
 
 import {
+  addDays,
   genererCandidates,
+  historiqueJournees,
+  prixDuJour,
+  strategieCourante,
   LIBELLES_CONTEXTE,
   MOINS_UN_PAR_JOUR,
   planifier,
@@ -15,7 +19,9 @@ import {
   type Candidate,
   type ContenuSante,
   type ContexteCigarette,
+  type ContextePerso,
   type ContextePredefini,
+  type JourneeHistorique,
   type DomainEvent,
   type EtatJournal,
   type PreferencesNotif,
@@ -34,6 +40,15 @@ export interface DeclicDeps {
   referencePharma: ReferencePharma;
   contenuSante: ContenuSante;
   preferencesNotif?: PreferencesNotif;
+}
+
+export interface Reglages {
+  prixPaquetCents: number;
+  cigarettesParPaquet: number;
+  intervalleRecommande: number;
+  planDemarre: boolean;
+  strategie: ReductionStrategy | null;
+  contextesPerso: ContextePerso[];
 }
 
 export interface NouveauProfil {
@@ -149,6 +164,70 @@ export class Declic {
 
   enregistrerEnvieResistee(strategieUtilisee?: string, source: Source = 'phone'): Promise<void> {
     return this.ajouter(this.evenement('EnvieResistee', strategieUtilisee ? { strategieUtilisee } : {}, source));
+  }
+
+  /** Supprime une saisie précise depuis l'historique (elle reste dans le journal, annulée). */
+  annulerSaisie(evenementId: string): Promise<void> {
+    return this.ajouter(this.evenement('SaisieAnnulee', { evenementId }));
+  }
+
+  /* ---------------- Réglages ---------------- */
+
+  /** Nouveau prix du paquet, à partir de la journée en cours (le passé n'est pas réécrit, RM-06). */
+  async modifierPrix(prixPaquetCents: number, cigarettesParPaquet: number): Promise<void> {
+    const tdb = await this.tableauDeBord();
+    if (!tdb) return;
+    await this.ajouter(this.evenement('PrixModifie', { prixPaquetCents, cigarettesParPaquet, aPartirDu: tdb.jour }));
+  }
+
+  /** Nouveau rythme de réduction, à partir de la journée suivante. */
+  async modifierRythme(strategie: ReductionStrategy): Promise<void> {
+    const etat = await this.etat();
+    const tdb = await this.tableauDeBord();
+    if (!etat?.plan || !tdb) return;
+    await this.ajouter(this.evenement('RythmeModifie', { aPartirDu: addDays(tdb.jour, 1), strategie }));
+  }
+
+  /** Intervalle recommandé pendant l'observation (10 à 240 min). */
+  modifierIntervalleRecommande(minutes: number): Promise<void> {
+    return this.ajouter(this.evenement('IntervalleRecommandeModifie', { minutes }));
+  }
+
+  renommerContexte(cle: `perso:${string}`, libelle: string): Promise<void> {
+    return this.ajouter(this.evenement('ContexteRenomme', { cle, libelle: libelle.trim().replace(/\s+/g, ' ') }));
+  }
+
+  archiverContexte(cle: `perso:${string}`): Promise<void> {
+    return this.ajouter(this.evenement('ContexteArchive', { cle }));
+  }
+
+  /** Export complet du journal (JSON), pour sauvegarde ou portabilité (F9.1, RGPD). */
+  async exporterDonnees(): Promise<string> {
+    const events = await this.deps.store.all();
+    return JSON.stringify({ format: 'declic-export', version: 1, exporteLe: new Date(this.deps.clock.now()).toISOString(), events }, null, 2);
+  }
+
+  /** Historique détaillé des journées (écran Historique). */
+  async historique(nbJours = 30): Promise<JourneeHistorique[]> {
+    const etat = await this.etat();
+    if (!etat) return [];
+    return historiqueJournees(etat, this.deps.clock.now(), this.deps.clock.timeZone(), nbJours);
+  }
+
+  /** Réglages courants. */
+  async reglages(): Promise<Reglages | null> {
+    const etat = await this.etat();
+    if (!etat) return null;
+    const tdb = await this.tableauDeBord();
+    const prix = prixDuJour(etat.prix, tdb!.jour);
+    return {
+      prixPaquetCents: prix.prixPaquetCents,
+      cigarettesParPaquet: prix.cigarettesParPaquet,
+      intervalleRecommande: etat.intervalleRecommande,
+      planDemarre: etat.plan !== null,
+      strategie: etat.plan ? strategieCourante(etat.plan.input, addDays(tdb!.jour, 1)) : null,
+      contextesPerso: etat.contextesPerso.filter((c) => !c.archive),
+    };
   }
 
   async annulerDerniereSaisie(): Promise<boolean> {

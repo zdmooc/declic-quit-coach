@@ -67,6 +67,11 @@ export type CigaretteFumee = Base<
 >;
 /** Nouveau contexte saisi par l'utilisateur, proposé ensuite comme les autres (RM-16). */
 export type ContexteAjoute = Base<'ContexteAjoute', { cle: `perso:${string}`; libelle: string }>;
+export type ContexteRenomme = Base<'ContexteRenomme', { cle: `perso:${string}`; libelle: string }>;
+/** Le contexte n'est plus proposé ; les cigarettes passées gardent leur libellé. */
+export type ContexteArchive = Base<'ContexteArchive', { cle: `perso:${string}` }>;
+/** Intervalle recommandé pendant l'observation (réglage, 60 min par défaut). */
+export type IntervalleRecommandeModifie = Base<'IntervalleRecommandeModifie', { minutes: number }>;
 /** Une raison personnelle d'arrêter, rappelée pendant le SOS envie (F7.1). */
 export type RaisonAjoutee = Base<'RaisonAjoutee', { texte: string }>;
 export type EnvieResistee = Base<'EnvieResistee', { strategieUtilisee?: string }>;
@@ -102,6 +107,9 @@ export type DomainEvent =
   | CigaretteCorrigee
   | ContexteAjoute
   | RaisonAjoutee
+  | ContexteRenomme
+  | ContexteArchive
+  | IntervalleRecommandeModifie
   | PatchPose
   | PatchRetire
   | SubstitutOralPris
@@ -158,6 +166,14 @@ export function validateEvent(e: DomainEvent): string[] {
       if (!e.payload.cle.startsWith('perso:')) errors.push('clé de contexte invalide');
       if (e.payload.libelle.trim().length < 1 || e.payload.libelle.trim().length > 30)
         errors.push('libellé de contexte : 1 à 30 caractères');
+      break;
+    case 'ContexteRenomme':
+      if (e.payload.libelle.trim().length < 1 || e.payload.libelle.trim().length > 30)
+        errors.push('libellé de contexte : 1 à 30 caractères');
+      break;
+    case 'IntervalleRecommandeModifie':
+      if (!isInt(e.payload.minutes) || e.payload.minutes < 10 || e.payload.minutes > 240)
+        errors.push('intervalle recommandé : 10 à 240 minutes');
       break;
     case 'RaisonAjoutee':
       if (e.payload.texte.trim().length < 1 || e.payload.texte.trim().length > 120) errors.push('raison : 1 à 120 caractères');
