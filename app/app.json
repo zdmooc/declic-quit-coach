@@ -37,7 +37,7 @@
     ],
     "owner": "zizou2030",
     "runtimeVersion": {
-      "policy": "fingerprint"
+      "policy": "appVersion"
     },
     "updates": {
       "url": "https://u.expo.dev/09a9c878-0e9d-4b07-96b5-0f7e634ae204",
