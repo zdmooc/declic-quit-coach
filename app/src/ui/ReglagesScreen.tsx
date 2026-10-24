@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { Reglages } from '../application/declic';
@@ -17,6 +17,8 @@ interface Props {
   onDemarrerPlan: () => void;
   onExporter: () => void;
   onEffacer: () => void;
+  /** Cartes supplémentaires (coach IA). */
+  extra?: ReactNode;
 }
 
 const INTERVALLES = [30, 45, 60, 90, 120];
@@ -165,6 +167,8 @@ export function ReglagesScreen(props: Props) {
               ))
             )}
           </View>
+
+          {props.extra}
 
           <View style={styles.carte}>
             <Text style={styles.petit}>Mes données</Text>

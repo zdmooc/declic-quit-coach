@@ -4,6 +4,7 @@
  * Ton : jamais culpabilisant (RM-11).
  */
 
+import { messagePreventif } from './coach';
 import { debutHabituelDe, dureeActive, type EtatJournal, type TableauDeBord } from './dashboard';
 import { intervalleCibleMinutes } from './intervals';
 import { PALIERS_ECONOMIES_CENTS, prochainsJalons, type ContenuSante } from './milestones';
@@ -107,6 +108,33 @@ export function genererCandidates(
   // Prochain palier d'économies (s'il est atteint aujourd'hui sans autre cigarette).
   const palier = prochainPalierEconomies(etat, tdb, maintenant);
   if (palier) out.push(palier);
+
+  // F6.8 : prévention, 10 min avant l'heure la plus chargée (plan lancé, au moins 7 cigarettes analysées).
+  const preventif = messagePreventif(tdb);
+  const heureRisque = tdb.analyse.heuresARisque[0];
+  if (plan && tdb.phase !== 'avant-debut' && preventif && heureRisque && tdb.analyse.cigarettes >= 7) {
+    for (const jour of [tdb.jour, addDays(tdb.jour, 1)]) {
+      const a = zonedInstant(jour, `${String(heureRisque.heure).padStart(2, '0')}:00`, tz) - 10 * 60_000;
+      if (a <= maintenant) continue;
+      out.push({ cle: `preventif-${jour}`, a, categorie: 'rythme', critique: false, titre: preventif.titre, corps: preventif.texte });
+    }
+  }
+
+  // F7.3 : bilan du soir, à l'heure habituelle de la dernière cigarette (plan lancé).
+  if (plan && tdb.phase !== 'avant-debut') {
+    const a = zonedInstant(tdb.jour, plan.horaires.bed, tz);
+    if (a > maintenant) {
+      out.push({
+        cle: `soir-${tdb.jour}`,
+        a,
+        categorie: 'bilan',
+        critique: false,
+        reportable: false,
+        titre: 'Ton bilan du soir',
+        corps: 'Comment s’est passée ta journée ? Ton coach a préparé un mot pour toi.',
+      });
+    }
+  }
 
   // Bilan hebdomadaire : dimanche à 19 h, une fois le plan lancé.
   for (let i = 0; plan && i < 7; i++) {

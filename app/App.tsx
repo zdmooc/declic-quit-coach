@@ -9,7 +9,11 @@ import { MemoryNotifier, SystemClock, UuidV7Generator } from './src/adapters/mem
 import { modulesNotificationsManquants } from './src/adapters/notificationsDisponibles';
 import type { Notifier } from './src/ports';
 import { SqliteEventStore } from './src/adapters/sqlite';
-import type { ContenuSante, JourneeHistorique, ReferencePharma, TableauDeBord } from './src/domain';
+import { CoachHttp } from './src/adapters/coachHttp';
+import { ReglagesLocaux } from './src/adapters/reglagesLocaux';
+import type { ContenuSante, JourneeHistorique, MessageCoach, ModeCoach, Progres, ReferencePharma, TableauDeBord } from './src/domain';
+import { CoachScreen, ReglageCoach } from './src/ui/CoachScreen';
+import { ProgresScreen } from './src/ui/ProgresScreen';
 import { HistoriqueScreen } from './src/ui/HistoriqueScreen';
 import { ReglagesScreen } from './src/ui/ReglagesScreen';
 import { BandeauMiseAJour } from './src/ui/BandeauMiseAJour';
@@ -29,6 +33,9 @@ interface Application {
   clock: SystemClock;
   /** `null` si les notifications sont indisponibles (Expo Go trop ancien, par exemple). */
   notifications: ModuleNotifications | null;
+  locaux: ReglagesLocaux;
+  /** Adresse du relais du coach IA, si configuré. */
+  urlCoach: string | null;
 }
 
 /** Charge expo-notifications seulement si ses modules natifs sont présents (sinon l'app planterait). */
@@ -57,6 +64,8 @@ async function creerApplication(): Promise<Application> {
   const clock = new SystemClock();
   const db = await SQLite.openDatabaseAsync('declic.db');
   const store = await SqliteEventStore.ouvrir(db);
+  const locaux = await ReglagesLocaux.ouvrir(db);
+  const configCoach = await locaux.configCoach();
   const declic = new Declic({
     store,
     clock,
@@ -66,9 +75,10 @@ async function creerApplication(): Promise<Application> {
     notifier,
     referencePharma: pharma as ReferencePharma,
     contenuSante: sante as ContenuSante,
+    ...(configCoach ? { coachIa: new CoachHttp(configCoach.url, configCoach.jeton) } : {}),
   });
   await declic.replanifierNotifications();
-  return { declic, clock, notifications };
+  return { declic, clock, notifications, locaux, urlCoach: configCoach?.url ?? null };
 }
 
 export default function App() {
@@ -80,6 +90,10 @@ export default function App() {
   const [aPreciser, setAPreciser] = useState<string | null>(null);
   const [sos, setSos] = useState(false);
   const [substituts, setSubstituts] = useState(false);
+  const [progresVue, setProgresVue] = useState<{ progres: Progres; mot: MessageCoach | null } | null>(null);
+  const [coachMode, setCoachMode] = useState<ModeCoach | null>(null);
+  const [urlCoach, setUrlCoach] = useState<string | null>(null);
+  const [coachDispo, setCoachDispo] = useState(false);
   /** Écrans secondaires ouverts par-dessus la page principale. */
   const [historique, setHistorique] = useState<JourneeHistorique[] | null>(null);
   const [reglages, setReglages] = useState<Reglages | null>(null);
@@ -95,7 +109,12 @@ export default function App() {
   const rafraichir = useCallback(async () => {
     if (!app) return;
     setTdb(await app.declic.tableauDeBord());
+    setCoachDispo(await app.declic.coachIaDisponible());
     setChargement(false);
+  }, [app]);
+
+  useEffect(() => {
+    if (app) setUrlCoach(app.urlCoach);
   }, [app]);
 
   useEffect(() => {
@@ -125,6 +144,10 @@ export default function App() {
           setAPreciser(id);
         } else if (action === 'resiste') {
           await app.declic.enregistrerEnvieResistee(undefined, 'notification');
+        } else if (/^(soir|bilan)-/.test(cle)) {
+          // Bilan du soir ou de la semaine : on ouvre directement l'écran Progrès.
+          const [progres, mot] = await Promise.all([app.declic.progres(), app.declic.motDuCoach()]);
+          if (progres) setProgresVue({ progres, mot });
         }
         await rafraichir();
       })();
@@ -190,6 +213,9 @@ export default function App() {
         onPress: () =>
           void agir(async () => {
             await declic.effacerToutesLesDonnees();
+            await app.locaux.effacer();
+            declic.brancherCoach(undefined);
+            setUrlCoach(null);
             setReglages(null);
             setHistorique(null);
           })(),
@@ -197,6 +223,22 @@ export default function App() {
     ]);
 
   const ouvrirHistorique = async () => setHistorique(await declic.historique(60));
+  const ouvrirProgres = async () => {
+    const [progres, mot] = await Promise.all([declic.progres(), declic.motDuCoach()]);
+    if (progres) setProgresVue({ progres, mot });
+  };
+  const depuisProgres = (action: () => Promise<unknown>) =>
+    void agir(async () => {
+      await action();
+      await ouvrirProgres();
+    })();
+  const enregistrerCoach = (url: string, jeton: string) =>
+    void (async () => {
+      await app.locaux.definirConfigCoach({ url, jeton });
+      declic.brancherCoach(new CoachHttp(url, jeton));
+      setUrlCoach(url);
+      await rafraichir();
+    })();
   const ouvrirReglages = async () => setReglages(await declic.reglages());
   /** Exécute une action depuis un écran secondaire, puis rafraîchit l'écran et la page principale. */
   const depuisHistorique = (action: () => Promise<unknown>) =>
@@ -233,6 +275,7 @@ export default function App() {
           onHistorique={() => void ouvrirHistorique()}
           onReglages={() => void ouvrirReglages()}
           onSubstituts={() => setSubstituts(true)}
+          onProgres={() => void ouvrirProgres()}
           onEcheance={() => void rafraichir()}
           onSos={() => setSos(true)}
           notificationsIndisponibles={app.notifications === null}
@@ -276,6 +319,16 @@ export default function App() {
           onDemarrerPlan={() => depuisReglages(() => declic.demarrerPlan())}
           onExporter={() => void onExporter()}
           onEffacer={onEffacer}
+          extra={
+            <ReglageCoach
+              consenti={tdb?.coachIa ?? false}
+              url={urlCoach ?? ''}
+              configure={urlCoach !== null}
+              onEnregistrer={enregistrerCoach}
+              onConsentir={(accorde) => depuisReglages(() => declic.consentirCoachIa(accorde))}
+              onTester={async () => (await declic.parlerAuCoach('soir', [{ role: 'user', texte: 'Test de connexion : dis bonjour en une phrase.' }])).texte}
+            />
+          }
         />
       )}
       {sos && (
@@ -288,7 +341,26 @@ export default function App() {
         }}
         onFermer={() => setSos(false)}
         onAjouterRaison={(texte) => void agir(() => declic.ajouterRaison(texte))()}
+        {...(coachDispo ? { onCoach: () => { setSos(false); setCoachMode('sos'); } } : {})}
       />
+      )}
+      {progresVue && tdb && (
+        <ProgresScreen
+          tdb={tdb}
+          progres={progresVue.progres}
+          mot={progresVue.mot}
+          coachIa={coachDispo}
+          onFermer={() => setProgresVue(null)}
+          onParlerCoach={() => {
+            setProgresVue(null);
+            setCoachMode(tdb.phase === 'arret' || tdb.phase === 'maintien' ? (tdb.fumees > 0 ? 'fauxpas' : 'soir') : 'soir');
+          }}
+          onAjouterObjectif={(l, c) => depuisProgres(() => declic.definirObjectif(l, c))}
+          onRetirerObjectif={(l) => depuisProgres(() => declic.retirerObjectif(l))}
+        />
+      )}
+      {coachMode && (
+        <CoachScreen mode={coachMode} onFermer={() => setCoachMode(null)} envoyer={(tours) => declic.parlerAuCoach(coachMode, tours)} />
       )}
       <ContexteSheet
         visible={aPreciser !== null}

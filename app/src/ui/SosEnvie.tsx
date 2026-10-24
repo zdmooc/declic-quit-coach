@@ -11,6 +11,8 @@ interface Props {
   onResiste: () => void;
   onFermer: () => void;
   onAjouterRaison: (texte: string) => void;
+  /** Ouvre le coach IA (si activé). */
+  onCoach?: () => void;
 }
 
 /** Cohérence cardiaque : 5 s d'inspiration, 5 s d'expiration, pendant 3 minutes. */
@@ -22,7 +24,7 @@ const DUREE_S = 180;
  * puis « L'envie est passée » (envie résistée) ou fermeture sans jugement.
  * Monté à l'ouverture et démonté à la fermeture : chaque SOS repart de zéro.
  */
-export function SosEnvie({ raisons, economieAnCents, onResiste, onFermer, onAjouterRaison }: Props) {
+export function SosEnvie({ raisons, economieAnCents, onResiste, onFermer, onAjouterRaison, onCoach }: Props) {
   const [ecoule, setEcoule] = useState(0);
   const [saisie, setSaisie] = useState<string | null>(null);
   const [echelle] = useState(() => new Animated.Value(0.6));
@@ -109,6 +111,11 @@ export function SosEnvie({ raisons, economieAnCents, onResiste, onFermer, onAjou
           <Pressable style={styles.bouton} onPress={onResiste} accessibilityRole="button">
             <Text style={styles.boutonTexte}>L’envie est passée</Text>
           </Pressable>
+          {onCoach && (
+            <Pressable style={[styles.bouton, styles.boutonCoach]} onPress={onCoach} accessibilityRole="button">
+              <Text style={[styles.boutonTexte, styles.boutonCoachTexte]}>Parler au coach</Text>
+            </Pressable>
+          )}
           <Pressable style={styles.fermer} onPress={onFermer} accessibilityRole="button">
             <Text style={styles.fermerTexte}>Fermer</Text>
           </Pressable>
@@ -143,6 +150,8 @@ const styles = StyleSheet.create({
   actions: { paddingHorizontal: espace(5), paddingBottom: espace(2) },
   bouton: { backgroundColor: couleurs.vert, borderRadius: 16, paddingVertical: espace(4), alignItems: 'center' },
   boutonTexte: { color: '#FFFFFF', fontSize: 18, fontWeight: '700' },
+  boutonCoach: { backgroundColor: couleurs.carte, borderWidth: 2, borderColor: couleurs.vert, marginTop: espace(2) },
+  boutonCoachTexte: { color: couleurs.vert },
   fermer: { alignItems: 'center', paddingVertical: espace(3) },
   fermerTexte: { color: couleurs.doux, fontSize: 15, textDecorationLine: 'underline' },
   mention: { color: couleurs.doux, fontSize: 12, textAlign: 'center' },

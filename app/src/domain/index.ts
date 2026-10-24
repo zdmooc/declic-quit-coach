@@ -11,3 +11,5 @@ export * from './candidates';
 export * from './sessions';
 export * from './habitudes';
 export * from './analyse';
+export * from './progres';
+export * from './coach';

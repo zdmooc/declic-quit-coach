@@ -83,6 +83,8 @@ export interface EtatJournal {
   intervalleRecommande: number;
   /** Raisons personnelles d'arrêter (SOS envie). */
   raisons: string[];
+  /** Consentement à l'envoi d'un résumé non identifiant au coach IA (F1.6, F7.6). */
+  coachIa: boolean;
   /** Dernier événement saisi par l'utilisateur (pour « annuler »). */
   derniereSaisieId: string | null;
   derniereCigaretteId: string | null;
@@ -123,6 +125,7 @@ export function rejouer(events: readonly DomainEvent[], tz: string): EtatJournal
     contextesPerso: [],
     intervalleRecommande: INTERVALLE_RECOMMANDE_OBSERVATION_MINUTES,
     raisons: [],
+    coachIa: false,
     derniereSaisieId: null,
     derniereCigaretteId: null,
   };
@@ -194,7 +197,14 @@ export function rejouer(events: readonly DomainEvent[], tz: string): EtatJournal
         etat.oraux.push({ a, jour: journeeDe(a, etat.cigarettes, tz), forme: e.payload.forme, dosageMg: e.payload.dosageMg });
         break;
       case 'ObjectifEpargneDefini':
-        etat.objectifs.push({ libelle: e.payload.libelle, montantCents: e.payload.montantCents });
+        etat.objectifs = etat.objectifs.filter((o) => o.libelle !== e.payload.libelle.trim());
+        etat.objectifs.push({ libelle: e.payload.libelle.trim(), montantCents: e.payload.montantCents });
+        break;
+      case 'ObjectifRetire':
+        etat.objectifs = etat.objectifs.filter((o) => o.libelle !== e.payload.libelle);
+        break;
+      case 'ConsentementModifie':
+        if (e.payload.finalite === 'coach-ia') etat.coachIa = e.payload.accorde;
         break;
       case 'RaisonAjoutee':
         etat.raisons.push(e.payload.texte.trim());
@@ -414,6 +424,8 @@ export interface TableauDeBord {
   /** Début du comptage des économies du jour (fenêtre, ou démarrage du plan le jour 0). */
   debutJournee: Instant;
   derniereCigaretteId: string | null;
+  /** Consentement au coach IA (F7.6). */
+  coachIa: boolean;
 }
 
 export function tableauDeBord(etat: EtatJournal, maintenant: Instant, tz: string, ref: ReferencePharma): TableauDeBord {
@@ -458,6 +470,7 @@ export function tableauDeBord(etat: EtatJournal, maintenant: Instant, tz: string
     raisons: etat.raisons,
     fenetreJour: fenetre,
     derniereCigaretteId: etat.derniereCigaretteId,
+    coachIa: etat.coachIa,
   };
   const prixJour = prixDuJour(etat.prix, jour);
 

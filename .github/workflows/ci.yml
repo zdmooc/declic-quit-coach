@@ -31,3 +31,21 @@ jobs:
       - name: Audit des dépendances (production)
         run: npm audit --omit=dev --audit-level=high
         continue-on-error: true
+
+  coach-relay:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: coach-relay
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: coach-relay/package-lock.json
+      - run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Tests (garde-fous et validation)
+        run: npm test

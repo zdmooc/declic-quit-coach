@@ -25,3 +25,13 @@ export interface Notifier {
   /** Remplace toutes les notifications programmées par cette liste. */
   remplacer(planifiees: readonly Candidate[]): Promise<void>;
 }
+
+export interface TourCoach {
+  role: 'user' | 'assistant';
+  texte: string;
+}
+
+/** Coach IA distant (ADR-0005) : reçoit un résumé non identifiant, jamais le journal. */
+export interface CoachIa {
+  repondre(requete: { mode: 'sos' | 'soir' | 'fauxpas'; resume: Record<string, string | number | null>; tours: TourCoach[] }): Promise<string>;
+}

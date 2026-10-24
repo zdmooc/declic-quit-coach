@@ -4,6 +4,14 @@
 
 import {
   addDays,
+  garde,
+  messageDuSoir,
+  progres,
+  resumeCoach,
+  reponseGarde,
+  type MessageCoach,
+  type ModeCoach,
+  type Progres,
   genererCandidates,
   historiqueJournees,
   prixDuJour,
@@ -30,7 +38,7 @@ import {
   type TableauDeBord,
   type TypeSubstitutOral,
 } from '../domain';
-import type { Clock, EventStore, IdGenerator, Notifier } from '../ports';
+import type { Clock, CoachIa, EventStore, IdGenerator, Notifier, TourCoach } from '../ports';
 
 export interface DeclicDeps {
   store: EventStore;
@@ -40,6 +48,8 @@ export interface DeclicDeps {
   referencePharma: ReferencePharma;
   contenuSante: ContenuSante;
   preferencesNotif?: PreferencesNotif;
+  /** Coach IA ; absent tant qu'il n'est pas configuré (l'app reste complète sans lui). */
+  coachIa?: CoachIa;
 }
 
 export interface Reglages {
@@ -256,7 +266,60 @@ export class Declic {
   }
 
   definirObjectif(libelle: string, montantCents: number): Promise<void> {
-    return this.ajouter(this.evenement('ObjectifEpargneDefini', { libelle, montantCents }));
+    return this.ajouter(this.evenement('ObjectifEpargneDefini', { libelle: libelle.trim(), montantCents }));
+  }
+
+  retirerObjectif(libelle: string): Promise<void> {
+    return this.ajouter(this.evenement('ObjectifRetire', { libelle }));
+  }
+
+  /** F1.6 / F7.6 : consentement à l'envoi d'un résumé non identifiant au coach IA. */
+  consentirCoachIa(accorde: boolean): Promise<void> {
+    return this.ajouter(this.evenement('ConsentementModifie', { finalite: 'coach-ia', accorde }));
+  }
+
+  /** Records, bilan de la semaine, courbe du plan (F5.6, F6.7, F2.4). */
+  async progres(): Promise<Progres | null> {
+    const etat = await this.etat();
+    if (!etat) return null;
+    return progres(etat, this.deps.clock.now(), this.deps.clock.timeZone());
+  }
+
+  /** Mot du coach scripté (F7.3 / F7.4), disponible hors ligne et sans IA. */
+  async motDuCoach(): Promise<MessageCoach | null> {
+    const etat = await this.etat();
+    if (!etat) return null;
+    const maintenant = this.deps.clock.now();
+    const tz = this.deps.clock.timeZone();
+    return messageDuSoir(tableauDeBord(etat, maintenant, tz, this.deps.referencePharma), progres(etat, maintenant, tz));
+  }
+
+  /** Branche (ou débranche) le coach IA une fois son adresse saisie dans les réglages. */
+  brancherCoach(coach: CoachIa | undefined): void {
+    this.deps.coachIa = coach;
+  }
+
+  /** Le coach IA est-il utilisable (configuré et consenti) ? */
+  async coachIaDisponible(): Promise<boolean> {
+    const etat = await this.etat();
+    return Boolean(this.deps.coachIa && etat?.coachIa);
+  }
+
+  /**
+   * F7.2 à F7.5 : un tour de conversation avec le coach IA. Les garde-fous passent AVANT
+   * tout envoi : détresse, symptôme ou question de dosage reçoivent une réponse fixe.
+   */
+  async parlerAuCoach(mode: ModeCoach, tours: TourCoach[]): Promise<{ texte: string; garde: boolean }> {
+    const dernier = [...tours].reverse().find((t) => t.role === 'user');
+    const g = dernier ? garde(dernier.texte) : null;
+    if (g) return { texte: reponseGarde(g), garde: true };
+    const etat = await this.etat();
+    if (!etat || !this.deps.coachIa || !etat.coachIa) throw new Error('Coach IA non activé');
+    const maintenant = this.deps.clock.now();
+    const tz = this.deps.clock.timeZone();
+    const resume = resumeCoach(tableauDeBord(etat, maintenant, tz, this.deps.referencePharma), progres(etat, maintenant, tz));
+    const texte = await this.deps.coachIa.repondre({ mode, resume, tours: tours.slice(-12) });
+    return { texte, garde: false };
   }
 
   async tableauDeBord(): Promise<TableauDeBord | null> {

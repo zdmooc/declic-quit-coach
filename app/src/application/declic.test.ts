@@ -234,3 +234,39 @@ describe('historique et réglages', () => {
     expect(exp.events.length).toBeGreaterThan(5);
   });
 });
+
+describe('coach IA (F7.2, F7.5, F7.6)', () => {
+  it('garde-fous avant tout envoi, consentement obligatoire, résumé seulement', async () => {
+    const { app } = monter();
+    await app.creerProfil(PROFIL);
+    const recues: unknown[] = [];
+    app.brancherCoach({
+      repondre: async (r) => {
+        recues.push(r);
+        return 'Respire avec moi.';
+      },
+    });
+
+    // Garde-fou : réponse fixe, l'IA n'est pas appelée (même sans consentement).
+    const g = await app.parlerAuCoach('sos', [{ role: 'user', texte: 'Combien de pastilles je peux prendre ?' }]);
+    expect(g.garde).toBe(true);
+    expect(recues).toHaveLength(0);
+
+    // Sans consentement : refus.
+    expect(await app.coachIaDisponible()).toBe(false);
+    await expect(app.parlerAuCoach('sos', [{ role: 'user', texte: 'J’ai très envie' }])).rejects.toThrow(/non activé/);
+
+    await app.consentirCoachIa(true);
+    expect(await app.coachIaDisponible()).toBe(true);
+    const r = await app.parlerAuCoach('sos', [{ role: 'user', texte: 'J’ai très envie' }]);
+    expect(r).toEqual({ texte: 'Respire avec moi.', garde: false });
+    expect(recues[0]).toMatchObject({ mode: 'sos', resume: { phase: 'observation' } });
+
+    expect((await app.motDuCoach())?.titre).toBe('Ta journée d’observation');
+    await app.definirObjectif(' Vélo ', 40000);
+    expect((await app.tableauDeBord())!.objectifs).toEqual([{ libelle: 'Vélo', montantCents: 40000, joursRestants: null }]);
+    await app.retirerObjectif('Vélo');
+    expect((await app.tableauDeBord())!.objectifs).toEqual([]);
+    expect((await app.progres())!.records.joursSansTabac).toBe(0);
+  });
+});

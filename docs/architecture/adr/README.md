@@ -10,6 +10,7 @@
 | [0006](0006-montre-apps-natives-minimales.md) | Montre : notifications d'abord, puis apps natives minimales | Accepté |
 | [0007](0007-notifications-locales-planificateur.md) | Notifications locales pilotées par un planificateur du domaine | Accepté |
 | [0008](0008-journee-definie-par-les-cigarettes.md) | La journée est définie par les cigarettes, pas par l'horloge | Accepté |
+| [0009](0009-relais-coach-cloudflare-prototype.md) | Relais du coach IA sur Cloudflare Workers (prototype personnel) | Accepté (prototype) |
 
 ## Décisions ouvertes
 

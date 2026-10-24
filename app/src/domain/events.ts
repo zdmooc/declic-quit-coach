@@ -91,6 +91,8 @@ export type PrixModifie = Base<
   { prixPaquetCents: number; cigarettesParPaquet: number; aPartirDu: LocalDate }
 >;
 export type ObjectifEpargneDefini = Base<'ObjectifEpargneDefini', { libelle: string; montantCents: number }>;
+/** Objectif atteint ou abandonné : il n'est plus affiché (F5.4). */
+export type ObjectifRetire = Base<'ObjectifRetire', { libelle: string }>;
 export type ConsentementModifie = Base<
   'ConsentementModifie',
   { finalite: 'donnees-sante' | 'notifications' | 'coach-ia' | 'montre' | 'statistiques'; accorde: boolean }
@@ -115,6 +117,7 @@ export type DomainEvent =
   | SubstitutOralPris
   | PrixModifie
   | ObjectifEpargneDefini
+  | ObjectifRetire
   | ConsentementModifie;
 
 export type EventType = DomainEvent['type'];
@@ -185,6 +188,7 @@ export function validateEvent(e: DomainEvent): string[] {
       break;
     case 'ObjectifEpargneDefini':
       if (!isInt(e.payload.montantCents) || e.payload.montantCents <= 0) errors.push('montantCents invalide');
+      if (e.payload.libelle.trim().length < 1 || e.payload.libelle.trim().length > 40) errors.push('objectif : 1 à 40 caractères');
       break;
     case 'SubstitutOralPris':
     case 'PatchPose':

@@ -33,7 +33,10 @@
 | Build Android | ✅ APK `preview` via EAS Build · icône et écran de démarrage Déclic |
 | Mises à jour automatiques | ✅ EAS Update (canal `preview`) : les nouveaux écrans arrivent sans réinstaller |
 | Tables pharmacologique et santé | ⚠️ brouillons non validés : maximums et jalons santé inactifs |
-| Coach IA, montre | ⏳ V2 |
+| Progrès | ✅ économies projetées (mois, an), objectifs d'épargne avec date estimée, records, bilan de la semaine, courbe du plan jusqu'à zéro |
+| Coach écrit (sans IA) | ✅ bilan du soir, faux pas analysé avec bienveillance, alerte 10 min avant l'heure à risque |
+| Coach IA | ✅ codé : conversation (SOS, soir, faux pas), garde-fous (dosage, symptômes, détresse → 15 / 112 / 3114 / 39 89), consentement · ⚙️ relais à déployer ([coach-relay](coach-relay/README.md)) |
+| Montre | ⏳ V2 |
 
 ## Démarrer
 

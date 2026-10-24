@@ -1,0 +1,14 @@
+# Relais du coach IA de Déclic (ADR-0005).
+# Secrets (jamais dans ce fichier) :
+#   npx wrangler secret put ANTHROPIC_API_KEY
+#   npx wrangler secret put APP_TOKEN
+name = "declic-coach"
+main = "src/index.ts"
+compatibility_date = "2025-06-01"
+
+[vars]
+MODEL = "claude-haiku-5-5"
+MAX_TOKENS = "450"
+
+[observability]
+enabled = false
