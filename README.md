@@ -28,6 +28,7 @@
 | Notifications | ✅ locales sur le téléphone (expo-notifications), avec boutons « J'ai fumé » / « J'ai résisté » ; pendant l'observation, seul le « bilan prêt » est notifié |
 | SOS envie | ✅ respiration guidée 3 min, raisons d'arrêter, envie résistée |
 | Historique | ✅ graphique 14 jours, détail par journée, correction du contexte, suppression |
+| Substituts | ✅ patch (pose, heure de retrait, rappel), pastilles et gommes (prises du jour, dernière prise) · aucun dosage proposé |
 | Réglages | ✅ prix, rythme, intervalle recommandé, contextes perso, export, effacement |
 | Build Android | ✅ APK `preview` via EAS Build · icône et écran de démarrage Déclic |
 | Mises à jour automatiques | ✅ EAS Update (canal `preview`) : les nouveaux écrans arrivent sans réinstaller |

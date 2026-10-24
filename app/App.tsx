@@ -17,6 +17,7 @@ import { ContexteSheet, type Precision } from './src/ui/ContexteSheet';
 import { DashboardScreen } from './src/ui/DashboardScreen';
 import { OnboardingScreen } from './src/ui/OnboardingScreen';
 import { SosEnvie } from './src/ui/SosEnvie';
+import { SubstitutsScreen } from './src/ui/SubstitutsScreen';
 import { couleurs } from './src/ui/theme';
 import pharma from './config/pharma-reference.json';
 import sante from './config/health-milestones.json';
@@ -78,6 +79,7 @@ export default function App() {
   /** Cigarette qui vient d'être enregistrée et dont on demande le contexte. */
   const [aPreciser, setAPreciser] = useState<string | null>(null);
   const [sos, setSos] = useState(false);
+  const [substituts, setSubstituts] = useState(false);
   /** Écrans secondaires ouverts par-dessus la page principale. */
   const [historique, setHistorique] = useState<JourneeHistorique[] | null>(null);
   const [reglages, setReglages] = useState<Reglages | null>(null);
@@ -231,6 +233,7 @@ export default function App() {
           onDemarrerPlan={agir(() => declic.demarrerPlan())}
           onHistorique={() => void ouvrirHistorique()}
           onReglages={() => void ouvrirReglages()}
+          onSubstituts={() => setSubstituts(true)}
           onEcheance={() => void rafraichir()}
           onSos={() => setSos(true)}
           notificationsIndisponibles={app.notifications === null}
@@ -249,6 +252,17 @@ export default function App() {
               if (c) await declic.preciserCigarette(id, { contexte: c });
             })
           }
+        />
+      )}
+      {substituts && tdb && (
+        <SubstitutsScreen
+          tdb={tdb}
+          tz={clock.timeZone()}
+          maintenant={clock.now()}
+          onFermer={() => setSubstituts(false)}
+          onPoserPatch={(mg, h) => void agir(() => declic.poserPatch(mg, h))()}
+          onRetirerPatch={() => void agir(() => declic.retirerPatch())()}
+          onPrendre={(forme, mg) => void agir(() => declic.prendreSubstitutOral(forme, mg))()}
         />
       )}
       {reglages && (

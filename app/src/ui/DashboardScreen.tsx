@@ -13,6 +13,7 @@ interface Props {
   onPalier: () => void;
   onDemarrerPlan: () => void;
   onHistorique: () => void;
+  onSubstituts: () => void;
   onReglages: () => void;
   /** Appelé quand le compte à rebours arrive à zéro (pour rafraîchir l'état). */
   onEcheance: () => void;
@@ -149,7 +150,7 @@ function Pastille({ valeur, libelle, ton = 'neutre' }: InfoPastille) {
 const duree = (m: number | null) => (m === null || m <= 0 ? '—' : formatDuree(m));
 
 export function DashboardScreen(props: Props) {
-  const { tdb, onFume, onResiste, onAnnuler, onPalier, onHistorique, onReglages, onSos } = props;
+  const { tdb, onFume, onResiste, onAnnuler, onPalier, onHistorique, onReglages, onSos, onSubstituts } = props;
   const obs = tdb.observation;
   const top = tdb.analyse.declencheurs[0];
   const heureRisque = tdb.analyse.heuresARisque[0];
@@ -203,6 +204,13 @@ export function DashboardScreen(props: Props) {
         </Pressable>
       )}
 
+      {tdb.patch.statut === 'a-retirer' && (
+        <Pressable style={[styles.bandeau, styles.bandeauRouge]} onPress={onSubstituts} accessibilityRole="button">
+          <Text style={[styles.bandeauTexte, styles.texteRouge]}>Ton patch est à retirer · </Text>
+          <Text style={[styles.bandeauAction, styles.texteRouge]}>ouvrir</Text>
+        </Pressable>
+      )}
+
       <View style={styles.grille}>
         {pastilles.map((p) => (
           <Pastille key={p.libelle} {...p} />
@@ -227,6 +235,9 @@ export function DashboardScreen(props: Props) {
           </Pressable>
           <Pressable onPress={onHistorique} accessibilityRole="button" hitSlop={8}>
             <Text style={styles.lien}>Historique</Text>
+          </Pressable>
+          <Pressable onPress={onSubstituts} accessibilityRole="button" hitSlop={8}>
+            <Text style={styles.lien}>{tdb.patch.statut === 'porte' ? 'Patch ●' : 'Substituts'}</Text>
           </Pressable>
           <Pressable onPress={onReglages} accessibilityRole="button" hitSlop={8}>
             <Text style={styles.lien}>Réglages</Text>
@@ -296,7 +307,8 @@ const styles = StyleSheet.create({
   boutonDemi: { flex: 1 },
   boutonTexte: { color: '#FFFFFF', fontSize: 18, fontWeight: '700' },
   boutonTexteSecondaire: { color: couleurs.vert },
-  liens: { flexDirection: 'row', justifyContent: 'center', gap: espace(5), marginTop: espace(3) },
+  liens: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: espace(4), marginTop: espace(3) },
+  bandeauRouge: { backgroundColor: couleurs.rougeClair },
   lien: { color: couleurs.doux, fontSize: 13, textDecorationLine: 'underline' },
   mention: { color: couleurs.doux, fontSize: 11, textAlign: 'center', marginTop: espace(2) },
 });

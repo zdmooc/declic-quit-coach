@@ -117,6 +117,9 @@ describe('Declic (cas d\'usage)', () => {
     tdb = (await app.tableauDeBord())!;
     expect(tdb.patch.statut).toBe('aucun');
     expect(tdb.oraux.find((o) => o.forme === 'pastille')?.prisesAujourdhui).toBe(1);
+    expect(tdb.oraux.find((o) => o.forme === 'pastille')?.dernierDosageMg).toBe(1);
+    expect(tdb.oraux.find((o) => o.forme === 'pastille')?.derniereA).not.toBeNull();
+    expect(tdb.oraux.find((o) => o.forme === 'gomme')?.derniereA).toBeNull();
     expect(tdb.objectifs).toHaveLength(1);
     expect(tdb.enviesResistees).toBe(1);
     expect((await store.all()).at(-1)?.source).toBe('watch');

@@ -75,7 +75,7 @@ export interface EtatJournal {
   cigarettes: CigaretteJournal[];
   envies: { a: Instant; jour: LocalDate }[];
   patch: PatchEnCours | null;
-  oraux: { a: Instant; jour: LocalDate; forme: TypeSubstitutOral }[];
+  oraux: { a: Instant; jour: LocalDate; forme: TypeSubstitutOral; dosageMg: number }[];
   objectifs: { libelle: string; montantCents: number }[];
   /** Contextes ajoutés par l'utilisateur (RM-16). */
   contextesPerso: ContextePerso[];
@@ -191,7 +191,7 @@ export function rejouer(events: readonly DomainEvent[], tz: string): EtatJournal
         etat.patch = null;
         break;
       case 'SubstitutOralPris':
-        etat.oraux.push({ a, jour: journeeDe(a, etat.cigarettes, tz), forme: e.payload.forme });
+        etat.oraux.push({ a, jour: journeeDe(a, etat.cigarettes, tz), forme: e.payload.forme, dosageMg: e.payload.dosageMg });
         break;
       case 'ObjectifEpargneDefini':
         etat.objectifs.push({ libelle: e.payload.libelle, montantCents: e.payload.montantCents });
@@ -399,7 +399,8 @@ export interface TableauDeBord {
   projection: Projection;
   dateDuZero: LocalDate | null;
   patch: EtatPatch;
-  oraux: EtatOral[];
+  /** Prises du jour par forme, avec l'heure et le dosage de la dernière prise (toutes journées confondues). */
+  oraux: (EtatOral & { derniereA: Instant | null; dernierDosageMg: number | null })[];
   objectifs: { libelle: string; montantCents: number; joursRestants: number | null }[];
   proposerPalier: boolean;
   /** Analyse des 14 derniers jours (déclencheurs, heures à risque). */
@@ -438,9 +439,15 @@ export function tableauDeBord(etat: EtatJournal, maintenant: Instant, tz: string
     enviesResistees: etat.envies.filter((e) => e.jour === jour).length,
     depuisDerniereMinutes: derniere === null ? null : Math.max(0, minutesBetween(derniere, maintenant)),
     patch: etatPatch(etat.patch, maintenant),
-    oraux: (['pastille', 'gomme'] as const).map((forme) =>
-      etatOral(forme, etat.oraux.filter((o) => o.jour === jour && o.forme === forme).length, ref),
-    ),
+    oraux: (['pastille', 'gomme'] as const).map((forme) => {
+      const prises = etat.oraux.filter((o) => o.forme === forme);
+      const derniere = prises.reduce<(typeof prises)[number] | null>((m, o) => (m === null || o.a >= m.a ? o : m), null);
+      return {
+        ...etatOral(forme, prises.filter((o) => o.jour === jour).length, ref),
+        derniereA: derniere?.a ?? null,
+        dernierDosageMg: derniere?.dosageMg ?? null,
+      };
+    }),
     analyse: analyser(
       etat.cigarettes.filter((c) => daysBetween(c.jour, jour) <= 14),
       tz,
