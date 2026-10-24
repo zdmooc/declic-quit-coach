@@ -219,7 +219,6 @@ export default function App() {
     <SafeAreaProvider>
     <View style={styles.racine}>
       <StatusBar style="dark" />
-      <BandeauMiseAJour />
       {tdb === null ? (
         <OnboardingScreen onValider={(p: NouveauProfil) => agir(() => declic.creerProfil(p))()} />
       ) : (
@@ -296,6 +295,7 @@ export default function App() {
         contextesPerso={tdb?.contextesPerso ?? []}
         onChoisir={(p) => void onPreciser(p)}
       />
+      <BandeauMiseAJour />
     </View>
     </SafeAreaProvider>
   );

@@ -51,6 +51,8 @@ describe('intervalles', () => {
     expect(plusLonguePauseMinutes([t0, addMinutes(t0, 30), addMinutes(t0, 200)], addMinutes(t0, 260), t0)).toBe(170);
     expect(plusLonguePauseMinutes([t0], addMinutes(t0, 500), t0)).toBe(500);
     expect(plusLonguePauseMinutes([], addMinutes(t0, 90), t0)).toBe(90);
+    // Première cigarette 7 h après le début du suivi : la pause de 7 h reste le record.
+    expect(plusLonguePauseMinutes([addMinutes(t0, 420)], addMinutes(t0, 421), t0)).toBe(420);
   });
 
   it('RM-18 : respect de l\'intervalle, la première de la journée ne compte pas', () => {

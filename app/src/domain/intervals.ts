@@ -51,13 +51,14 @@ export function intervalleMoyenMinutes(instants: readonly Instant[]): number | n
  */
 export function plusLonguePauseMinutes(instants: readonly Instant[], maintenant: Instant, depuisDebut: Instant): number {
   const tries = [...instants].filter((t) => t <= maintenant).sort((a, b) => a - b);
-  let precedent = tries.length > 0 ? tries[0]! : depuisDebut;
-  let max = tries.length > 0 ? 0 : minutesBetween(depuisDebut, maintenant);
-  for (const t of tries.slice(1)) {
+  // La pause entre le début du suivi et la première cigarette compte aussi.
+  let precedent = Math.min(depuisDebut, maintenant);
+  let max = 0;
+  for (const t of tries) {
     max = Math.max(max, minutesBetween(precedent, t));
-    precedent = t;
+    precedent = Math.max(precedent, t);
   }
-  if (tries.length > 0) max = Math.max(max, minutesBetween(precedent, maintenant));
+  max = Math.max(max, minutesBetween(precedent, maintenant));
   return Math.max(0, max);
 }
 
