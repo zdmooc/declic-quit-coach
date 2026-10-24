@@ -29,6 +29,8 @@
 | SOS envie | ✅ respiration guidée 3 min, raisons d'arrêter, envie résistée |
 | Historique | ✅ graphique 14 jours, détail par journée, correction du contexte, suppression |
 | Réglages | ✅ prix, rythme, intervalle recommandé, contextes perso, export, effacement |
+| Build Android | ✅ APK `preview` via EAS Build · icône et écran de démarrage Déclic |
+| Mises à jour automatiques | ✅ EAS Update (canal `preview`) : les nouveaux écrans arrivent sans réinstaller |
 | Tables pharmacologique et santé | ⚠️ brouillons non validés : maximums et jalons santé inactifs |
 | Coach IA, montre | ⏳ V2 |
 
@@ -41,6 +43,13 @@ npm start          # puis scanner le QR code avec l'app Expo Go
 npm test           # tests du domaine et des cas d'usage
 npm run typecheck
 npm run lint
+```
+
+### Installer et mettre à jour sur Android
+
+```bash
+npx eas-cli@latest build -p android --profile preview      # APK (seulement si le code natif change)
+npx eas-cli@latest update --channel preview --environment preview --message "…"   # mise à jour sans réinstaller
 ```
 
 ## Documentation

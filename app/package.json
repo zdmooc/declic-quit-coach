@@ -6,8 +6,10 @@
     "expo": "~58.0.17",
     "expo-crypto": "~58.0.7",
     "expo-notifications": "~58.1.6",
+    "expo-splash-screen": "~58.0.11",
     "expo-sqlite": "~58.0.13",
     "expo-status-bar": "~58.0.4",
+    "expo-updates": "~58.0.18",
     "react": "19.3.0",
     "react-native": "0.88.0",
     "react-native-safe-area-context": "~5.10.1"

@@ -12,6 +12,7 @@ import { SqliteEventStore } from './src/adapters/sqlite';
 import type { ContenuSante, JourneeHistorique, ReferencePharma, TableauDeBord } from './src/domain';
 import { HistoriqueScreen } from './src/ui/HistoriqueScreen';
 import { ReglagesScreen } from './src/ui/ReglagesScreen';
+import { BandeauMiseAJour } from './src/ui/BandeauMiseAJour';
 import { ContexteSheet, type Precision } from './src/ui/ContexteSheet';
 import { DashboardScreen } from './src/ui/DashboardScreen';
 import { OnboardingScreen } from './src/ui/OnboardingScreen';
@@ -216,6 +217,7 @@ export default function App() {
     <SafeAreaProvider>
     <View style={styles.racine}>
       <StatusBar style="dark" />
+      <BandeauMiseAJour />
       {tdb === null ? (
         <OnboardingScreen onValider={(p: NouveauProfil) => agir(() => declic.creerProfil(p))()} />
       ) : (

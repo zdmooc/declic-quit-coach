@@ -3,6 +3,7 @@ import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { Reglages } from '../application/declic';
 import { MOINS_UN_PAR_JOUR, MOINS_UN_PAR_SEMAINE, MOINS_UN_TOUS_LES_2_JOURS, type ReductionStrategy } from '../domain';
+import { libelleVersion } from './BandeauMiseAJour';
 import { couleurs, espace } from './theme';
 
 interface Props {
@@ -176,6 +177,7 @@ export function ReglagesScreen(props: Props) {
             </Pressable>
           </View>
           <Text style={styles.mention}>Déclic ne remplace pas un avis médical · Tabac Info Service : 39 89</Text>
+          <Text style={styles.mention}>{libelleVersion('0.1.0')}</Text>
         </ScrollView>
       </SafeAreaView>
     </Modal>

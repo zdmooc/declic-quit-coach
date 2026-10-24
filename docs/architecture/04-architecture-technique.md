@@ -106,6 +106,15 @@ flowchart LR
 
 Les canaux EAS Update sont alignés sur ces environnements.
 
+### 4.1 Mises à jour OTA (EAS Update)
+
+- Le build `preview` (APK) écoute le canal `preview`, le build `production` le canal `production`.
+- `runtimeVersion` suit la politique **fingerprint** : une mise à jour n'est livrée qu'aux builds dont le code natif est identique. Ajouter un module natif (ex. chiffrement, biométrie) change l'empreinte et impose un nouveau build ; le code JS et les écrans passent par OTA.
+- Au lancement, l'app vérifie la présence d'une mise à jour (`checkAutomatically: ON_LOAD`, sans bloquer l'ouverture : `fallbackToCacheTimeout: 0`). Une fois téléchargée, un bandeau « Nouvelle version prête · Redémarrer » s'affiche ; sinon elle s'applique au lancement suivant.
+- En cas de mise à jour défectueuse, `expo-updates` revient à la version embarquée ; on peut aussi republier la version précédente (`eas update:rollback`).
+- Les données (SQLite) ne sont jamais touchées par une mise à jour OTA.
+- Publication : `eas update --channel preview --message "…" --environment preview`.
+
 ## 5. Qualité et tests
 
 | Niveau | Cible | Outil |
