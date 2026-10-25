@@ -11,6 +11,7 @@
 | [0007](0007-notifications-locales-planificateur.md) | Notifications locales pilotées par un planificateur du domaine | Accepté |
 | [0008](0008-journee-definie-par-les-cigarettes.md) | La journée est définie par les cigarettes, pas par l'horloge | Accepté |
 | [0009](0009-relais-coach-cloudflare-prototype.md) | Relais du coach IA sur Cloudflare Workers (prototype personnel) | Accepté (prototype) |
+| [0010](0010-import-historique-migration.md) | Import d'historique : schéma v2, agrégats sans heure, rapprochement manuel | Accepté |
 
 ## Décisions ouvertes
 

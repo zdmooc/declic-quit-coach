@@ -15,12 +15,14 @@ export function etiqueterCigarettes(
   instantsTries: readonly Instant[],
   tz: string,
   seuilMinutes = SEUIL_NUIT_MINUTES,
+  /** Journées déclarées par une source importée (même index) : elles priment sur la règle. */
+  declarees: readonly (LocalDate | undefined)[] = [],
 ): LocalDate[] {
   const out: LocalDate[] = [];
   for (let i = 0; i < instantsTries.length; i++) {
     const t = instantsTries[i]!;
     const prev = i > 0 ? instantsTries[i - 1]! : null;
-    out.push(prev !== null && minutesBetween(prev, t) < seuilMinutes ? out[i - 1]! : localDateOf(t, tz));
+    out.push(declarees[i] ?? (prev !== null && minutesBetween(prev, t) < seuilMinutes ? out[i - 1]! : localDateOf(t, tz)));
   }
   return out;
 }

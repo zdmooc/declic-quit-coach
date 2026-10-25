@@ -37,7 +37,7 @@ export function mesurerHabitudes(
   cigarettes: readonly CigaretteEtiquetee[],
   journeeCourante: LocalDate,
   tz: string,
-  options: { nbJours?: number; depuis?: LocalDate; jusquAu?: LocalDate } = {},
+  options: { nbJours?: number; depuis?: LocalDate; jusquAu?: LocalDate; sansHeure?: ReadonlyMap<LocalDate, number> } = {},
 ): Habitudes | null {
   const nbJours = options.nbJours ?? 7;
   const terminees = cigarettes.filter(
@@ -59,7 +59,8 @@ export function mesurerHabitudes(
   for (const jour of jours) {
     const liste = [...parJour.get(jour)!].sort((x, y) => x.a - y.a);
     retenues.push(...liste);
-    comptes.push(liste.length);
+    // Les cigarettes sans heure (historique importé) comptent dans le total, pas dans les horaires.
+    comptes.push(liste.length + (options.sansHeure?.get(jour) ?? 0));
     const premiere = liste[0]!.a;
     const derniere = liste[liste.length - 1]!.a;
     // Minutes depuis minuit de la date de la journée (une dernière cigarette à 1 h du matin vaut 25 h).

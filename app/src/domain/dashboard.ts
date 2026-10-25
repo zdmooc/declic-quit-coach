@@ -6,7 +6,7 @@
  */
 
 import { analyser, libelleContexte, type Analyse, type ContextePerso } from './analyse';
-import { effectiveEvents, instantOf, type ContexteCigarette, type DomainEvent, type TypeSubstitutOral } from './events';
+import { effectiveEvents, instantOf, type ContexteCigarette, type DomainEvent, type PrecisionHeure, type TypeSubstitutOral } from './events';
 import { DUREE_ACTIVE_PAR_DEFAUT, mesurerHabitudes, type Habitudes } from './habitudes';
 import {
   intervalleCibleMinutes,
@@ -54,6 +54,8 @@ export interface CigaretteJournal {
   a: Instant;
   jour: LocalDate;
   contexte?: ContexteCigarette;
+  /** Absente = exacte (saisie en direct). */
+  precision?: PrecisionHeure;
 }
 
 export interface PlanEnCours {
@@ -74,6 +76,10 @@ export interface EtatJournal {
   plan: PlanEnCours | null;
   cigarettes: CigaretteJournal[];
   envies: { a: Instant; jour: LocalDate }[];
+  /** Envies signalées (distinctes des envies résistées), avec leur issue. */
+  enviesSignalees: { a: Instant; jour: LocalDate; issue: 'resistee' | 'cigarette' | 'inconnue' }[];
+  /** Saisies historiques sans heure connue (agrégats par journée). */
+  sansHeure: { jour: LocalDate; nature: 'cigarettes' | 'envies-signalees'; nombre: number }[];
   patch: PatchEnCours | null;
   oraux: { a: Instant; jour: LocalDate; forme: TypeSubstitutOral; dosageMg: number }[];
   objectifs: { libelle: string; montantCents: number }[];
@@ -119,6 +125,8 @@ export function rejouer(events: readonly DomainEvent[], tz: string): EtatJournal
     plan: null,
     cigarettes: [],
     envies: [],
+    enviesSignalees: [],
+    sansHeure: [],
     patch: null,
     oraux: [],
     objectifs: [],
@@ -138,20 +146,30 @@ export function rejouer(events: readonly DomainEvent[], tz: string): EtatJournal
       corrections.set(evenementId, { ...corrections.get(evenementId), ...champs });
     }
   }
-  const brutes: Omit<CigaretteJournal, 'jour'>[] = [];
+  const brutes: (Omit<CigaretteJournal, 'jour'> & { journee?: LocalDate })[] = [];
   for (const e of evs) {
     if (e.type !== 'CigaretteFumee') continue;
     const c = corrections.get(e.id);
     const contexte = c?.contexte ?? e.payload.contexte;
-    brutes.push({ id: e.id, a: c?.occurredAt ? Date.parse(c.occurredAt) : instantOf(e), ...(contexte ? { contexte } : {}) });
+    const { precision, journee } = e.payload;
+    brutes.push({
+      id: e.id,
+      a: c?.occurredAt ? Date.parse(c.occurredAt) : instantOf(e),
+      ...(contexte ? { contexte } : {}),
+      // Une heure corrigée par l'utilisateur redevient exacte.
+      ...(precision && precision !== 'exacte' && !c?.occurredAt ? { precision } : {}),
+      ...(journee ? { journee } : {}),
+    });
     etat.derniereCigaretteId = e.id;
   }
   brutes.sort((x, y) => x.a - y.a);
   const jours = etiqueterCigarettes(
     brutes.map((c) => c.a),
     tz,
+    SEUIL_NUIT_MINUTES,
+    brutes.map((c) => c.journee),
   );
-  etat.cigarettes = brutes.map((c, i) => ({ ...c, jour: jours[i]! }));
+  etat.cigarettes = brutes.map(({ journee: _j, ...c }, i) => ({ ...c, jour: jours[i]! }));
 
   // 2. Autres événements.
   const rythmes: PlanInput['rythmes'][number][] = [];
@@ -185,7 +203,13 @@ export function rejouer(events: readonly DomainEvent[], tz: string): EtatJournal
         });
         break;
       case 'EnvieResistee':
-        etat.envies.push({ a, jour: journeeDe(a, etat.cigarettes, tz) });
+        etat.envies.push({ a, jour: e.payload.journee ?? journeeDe(a, etat.cigarettes, tz) });
+        break;
+      case 'EnvieSignalee':
+        etat.enviesSignalees.push({ a, jour: e.payload.journee ?? journeeDe(a, etat.cigarettes, tz), issue: e.payload.issue });
+        break;
+      case 'AgregatSansHeure':
+        etat.sansHeure.push({ jour: e.payload.journee, nature: e.payload.nature, nombre: e.payload.nombre });
         break;
       case 'PatchPose':
         etat.patch = { poseLe: a, dosageMg: e.payload.dosageMg, dureePortHeures: e.payload.dureePortHeures };
@@ -271,7 +295,7 @@ export const journeeCourante = (etat: EtatJournal, maintenant: Instant, tz: stri
  */
 export function proposerPlan(etat: EtatJournal, maintenant: Instant, tz: string): EtatObservation {
   const jour = journeeCourante(etat, maintenant, tz);
-  const habitudes = mesurerHabitudes(etat.cigarettes, jour, tz, { depuis: debutObservation(etat, tz) });
+  const habitudes = mesurerHabitudes(etat.cigarettes, jour, tz, { depuis: debutObservation(etat, tz), sansHeure: cigarettesSansHeureParJour(etat) });
   const joursMesures = habitudes?.joursMesures ?? 0;
   const terminee = joursMesures >= JOURS_OBSERVATION;
   const journeeEntamee = etat.cigarettes.some((c) => c.jour === jour);
@@ -311,9 +335,21 @@ export function premierJourPartiel(etat: EtatJournal): { debut: Instant; fractio
   if (!plan) return null;
   const avant = elementsDuJour(etat.cigarettes, plan.input.dateDebut).filter((c) => c.a < plan.demarreLe);
   if (avant.length === 0) return null;
-  const premiere = Math.min(...avant.map((c) => c.a));
+  const premiere = debutEveil(avant.map((c) => c.a));
   const ecoule = minutesBetween(premiere, plan.demarreLe);
   return { debut: plan.demarreLe, fraction: Math.min(1, Math.max(0, 1 - ecoule / dureeActive(plan.horaires))) };
+}
+
+/**
+ * Début de la période d'éveil en cours : première cigarette après la dernière pause de nuit.
+ * Une cigarette d'après minuit rattachée à la journée (journal importé, 00 h 21) ne doit pas
+ * faire croire que la journée a commencé à minuit.
+ */
+export function debutEveil(instants: readonly Instant[]): Instant {
+  const tries = [...instants].sort((x, y) => x - y);
+  let debut = tries[0]!;
+  for (let i = 1; i < tries.length; i++) if (minutesBetween(tries[i - 1]!, tries[i]!) >= SEUIL_NUIT_MINUTES) debut = tries[i]!;
+  return debut;
 }
 
 /**
@@ -343,6 +379,20 @@ function fumeesDuJour(etat: EtatJournal, jour: LocalDate): CigaretteJournal[] {
   return elementsDuJour(etat.cigarettes, jour).filter((c) => !plan || jour !== plan.input.dateDebut || c.a >= plan.demarreLe);
 }
 
+/** Saisies sans heure d'une journée (historique importé), par nature. */
+export function sansHeureDuJour(etat: EtatJournal, jour: LocalDate, nature: 'cigarettes' | 'envies-signalees'): number {
+  return elementsDuJour(etat.sansHeure, jour)
+    .filter((a) => a.nature === nature)
+    .reduce((s, a) => s + a.nombre, 0);
+}
+
+/** Cigarettes sans heure par journée (pour les moyennes d'habitudes). */
+export function cigarettesSansHeureParJour(etat: EtatJournal): Map<LocalDate, number> {
+  const m = new Map<LocalDate, number>();
+  for (const a of etat.sansHeure) if (a.nature === 'cigarettes') m.set(a.jour, (m.get(a.jour) ?? 0) + a.nombre);
+  return m;
+}
+
 /** Quota affiché d'un jour : celui du plan, réduit au prorata le premier jour partiel. */
 export function quotaEffectif(etat: EtatJournal, jour: LocalDate): number {
   if (!etat.plan) return etat.declare;
@@ -367,7 +417,7 @@ export function historiqueQuotidien(etat: EtatJournal, aujourdhui: LocalDate): L
   const p0 = premierJourPartiel(etat);
   const out: LigneHistorique[] = [];
   for (const [jour, quotaPlan] of quotas(plan.input, hier)) {
-    const fumees = fumeesDuJour(etat, jour).length;
+    const fumees = fumeesDuJour(etat, jour).length + sansHeureDuJour(etat, jour, 'cigarettes');
     const prix = prixDuJour(etat.prix, jour);
     const partiel = jour === plan.input.dateDebut ? p0 : null;
     out.push({
@@ -401,6 +451,13 @@ export type Phase = 'observation' | 'avant-debut' | 'reduction' | 'arret' | 'mai
 export interface TableauDeBord {
   jour: LocalDate;
   phase: Phase;
+  /**
+   * Total réel de la journée : toutes les cigarettes, y compris celles d'avant le démarrage
+   * du plan et celles sans heure connue. `fumees` reste le compte utilisé pour le quota.
+   */
+  fumeesJournee: number;
+  /** Envies signalées aujourd'hui (distinctes des envies résistées). */
+  enviesSignalees: number;
   /** Jour du plan, 0 = premier jour ; `null` pendant l'observation. */
   jourDuPlan: number | null;
   observation: EtatObservation | null;
@@ -455,18 +512,25 @@ export function tableauDeBord(etat: EtatJournal, maintenant: Instant, tz: string
   const duJour = fumeesDuJour(etat, jour);
   const horaires = plan?.horaires ?? HORAIRES_PAR_DEFAUT;
   const ouvertes = elementsDuJour(etat.cigarettes, jour).map((c) => c.a);
-  const fenetre = fenetreDuJour(jour, horaires, ouvertes.length > 0 ? Math.min(...ouvertes) : null, tz);
+  const fenetre = fenetreDuJour(jour, horaires, ouvertes.length > 0 ? debutEveil(ouvertes) : null, tz);
 
+  const sansHeureCigarettes = sansHeureDuJour(etat, jour, 'cigarettes');
+  /** Comptées pour le quota : hors cigarettes d'avant le démarrage du plan (RM-13). */
+  const comptees = duJour.length + sansHeureCigarettes;
   const commun = {
     jour,
-    fumees: duJour.length,
+    fumees: comptees,
+    fumeesJournee: elementsDuJour(etat.cigarettes, jour).length + sansHeureCigarettes,
+    enviesSignalees:
+      elementsDuJour(etat.enviesSignalees, jour).length + sansHeureDuJour(etat, jour, 'envies-signalees'),
     intervalleMoyenJourMinutes: moyenne(
       intervallesEveilles(
         elementsDuJour(etat.cigarettes, jour),
         SEUIL_NUIT_MINUTES,
       ),
     ),
-    intervalleMoyen7jMinutes: mesurerHabitudes(etat.cigarettes, jour, tz)?.intervalleMoyenMinutes ?? null,
+    intervalleMoyen7jMinutes:
+      mesurerHabitudes(etat.cigarettes, jour, tz, { sansHeure: cigarettesSansHeureParJour(etat) })?.intervalleMoyenMinutes ?? null,
     enviesResistees: elementsDuJour(etat.envies, jour).length,
     depuisDerniereMinutes: derniere === null ? null : Math.max(0, minutesBetween(derniere, maintenant)),
     patch: etatPatch(etat.patch, maintenant),
@@ -563,7 +627,7 @@ export function tableauDeBord(etat: EtatJournal, maintenant: Instant, tz: string
     jourDuPlan,
     observation: null,
     quota,
-    restant: Math.max(0, quota - duJour.length),
+    restant: Math.max(0, quota - comptees),
     sourceIntervalle: 'plan',
     respect: respectIntervalle(
       duJour.map((c) => c.a),
@@ -606,6 +670,10 @@ export interface CigaretteHistorique {
   a: Instant;
   contexte?: ContexteCigarette;
   libelleContexte?: string;
+  /** Heure approximative (historique importé) ; absente = exacte. */
+  precision?: PrecisionHeure;
+  /** Fumée le jour du démarrage du plan, avant le démarrage : comptée dans le total, pas dans le quota. */
+  avantPlan?: true;
   /** Respect de l'intervalle par rapport à la précédente (RM-18) ; `null` pour la première de la journée. */
   respectee: boolean | null;
 }
@@ -613,7 +681,14 @@ export interface CigaretteHistorique {
 export interface JourneeHistorique {
   jour: LocalDate;
   enPlan: boolean;
+  /** Cigarettes comptées (quota) : hors avant-démarrage du plan, sans-heure inclus. */
   fumees: number;
+  /** Total réel de la journée (avant-démarrage et sans-heure inclus). */
+  total: number;
+  /** Cigarettes historiques sans heure connue. */
+  sansHeure: number;
+  /** Envies signalées (horodatées et sans heure), distinctes des envies résistées. */
+  enviesSignalees: number;
   quota: number | null;
   intervalleMinutes: number | null;
   respectees: number;
@@ -629,15 +704,18 @@ export function historiqueJournees(etat: EtatJournal, maintenant: Instant, tz: s
   const aujourdhui = journeeCourante(etat, maintenant, tz);
   const plan = etat.plan;
   const lignesPlan = new Map(historiqueQuotidien(etat, aujourdhui).map((l) => [l.jour, l]));
-  const jours = new Set<LocalDate>(etat.cigarettes.map((c) => c.jour));
+  const jours = new Set<LocalDate>([...etat.cigarettes, ...etat.sansHeure, ...etat.enviesSignalees, ...etat.envies].map((c) => c.jour));
   jours.add(aujourdhui);
   for (const l of lignesPlan.keys()) jours.add(l);
   const tries = [...jours].filter((j) => daysBetween(j, aujourdhui) >= 0).sort().reverse().slice(0, nbJours);
 
   return tries.map((jour) => {
     const enPlan = plan !== null && daysBetween(plan.input.dateDebut, jour) >= 0;
-    const comptees = enPlan ? fumeesDuJour(etat, jour) : elementsDuJour(etat.cigarettes, jour);
-    const liste = [...comptees].sort((x, y) => x.a - y.a);
+    const comptees = [...(enPlan ? fumeesDuJour(etat, jour) : elementsDuJour(etat.cigarettes, jour))].sort((x, y) => x.a - y.a);
+    // L'historique montre toutes les cigarettes du jour, y compris celles d'avant le démarrage du plan.
+    const liste = [...elementsDuJour(etat.cigarettes, jour)].sort((x, y) => x.a - y.a);
+    const ids = new Set(comptees.map((c) => c.id));
+    const sansHeure = sansHeureDuJour(etat, jour, 'cigarettes');
     const intervalle =
       enPlan && plan
         ? intervalleCibleMinutes(dureeActive(plan.horaires), quotaDuJour(plan.input, jour))
@@ -646,19 +724,24 @@ export function historiqueJournees(etat: EtatJournal, maintenant: Instant, tz: s
       id: c.id,
       a: c.a,
       ...(c.contexte ? { contexte: c.contexte, libelleContexte: libelleContexte(c.contexte, etat.contextesPerso) } : {}),
+      ...(c.precision ? { precision: c.precision } : {}),
+      ...(ids.has(c.id) ? {} : { avantPlan: true }),
       respectee:
         i === 0 || intervalle === null
           ? null
           : minutesBetween(liste[i - 1]!.a, c.a) >= intervalle - TOLERANCE_INTERVALLE_MINUTES,
     }));
     const respect = respectIntervalle(
-      liste.map((c) => c.a),
+      comptees.map((c) => c.a),
       intervalle,
     );
     return {
       jour,
       enPlan,
-      fumees: liste.length,
+      fumees: comptees.length + sansHeure,
+      total: liste.length + sansHeure,
+      sansHeure,
+      enviesSignalees: elementsDuJour(etat.enviesSignalees, jour).length + sansHeureDuJour(etat, jour, 'envies-signalees'),
       quota: enPlan ? quotaEffectif(etat, jour) : null,
       intervalleMinutes: intervalle,
       respectees: respect.respectees,

@@ -31,6 +31,7 @@
 | Substituts | ✅ patch (pose, heure de retrait, rappel), pastilles et gommes (prises du jour, dernière prise) · aucun dosage proposé |
 | Réglages | ✅ prix, rythme, intervalle recommandé, contextes perso, export, effacement |
 | Sauvegarde | ✅ sauvegarde dans un fichier (Téléchargements, Google Drive…) et restauration vérifiée, y compris dès le premier lancement sur un nouveau téléphone |
+| Import d'historique | ✅ journal tenu à part (format v2 ou source de préparation) : aperçu, totaux par journée, heures exactes / approximatives / inconnues, rapprochement manuel des doublons, changement d'heure, idempotent ([ADR-0010](docs/architecture/adr/0010-import-historique-migration.md)) |
 | Build Android | ✅ APK `preview` via EAS Build · icône et écran de démarrage Déclic |
 | Mises à jour automatiques | ✅ EAS Update (canal `preview`) : les nouveaux écrans arrivent sans réinstaller |
 | Tables pharmacologique et santé | ⚠️ brouillons non validés : maximums et jalons santé inactifs |

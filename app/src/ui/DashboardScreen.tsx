@@ -167,7 +167,8 @@ export function DashboardScreen(props: Props) {
   const pastilles: InfoPastille[] = [
     {
       valeur: tdb.quota === null || tdb.phase === 'avant-debut' ? String(tdb.fumees) : `${tdb.fumees} / ${tdb.quota}`,
-      libelle: tdb.quota === null ? 'fumées' : 'fumées / quota',
+      // Le total réel inclut les cigarettes d'avant le démarrage du plan et celles sans heure (RM-13, import).
+      libelle: tdb.quota === null ? 'fumées' : tdb.fumeesJournee > tdb.fumees ? `quota · ${tdb.fumeesJournee} au total` : 'fumées / quota',
     },
     // RM-18 : en vert les cigarettes qui ont respecté l'intervalle, en rouge les autres.
     { valeur: String(tdb.respect.respectees), libelle: 'intervalle tenu', ton: 'vert' },

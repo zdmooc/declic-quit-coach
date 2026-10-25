@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useState, type ComponentProps } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import type { NouveauProfil, Reglages } from './src/application/declic';
 import { CoachHttp, normaliserUrlCoach } from './src/adapters/coachHttp';
 import type { JourneeHistorique, MessageCoach, ModeCoach, Progres } from './src/domain';
-import { effacer, partager, restaurer, sauvegarder } from './src/ui/app/donnees';
+import type { Apercu, Choix, Simulation } from './src/application/migration';
+import { effacer, partager, preparerImport, restaurer, sauvegarder } from './src/ui/app/donnees';
+import { ImportScreen } from './src/ui/ImportScreen';
 import { useApplication } from './src/ui/app/useApplication';
 import { BandeauMiseAJour } from './src/ui/BandeauMiseAJour';
 import { CoachScreen, ReglageCoach } from './src/ui/CoachScreen';
@@ -33,6 +35,7 @@ export default function App() {
   const [urlCoach, setUrlCoach] = useState<string | null | undefined>(undefined);
   const [historique, setHistorique] = useState<JourneeHistorique[] | null>(null);
   const [reglages, setReglages] = useState<Reglages | null>(null);
+  const [importVue, setImportVue] = useState<{ apercu: Apercu; simulation: Simulation; choix: Choix; enCours: boolean } | null>(null);
 
   const { app, erreur, chargement, tdb, coachDispo, rafraichir } = useApplication({
     cigaretteEnregistree: setAPreciser,
@@ -123,6 +126,34 @@ export default function App() {
         })(),
     );
 
+  const onImporter = () =>
+    void (async () => {
+      const p = await preparerImport(declic);
+      if (p) setImportVue({ ...p, choix: {}, enCours: false });
+    })();
+  const onChoixImport: ComponentProps<typeof ImportScreen>['onChoix'] = (appId, c) =>
+    void (async () => {
+      if (!importVue) return;
+      const choix = { ...importVue.choix, [appId]: c };
+      const simulation = await declic.simulerImport(importVue.apercu, choix);
+      setImportVue({ ...importVue, choix, simulation });
+    })();
+  const onConfirmerImport = () =>
+    void (async () => {
+      if (!importVue) return;
+      setImportVue({ ...importVue, enCours: true });
+      try {
+        const n = await declic.confirmerImport(importVue.apercu, importVue.choix);
+        setImportVue(null);
+        await rafraichir();
+        if (reglages) await ouvrirReglages();
+        Alert.alert('Historique importé', `${n} saisies ajoutées. Pense à faire une nouvelle sauvegarde.`);
+      } catch (e) {
+        setImportVue({ ...importVue, enCours: false });
+        Alert.alert('Import impossible', `${e instanceof Error ? e.message : String(e)}. Rien n’a été modifié.`);
+      }
+    })();
+
   const enregistrerCoach = (saisie: string, jeton: string) =>
     void (async () => {
       const url = normaliserUrlCoach(saisie);
@@ -195,6 +226,7 @@ export default function App() {
             onExporter={() => void partager(declic)}
             onSauvegarder={() => void sauvegarder(declic, clock.now())}
             onRestaurer={onRestaurer}
+            onImporter={onImporter}
             onEffacer={onEffacer}
             extra={
               <ReglageCoach
@@ -246,6 +278,18 @@ export default function App() {
           />
         )}
         {coachMode && <CoachScreen mode={coachMode} onFermer={() => setCoachMode(null)} envoyer={(tours) => declic.parlerAuCoach(coachMode, tours)} />}
+        {importVue && (
+          <ImportScreen
+            apercu={importVue.apercu}
+            simulation={importVue.simulation}
+            choix={importVue.choix}
+            tz={clock.timeZone()}
+            enCours={importVue.enCours}
+            onChoix={onChoixImport}
+            onConfirmer={onConfirmerImport}
+            onAnnuler={() => setImportVue(null)}
+          />
+        )}
         <ContexteSheet visible={aPreciser !== null} contextesPerso={tdb?.contextesPerso ?? []} onChoisir={(p) => void onPreciser(p)} />
         <BandeauMiseAJour />
       </View>

@@ -18,6 +18,7 @@ interface Props {
   onExporter: () => void;
   onSauvegarder: () => void;
   onRestaurer: () => void;
+  onImporter: () => void;
   onEffacer: () => void;
   /** Cartes supplémentaires (coach IA). */
   extra?: ReactNode;
@@ -184,6 +185,12 @@ export function ReglagesScreen(props: Props) {
             <Pressable style={[styles.bouton, styles.boutonSecondaire]} onPress={props.onRestaurer} accessibilityRole="button">
               <Text style={[styles.boutonTexte, styles.boutonTexteSecondaire]}>Restaurer une sauvegarde</Text>
             </Pressable>
+            <Pressable style={[styles.bouton, styles.boutonSecondaire]} onPress={props.onImporter} accessibilityRole="button">
+              <Text style={[styles.boutonTexte, styles.boutonTexteSecondaire]}>Importer un historique (avec aperçu)</Text>
+            </Pressable>
+            <Text style={styles.aide}>
+              Restaurer remplace tout ; importer ajoute un historique (journal tenu à part) à tes saisies, après un aperçu à valider.
+            </Text>
             <Pressable style={styles.effacer} onPress={props.onExporter} accessibilityRole="button">
               <Text style={styles.lien}>Partager mes données (texte)</Text>
             </Pressable>

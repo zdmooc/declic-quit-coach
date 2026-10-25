@@ -31,20 +31,20 @@ const HAUTEUR_GRAPHE = 120;
 /** Graphique des 14 dernières journées : barres = cigarettes fumées, trait = quota. */
 function Graphe({ journees }: { journees: JourneeHistorique[] }) {
   const jours = [...journees].slice(0, 14).reverse();
-  const max = Math.max(1, ...jours.map((j) => Math.max(j.fumees, j.quota ?? 0)));
+  const max = Math.max(1, ...jours.map((j) => Math.max(j.total, j.quota ?? 0)));
   return (
     <View style={styles.graphe} accessible accessibilityLabel="Cigarettes fumées par jour, 14 derniers jours">
       {jours.map((j) => {
         const depasse = j.quota !== null && j.fumees > j.quota;
         return (
           <View key={j.jour} style={styles.colonne}>
-            <Text style={styles.valeurBarre}>{j.fumees}</Text>
+            <Text style={styles.valeurBarre}>{j.total}</Text>
             <View style={styles.zoneBarre}>
               {j.quota !== null && <View style={[styles.quota, { bottom: (j.quota / max) * HAUTEUR_GRAPHE }]} />}
               <View
                 style={[
                   styles.barre,
-                  { height: Math.max(2, (j.fumees / max) * HAUTEUR_GRAPHE) },
+                  { height: Math.max(2, (j.total / max) * HAUTEUR_GRAPHE) },
                   depasse ? styles.barreRouge : j.quota !== null ? styles.barreVerte : styles.barreNeutre,
                 ]}
               />
@@ -73,10 +73,11 @@ function LigneCigarette({
   return (
     <View style={styles.ligne}>
       <View style={[styles.point, c.respectee === true && styles.pointVert, c.respectee === false && styles.pointRouge]} />
-      <Text style={styles.heure}>{heure(c.a, tz)}</Text>
+      <Text style={styles.heure}>{c.precision === 'approximative' ? '~' : ''}{heure(c.a, tz)}</Text>
       <Pressable style={styles.contexte} onPress={() => onChangerContexte(c.id)} accessibilityRole="button" hitSlop={6}>
         <Text style={[styles.contexteTexte, !c.libelleContexte && styles.contexteVide]} numberOfLines={1}>
           {c.libelleContexte ?? '+ contexte'}
+          {c.avantPlan ? ' · avant le plan' : ''}
         </Text>
       </Pressable>
       <Pressable onPress={confirmer} accessibilityRole="button" accessibilityLabel={`Supprimer la cigarette de ${heure(c.a, tz)}`} hitSlop={8}>
@@ -116,7 +117,8 @@ export function HistoriqueScreen({ journees, tz, contextesPerso, onFermer, onPre
                     <Text style={styles.chevron}>{estOuvert ? '▲' : '▼'}</Text>
                   </View>
                   <Text style={styles.resume}>
-                    {j.quota !== null ? `${j.fumees} / ${j.quota}` : `${j.fumees} fumée${j.fumees > 1 ? 's' : ''}`}
+                    {j.quota !== null ? `${j.fumees} / ${j.quota}` : `${j.total} fumée${j.total > 1 ? 's' : ''}`}
+                    {j.quota !== null && j.total !== j.fumees ? ` (${j.total} au total)` : ''}
                     {'  ·  '}
                     <Text style={styles.vert}>{j.respectees} tenu{j.respectees > 1 ? 's' : ''}</Text>
                     {'  ·  '}
@@ -124,6 +126,13 @@ export function HistoriqueScreen({ journees, tz, contextesPerso, onFermer, onPre
                     {j.envies > 0 ? `  ·  ${j.envies} envie${j.envies > 1 ? 's' : ''} résistée${j.envies > 1 ? 's' : ''}` : ''}
                     {j.economieCents !== null ? `  ·  ${formatEuros(j.economieCents)}` : ''}
                   </Text>
+                  {(j.sansHeure > 0 || j.enviesSignalees > 0) && (
+                    <Text style={styles.sousResume}>
+                      {j.sansHeure > 0 ? `${j.sansHeure} sans heure connue (historique importé)` : ''}
+                      {j.sansHeure > 0 && j.enviesSignalees > 0 ? ' · ' : ''}
+                      {j.enviesSignalees > 0 ? `${j.enviesSignalees} envie${j.enviesSignalees > 1 ? 's' : ''} signalée${j.enviesSignalees > 1 ? 's' : ''}` : ''}
+                    </Text>
+                  )}
                   {j.intervalleMinutes !== null && (
                     <Text style={styles.sousResume}>
                       {j.enPlan ? 'Plan' : 'Observation'} · intervalle recommandé {formatDuree(j.intervalleMinutes)}

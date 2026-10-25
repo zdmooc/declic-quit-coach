@@ -6,7 +6,27 @@
 import type { LocalDate, TimeOfDay } from './time';
 import type { ReductionStrategy } from './reduction';
 
-export type EventSource = 'phone' | 'notification' | 'watch';
+export type EventSource = 'phone' | 'notification' | 'watch' | 'import';
+
+/**
+ * Précision de l'heure d'une saisie (schéma v2, champ facultatif : absent = exacte).
+ * L'heure « inconnue » n'existe pas sur un événement horodaté : elle passe par un `AgregatSansHeure`.
+ */
+export type PrecisionHeure = 'exacte' | 'approximative';
+
+/** Champs facultatifs des saisies importées d'un historique (schéma v2, rétrocompatible). */
+export interface Provenance {
+  precision?: PrecisionHeure;
+  /**
+   * Journée déclarée par la source (date locale). Prime sur la règle RM-14 quand la source
+   * a explicitement rattaché la saisie à une journée.
+   */
+  journee?: LocalDate;
+  /** Libellé libre de la source (ex. « journal Drive »), pour la traçabilité. */
+  origine?: string;
+  /** Note de la source (200 caractères au plus). */
+  note?: string;
+}
 
 /** Contextes proposés par défaut. */
 export type ContextePredefini = 'cafe' | 'stress' | 'repas' | 'alcool' | 'travail' | 'social' | 'ennui' | 'autre';
@@ -63,8 +83,33 @@ export type PalierDemande = Base<'PalierDemande', { jour: LocalDate }>;
 
 export type CigaretteFumee = Base<
   'CigaretteFumee',
-  { contexte?: ContexteCigarette; intensiteEnvie?: 1 | 2 | 3 | 4 | 5 }
+  { contexte?: ContexteCigarette; intensiteEnvie?: 1 | 2 | 3 | 4 | 5 } & Provenance
 >;
+/**
+ * Saisies historiques dont l'heure est inconnue : un nombre par journée, sans faux horodatage.
+ * Elles comptent dans les totaux, jamais dans les intervalles ni les heures à risque.
+ */
+export type AgregatSansHeure = Base<
+  'AgregatSansHeure',
+  {
+    journee: LocalDate;
+    nature: 'cigarettes' | 'envies-signalees';
+    nombre: number;
+    /** Le nombre est un minimum (journée en cours, signalements possiblement incomplets). */
+    auMoins?: boolean;
+    /** Envies : dont devenues cigarettes. */
+    devenuesCigarettes?: number;
+    /** Envies : dont non concrétisées sur le moment (sans être confirmées « résistées »). */
+    nonConcretiseesSurLeMoment?: number;
+    note?: string;
+    origine?: string;
+  }
+>;
+/**
+ * Envie signalée, distincte d'une envie résistée : son issue peut être une cigarette
+ * ou rester inconnue (le journal ne l'a pas précisée).
+ */
+export type EnvieSignalee = Base<'EnvieSignalee', { issue: 'resistee' | 'cigarette' | 'inconnue' } & Provenance>;
 /** Nouveau contexte saisi par l'utilisateur, proposé ensuite comme les autres (RM-16). */
 export type ContexteAjoute = Base<'ContexteAjoute', { cle: `perso:${string}`; libelle: string }>;
 export type ContexteRenomme = Base<'ContexteRenomme', { cle: `perso:${string}`; libelle: string }>;
@@ -74,7 +119,7 @@ export type ContexteArchive = Base<'ContexteArchive', { cle: `perso:${string}` }
 export type IntervalleRecommandeModifie = Base<'IntervalleRecommandeModifie', { minutes: number }>;
 /** Une raison personnelle d'arrêter, rappelée pendant le SOS envie (F7.1). */
 export type RaisonAjoutee = Base<'RaisonAjoutee', { texte: string }>;
-export type EnvieResistee = Base<'EnvieResistee', { strategieUtilisee?: string }>;
+export type EnvieResistee = Base<'EnvieResistee', { strategieUtilisee?: string } & Provenance>;
 export type SaisieAnnulee = Base<'SaisieAnnulee', { evenementId: string }>;
 /** Précise une cigarette après coup : contexte (RM-16) et/ou heure réelle. */
 export type CigaretteCorrigee = Base<
@@ -82,8 +127,8 @@ export type CigaretteCorrigee = Base<
   { evenementId: string; contexte?: ContexteCigarette; occurredAt?: string }
 >;
 
-export type PatchPose = Base<'PatchPose', { dosageMg: number; dureePortHeures: 16 | 24; site?: string }>;
-export type PatchRetire = Base<'PatchRetire', Record<string, never>>;
+export type PatchPose = Base<'PatchPose', { dosageMg: number; dureePortHeures: 16 | 24; site?: string } & Provenance>;
+export type PatchRetire = Base<'PatchRetire', Provenance>;
 export type SubstitutOralPris = Base<'SubstitutOralPris', { forme: TypeSubstitutOral; dosageMg: number }>;
 
 export type PrixModifie = Base<
@@ -104,6 +149,8 @@ export type DomainEvent =
   | RythmeModifie
   | PalierDemande
   | CigaretteFumee
+  | AgregatSansHeure
+  | EnvieSignalee
   | EnvieResistee
   | SaisieAnnulee
   | CigaretteCorrigee
@@ -194,8 +241,23 @@ export function validateEvent(e: DomainEvent): string[] {
     case 'PatchPose':
       if (!(e.payload.dosageMg > 0)) errors.push('dosageMg invalide');
       break;
+    case 'AgregatSansHeure':
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(e.payload.journee)) errors.push('journée invalide');
+      if (e.payload.nature !== 'cigarettes' && e.payload.nature !== 'envies-signalees') errors.push('nature invalide');
+      if (!isInt(e.payload.nombre) || e.payload.nombre < 1 || e.payload.nombre > 100) errors.push('nombre : entier de 1 à 100');
+      for (const n of [e.payload.devenuesCigarettes, e.payload.nonConcretiseesSurLeMoment])
+        if (n !== undefined && (!isInt(n) || n < 0 || n > e.payload.nombre)) errors.push('sous-total d’envies invalide');
+      break;
+    case 'EnvieSignalee':
+      if (!['resistee', 'cigarette', 'inconnue'].includes(e.payload.issue)) errors.push('issue invalide');
+      break;
     default:
       break;
   }
+  // Champs de provenance (schéma v2), communs aux saisies importées.
+  const p = e.payload as Provenance;
+  if (p.precision !== undefined && p.precision !== 'exacte' && p.precision !== 'approximative') errors.push('précision invalide');
+  if (p.journee !== undefined && e.type !== 'AgregatSansHeure' && !/^\d{4}-\d{2}-\d{2}$/.test(p.journee)) errors.push('journée invalide');
+  if (p.note !== undefined && (typeof p.note !== 'string' || p.note.length > 200)) errors.push('note : 200 caractères au plus');
   return errors;
 }

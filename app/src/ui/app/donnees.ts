@@ -5,6 +5,7 @@
 
 import { Alert, Share } from 'react-native';
 import type { Declic } from '../../application/declic';
+import type { Apercu, Simulation } from '../../application/migration';
 import { enregistrerSauvegarde, lireFichierSauvegarde } from '../../adapters/sauvegardeFichier';
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -47,6 +48,19 @@ export async function restaurer(declic: Declic, apres: () => Promise<void>): Pro
         })(),
     },
   ]);
+}
+
+/** Choisit un fichier d'historique et prépare l'aperçu (rien n'est écrit). `null` si annulé. */
+export async function preparerImport(declic: Declic): Promise<{ apercu: Apercu; simulation: Simulation } | null> {
+  try {
+    const texte = await lireFichierSauvegarde();
+    if (texte === null) return null;
+    const apercu = await declic.apercuImport(texte);
+    return { apercu, simulation: await declic.simulerImport(apercu, {}) };
+  } catch (e) {
+    Alert.alert('Import impossible', message(e));
+    return null;
+  }
 }
 
 export async function partager(declic: Declic): Promise<void> {

@@ -39,6 +39,7 @@ import {
   type TypeSubstitutOral,
 } from '../domain';
 import type { Clock, CoachIa, EventStore, IdGenerator, Notifier, TourCoach } from '../ports';
+import { analyserImport, lireFichierDeclic, simulerImport, VERSION_EXPORT, type Apercu, type Choix, type Simulation } from './migration';
 
 export interface DeclicDeps {
   store: EventStore;
@@ -71,33 +72,9 @@ export interface NouveauProfil {
 
 type Source = DomainEvent['source'];
 
-const TYPES_CONNUS: ReadonlySet<string> = new Set<DomainEvent['type']>([
-  'ProfilCree', 'PlanDemarre', 'RythmeModifie', 'PalierDemande', 'CigaretteFumee', 'EnvieResistee', 'SaisieAnnulee',
-  'CigaretteCorrigee', 'ContexteAjoute', 'RaisonAjoutee', 'ContexteRenomme', 'ContexteArchive', 'IntervalleRecommandeModifie',
-  'PatchPose', 'PatchRetire', 'SubstitutOralPris', 'PrixModifie', 'ObjectifEpargneDefini', 'ObjectifRetire', 'ConsentementModifie',
-]);
-
-/** Lit et valide un fichier d'export Déclic ; lève une erreur lisible sinon. */
+/** Lit et valide un fichier d'export Déclic (v1 ou v2) destiné à une restauration complète. */
 export function lireSauvegarde(texte: string): DomainEvent[] {
-  let brut: unknown;
-  try {
-    brut = JSON.parse(texte.trim());
-  } catch {
-    throw new Error('Ce fichier n’est pas une sauvegarde Déclic (JSON illisible)');
-  }
-  const s = brut as { format?: unknown; version?: unknown; events?: unknown };
-  if (s.format !== 'declic-export' || !Array.isArray(s.events)) throw new Error('Ce fichier n’est pas une sauvegarde Déclic');
-  if (s.version !== 1) throw new Error(`Version de sauvegarde non prise en charge : ${String(s.version)}`);
-  const ids = new Set<string>();
-  const events = s.events as DomainEvent[];
-  events.forEach((e, i) => {
-    if (typeof e !== 'object' || e === null || !TYPES_CONNUS.has(e.type) || typeof e.payload !== 'object' || e.payload === null)
-      throw new Error(`Événement n° ${i + 1} invalide`);
-    const erreurs = validateEvent(e);
-    if (erreurs.length > 0) throw new Error(`Événement n° ${i + 1} (${e.type}) : ${erreurs.join(', ')}`);
-    if (ids.has(e.id)) throw new Error(`Événement n° ${i + 1} en double`);
-    ids.add(e.id);
-  });
+  const { events } = lireFichierDeclic(texte);
   if (!events.some((e) => e.type === 'ProfilCree')) throw new Error('Sauvegarde sans profil');
   return events;
 }
@@ -246,7 +223,7 @@ export class Declic {
   async exporterDonnees(): Promise<string> {
     const events = await this.deps.store.all();
     // Compact (sans indentation) : un an d'historique tient en moins d'1 Mo.
-    return JSON.stringify({ format: 'declic-export', version: 1, exporteLe: new Date(this.deps.clock.now()).toISOString(), events });
+    return JSON.stringify({ format: 'declic-export', version: VERSION_EXPORT, exporteLe: new Date(this.deps.clock.now()).toISOString(), events });
   }
 
   /**
@@ -261,6 +238,33 @@ export class Declic {
     for (const e of events) await this.deps.store.append(e);
     await this.replanifierNotifications();
     return { evenements: events.length, journees: new Set(etat.cigarettes.map((c) => c.jour)).size };
+  }
+
+  /** Import d'historique, étape 1 : analyse du fichier SANS RIEN ÉCRIRE. */
+  async apercuImport(texte: string): Promise<Apercu> {
+    return analyserImport(await this.deps.store.all(), lireFichierDeclic(texte), this.deps.clock.timeZone());
+  }
+
+  /** Étape 2 : totaux, anomalies et événements selon les choix de rapprochement (sans rien écrire). */
+  async simulerImport(apercu: Apercu, choix: Choix): Promise<Simulation> {
+    return simulerImport(await this.deps.store.all(), apercu, choix, this.deps.clock.timeZone());
+  }
+
+  /**
+   * Étape 3 : écrit les événements validés (ajouts uniquement). Refuse si une divergence n'est
+   * pas tranchée, si un choix est incohérent ou si le journal a changé depuis l'aperçu.
+   */
+  async confirmerImport(apercu: Apercu, choix: Choix): Promise<number> {
+    if (apercu.bloquant) throw new Error(apercu.bloquant);
+    const actuels = await this.deps.store.all();
+    if (actuels.length !== apercu.empreinte) throw new Error('Des saisies ont changé depuis l’aperçu : relance l’aperçu avant d’importer');
+    const sim = simulerImport(actuels, apercu, choix, this.deps.clock.timeZone());
+    if (sim.restantes > 0) throw new Error(`${sim.restantes} rapprochement(s) à décider avant l’import`);
+    if (sim.erreurs.length > 0) throw new Error(sim.erreurs.join(' '));
+    const ids = new Set(actuels.map((e) => e.id));
+    const events = sim.evenements.filter((e) => !ids.has(e.id));
+    await this.ajouter(...events);
+    return events.length;
   }
 
   /** Historique détaillé des journées (écran Historique). */
