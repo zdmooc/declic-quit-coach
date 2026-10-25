@@ -35,7 +35,7 @@
 | Tables pharmacologique et santé | ⚠️ brouillons non validés : maximums et jalons santé inactifs |
 | Progrès | ✅ économies projetées (mois, an), objectifs d'épargne avec date estimée, records, bilan de la semaine, courbe du plan jusqu'à zéro |
 | Coach écrit (sans IA) | ✅ bilan du soir, faux pas analysé avec bienveillance, alerte 10 min avant l'heure à risque |
-| Coach IA | ✅ codé : conversation (SOS, soir, faux pas), garde-fous (dosage, symptômes, détresse → 15 / 112 / 3114 / 39 89), consentement · ⚙️ relais à déployer ([coach-relay](coach-relay/README.md)) |
+| Coach IA | ✅ codé : conversation (SOS, soir, faux pas), garde-fous (dosage, symptômes, détresse → 15 / 112 / 3114 / 39 89), consentement · modèle open source gratuit (Mistral Small 3.1 via Cloudflare Workers AI) · ⚙️ relais à déployer ([coach-relay](coach-relay/README.md)) |
 | Montre | ⏳ V2 |
 
 ## Démarrer

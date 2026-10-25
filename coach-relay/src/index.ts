@@ -1,17 +1,34 @@
 /**
- * Relais du coach IA de Déclic (ADR-0005).
+ * Relais du coach IA de Déclic (ADR-0005, ADR-0009).
  *
- * - garde la clé de l'API IA côté serveur (jamais dans l'application) ;
+ * - utilise un modèle open source (Mistral Small 3.1, Apache 2.0) via Cloudflare Workers AI,
+ *   dans l'offre gratuite : aucune clé d'API, aucun coût ;
  * - vérifie le code d'accès de l'application ;
  * - applique les garde-fous AVANT l'appel (détresse, symptômes, dosage) : réponse fixe ;
  * - ne journalise ni ne stocke rien : aucun message n'est conservé par le relais.
  */
 
+/** Sous-ensemble du binding Workers AI utilisé (facilite les tests). */
+export interface IaWorkers {
+  run(modele: string, entree: { messages: { role: string; content: string }[]; max_tokens: number }): Promise<unknown>;
+}
+
 export interface Env {
-  ANTHROPIC_API_KEY: string;
+  AI: IaWorkers;
   APP_TOKEN: string;
   MODEL?: string;
   MAX_TOKENS?: string;
+}
+
+export const MODELE_PAR_DEFAUT = '@cf/mistralai/mistral-small-3.1-24b-instruct';
+
+/** Texte de la réponse, quel que soit le format du modèle. */
+function texteDe(sortie: unknown): string {
+  if (typeof sortie !== 'object' || sortie === null) return '';
+  const s = sortie as { response?: unknown; choices?: { message?: { content?: unknown } }[] };
+  if (typeof s.response === 'string') return s.response;
+  const c = s.choices?.[0]?.message?.content;
+  return typeof c === 'string' ? c : '';
 }
 
 type Mode = 'sos' | 'soir' | 'fauxpas';
@@ -97,7 +114,7 @@ function memeJeton(a: string, b: string): boolean {
   return diff === 0;
 }
 
-export async function traiter(requete: Request, env: Env, appeler: typeof fetch = fetch): Promise<Response> {
+export async function traiter(requete: Request, env: Env): Promise<Response> {
   const url = new URL(requete.url);
   if (url.pathname === '/sante') return json({ ok: true });
   if (url.pathname !== '/coach' || requete.method !== 'POST') return json({ erreur: 'introuvable' }, 404);
@@ -118,28 +135,24 @@ export async function traiter(requete: Request, env: Env, appeler: typeof fetch 
   const g = garde(dernier);
   if (g) return json({ texte: g, garde: true });
 
-  const reponse = await appeler('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': env.ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: env.MODEL ?? 'claude-haiku-5-5',
+  let sortie: unknown;
+  try {
+    sortie = await env.AI.run(env.MODEL ?? MODELE_PAR_DEFAUT, {
       max_tokens: Number(env.MAX_TOKENS ?? 450),
-      system: `${CONSIGNES}\n\n${CONSIGNES_MODE[r.mode]}\n\nRésumé de la situation (chiffres non identifiants) :\n${JSON.stringify(r.resume)}`,
-      messages: r.tours.map((t) => ({ role: t.role, content: t.texte })),
-    }),
-  });
-  if (reponse.status === 429) return json({ erreur: 'trop de demandes' }, 429);
-  if (!reponse.ok) return json({ erreur: `fournisseur IA : ${reponse.status}` }, 502);
-  const donnees = (await reponse.json()) as { content?: { type: string; text?: string }[] };
-  const texte = (donnees.content ?? [])
-    .filter((b) => b.type === 'text')
-    .map((b) => b.text ?? '')
-    .join('')
-    .trim();
+      messages: [
+        {
+          role: 'system',
+          content: `${CONSIGNES}\n\n${CONSIGNES_MODE[r.mode]}\n\nRésumé de la situation (chiffres non identifiants) :\n${JSON.stringify(r.resume)}`,
+        },
+        ...r.tours.map((t) => ({ role: t.role, content: t.texte })),
+      ],
+    });
+  } catch (e) {
+    // Quota gratuit du jour épuisé (remis à zéro à minuit UTC) ou modèle indisponible.
+    const message = e instanceof Error ? e.message : String(e);
+    return /limit|quota|neuron|429|exceeded/i.test(message) ? json({ erreur: 'quota du jour atteint' }, 429) : json({ erreur: 'modèle indisponible' }, 502);
+  }
+  const texte = texteDe(sortie).trim();
   if (!texte) return json({ erreur: 'réponse vide' }, 502);
   return json({ texte, garde: false });
 }
