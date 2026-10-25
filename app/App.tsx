@@ -76,7 +76,7 @@ export default function App() {
     const [progres, mot] = await Promise.all([app.declic.progres(), app.declic.motDuCoach()]);
     if (progres) setProgresVue({ progres, mot });
   }
-  const ouvrirHistorique = async () => setHistorique(await declic.historique(60));
+  const ouvrirHistorique = async () => setHistorique(await declic.historique(400));
   const ouvrirReglages = async () => setReglages(await declic.reglages());
 
   // Protection contre le double appui : confirmation si la dernière cigarette date de moins de 2 min.

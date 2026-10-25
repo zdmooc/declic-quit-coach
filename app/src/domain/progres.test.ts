@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { genererCandidates } from './candidates';
 import { fauxPasAujourdhui, garde, messageDuSoir, messagePreventif, reponseGarde, resumeCoach } from './coach';
-import { proposerPlan, rejouer, tableauDeBord } from './dashboard';
+import { proposerPlan, rejouer, tableauDeBord, type JourneeHistorique } from './dashboard';
 import type { DomainEvent } from './events';
-import { progres } from './progres';
+import { progres, serieConsommation } from './progres';
 import type { ReferencePharma } from './substitutes';
 import { zonedInstant } from './time';
 
@@ -131,5 +131,34 @@ describe('coach scripté (F6.8, F7.3, F7.4)', () => {
     const r = resumeCoach(tableauDeBord(etat, t('2026-11-05', '12:00'), TZ, REF), progres(etat, t('2026-11-05', '12:00'), TZ));
     expect(r).toMatchObject({ phase: 'reduction', quotaDuJour: 9, fumeesAujourdhui: 3, declencheurPrincipal: 'Café' });
     expect(JSON.stringify(r)).not.toMatch(/2026|T\d\d:/);
+  });
+});
+
+describe('séries du graphique (jour, semaine, mois)', () => {
+  const j = (jour: string, total: number, quota: number | null = null): JourneeHistorique => ({
+    jour, total, fumees: total, quota, enPlan: quota !== null, sansHeure: 0, enviesSignalees: 0, envies: 0,
+    intervalleMinutes: null, respectees: 0, nonRespectees: 0, economieCents: null, cigarettes: [],
+  });
+  const hist = [j('2026-10-23', 8), j('2026-10-24', 11), j('2026-10-25', 11, 30), j('2026-10-26', 20, 38), j('2026-11-02', 10, 31)];
+
+  it('par jour : total réel, journée en cours et journées partielles marquées incomplètes', () => {
+    const s = serieConsommation(hist, 'jour', { aujourdhui: '2026-11-02', partielles: new Set(['2026-10-23']) });
+    expect(s.map((p) => [p.debut, p.total, p.incomplet])).toEqual([
+      ['2026-10-23', 8, true], ['2026-10-24', 11, false], ['2026-10-25', 11, false], ['2026-10-26', 20, false], ['2026-11-02', 10, true],
+    ]);
+  });
+
+  it('par semaine ISO (lundi) : total, moyenne par journée renseignée, quota moyen', () => {
+    const s = serieConsommation(hist, 'semaine', { aujourdhui: '2026-11-03' });
+    expect(s.map((p) => [p.debut, p.total, p.jours, p.moyenneParJour, p.quotaMoyen])).toEqual([
+      ['2026-10-19', 30, 3, 10, 30],
+      ['2026-10-26', 20, 1, 20, 38],
+      ['2026-11-02', 10, 1, 10, 31],
+    ]);
+  });
+
+  it('par mois', () => {
+    const s = serieConsommation(hist, 'mois', { aujourdhui: '2026-11-03' });
+    expect(s.map((p) => [p.debut, p.total, p.jours])).toEqual([['2026-10-01', 50, 4], ['2026-11-01', 10, 1]]);
   });
 });

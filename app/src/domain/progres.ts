@@ -132,3 +132,60 @@ export function progres(etat: EtatJournal, maintenant: Instant, tz: string): Pro
     reference,
   };
 }
+
+/* ------------------------------------------------------------------ */
+/* Séries pour le graphique : par jour, par semaine, par mois           */
+/* ------------------------------------------------------------------ */
+
+export type Granularite = 'jour' | 'semaine' | 'mois';
+
+export interface PointSerie {
+  /** Jour, lundi de la semaine ISO, ou premier jour du mois. */
+  debut: LocalDate;
+  /** Cigarettes de la période (total réel : avant-plan et sans-heure compris). */
+  total: number;
+  /** Journées renseignées de la période. */
+  jours: number;
+  /** Moyenne par journée renseignée (comparable d'une période à l'autre). */
+  moyenneParJour: number;
+  /** Quota moyen des journées du plan de la période ; `null` hors plan. */
+  quotaMoyen: number | null;
+  /** Au moins une journée partielle ou en cours : moyenne à lire avec prudence. */
+  incomplet: boolean;
+}
+
+const lundi = (j: LocalDate) => addDays(j, -((new Date(`${j}T12:00:00Z`).getUTCDay() + 6) % 7));
+const premierDuMois = (j: LocalDate) => `${j.slice(0, 7)}-01`;
+
+/**
+ * Regroupe les journées de l'historique. Seules les journées renseignées comptent (une journée
+ * sans aucune saisie avant le début du suivi n'est pas un « zéro »). Les journées partielles sont
+ * passées en paramètre (historique importé) et la journée en cours est toujours incomplète.
+ */
+export function serieConsommation(
+  journees: readonly JourneeHistorique[],
+  granularite: Granularite,
+  options: { aujourdhui: LocalDate; partielles?: ReadonlySet<LocalDate>; max?: number },
+): PointSerie[] {
+  const renseignees = journees.filter((j) => j.total > 0 || j.enPlan);
+  if (renseignees.length === 0) return [];
+  const cle = granularite === 'jour' ? (j: LocalDate) => j : granularite === 'semaine' ? lundi : premierDuMois;
+  const groupes = new Map<LocalDate, JourneeHistorique[]>();
+  for (const j of renseignees) groupes.set(cle(j.jour), [...(groupes.get(cle(j.jour)) ?? []), j]);
+  const max = options.max ?? (granularite === 'jour' ? 30 : 12);
+  return [...groupes.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-max)
+    .map(([debut, js]) => {
+      const total = somme(js.map((j) => j.total));
+      const plan = js.filter((j) => j.quota !== null);
+      return {
+        debut,
+        total,
+        jours: js.length,
+        moyenneParJour: total / js.length,
+        quotaMoyen: plan.length > 0 ? somme(plan.map((j) => j.quota!)) / plan.length : null,
+        incomplet: js.some((j) => j.jour === options.aujourdhui || options.partielles?.has(j.jour)),
+      };
+    });
+}

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { formatDuree, formatEuros, type CigaretteHistorique, type ContextePerso, type JourneeHistorique } from '../domain';
+import { formatDuree, formatEuros, serieConsommation, type CigaretteHistorique, type ContextePerso, type Granularite, type JourneeHistorique, type PointSerie } from '../domain';
 import { ContexteSheet, type Precision } from './ContexteSheet';
 import { couleurs, espace } from './theme';
 
@@ -28,36 +28,89 @@ const jourLong = (jour: string) =>
 
 const HAUTEUR_GRAPHE = 120;
 
-/** Graphique des 14 dernières journées : barres = cigarettes fumées, trait = quota. */
+/** Graphique par jour (30 dernières journées), par semaine ou par mois (12 dernières). */
 function Graphe({ journees }: { journees: JourneeHistorique[] }) {
-  const jours = [...journees].slice(0, 14).reverse();
-  const max = Math.max(1, ...jours.map((j) => Math.max(j.total, j.quota ?? 0)));
+  const [granularite, setGranularite] = useState<Granularite>('jour');
+  const aujourdhui = journees[0]?.jour ?? '';
+  // La première journée suivie est presque toujours partielle (suivi commencé en cours de journée).
+  const premiere = [...journees].reverse().find((j) => j.total > 0 || j.enPlan)?.jour;
+  const points = serieConsommation(journees, granularite, { aujourdhui, partielles: new Set(premiere ? [premiere] : []) });
+  const valeur = (p: PointSerie) => (granularite === 'jour' ? p.total : p.moyenneParJour);
+  const max = Math.max(1, ...points.map((p) => Math.max(valeur(p), p.quotaMoyen ?? 0)));
+  const largeur = granularite === 'jour' ? 22 : undefined;
+  const libelle = (p: PointSerie) =>
+    granularite === 'jour' ? jourCourt(p.debut) : granularite === 'semaine' ? `${p.debut.slice(8)}/${p.debut.slice(5, 7)}` : MOIS[Number(p.debut.slice(5, 7)) - 1]!;
+  const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1).replace('.', ','));
+  const dernier = points[points.length - 1];
+  const precedent = points[points.length - 2];
+  const unite = granularite === 'jour' ? 'cette journée' : granularite === 'semaine' ? 'cette semaine' : 'ce mois-ci';
+  const barres = points.map((p) => {
+    const v = valeur(p);
+    const depasse = p.quotaMoyen !== null && v > p.quotaMoyen;
+    return (
+      <View key={p.debut} style={[styles.colonne, largeur ? { width: largeur, flex: 0 } : null]}>
+        <Text style={styles.valeurBarre}>{fmt(Math.round(v * 10) / 10)}</Text>
+        <View style={styles.zoneBarre}>
+          {p.quotaMoyen !== null && <View style={[styles.quota, { bottom: (p.quotaMoyen / max) * HAUTEUR_GRAPHE }]} />}
+          <View
+            style={[
+              styles.barre,
+              { height: Math.max(2, (v / max) * HAUTEUR_GRAPHE) },
+              depasse ? styles.barreRouge : p.quotaMoyen !== null ? styles.barreVerte : styles.barreNeutre,
+              p.incomplet && styles.barreIncomplete,
+            ]}
+          />
+        </View>
+        <Text style={styles.jourBarre} numberOfLines={1}>
+          {libelle(p)}
+          {p.incomplet ? '*' : ''}
+        </Text>
+      </View>
+    );
+  });
   return (
-    <View style={styles.graphe} accessible accessibilityLabel="Cigarettes fumées par jour, 14 derniers jours">
-      {jours.map((j) => {
-        const depasse = j.quota !== null && j.fumees > j.quota;
-        return (
-          <View key={j.jour} style={styles.colonne}>
-            <Text style={styles.valeurBarre}>{j.total}</Text>
-            <View style={styles.zoneBarre}>
-              {j.quota !== null && <View style={[styles.quota, { bottom: (j.quota / max) * HAUTEUR_GRAPHE }]} />}
-              <View
-                style={[
-                  styles.barre,
-                  { height: Math.max(2, (j.total / max) * HAUTEUR_GRAPHE) },
-                  depasse ? styles.barreRouge : j.quota !== null ? styles.barreVerte : styles.barreNeutre,
-                ]}
-              />
-            </View>
-            <Text style={styles.jourBarre} numberOfLines={1}>
-              {jourCourt(j.jour)}
-            </Text>
-          </View>
-        );
-      })}
+    <View>
+      <View style={styles.onglets}>
+        {(['jour', 'semaine', 'mois'] as const).map((g) => (
+          <Pressable
+            key={g}
+            style={[styles.onglet, granularite === g && styles.ongletActif]}
+            onPress={() => setGranularite(g)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: granularite === g }}
+          >
+            <Text style={[styles.ongletTexte, granularite === g && styles.ongletTexteActif]}>{g === 'jour' ? 'Jour' : g === 'semaine' ? 'Semaine' : 'Mois'}</Text>
+          </Pressable>
+        ))}
+      </View>
+      {points.length === 0 ? (
+        <Text style={styles.legende}>Pas encore de données.</Text>
+      ) : granularite === 'jour' ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.graphe} ref={(r) => r?.scrollToEnd({ animated: false })}>
+          {barres}
+        </ScrollView>
+      ) : (
+        <View style={styles.graphe}>{barres}</View>
+      )}
+      {dernier && (
+        <Text style={styles.synthese}>
+          {granularite === 'jour'
+            ? `${dernier.total} cigarettes ${unite}`
+            : `${fmt(Math.round(dernier.moyenneParJour * 10) / 10)} par jour ${unite} (${dernier.total} sur ${dernier.jours} j)`}
+          {precedent
+            ? ` · ${valeur(dernier) <= valeur(precedent) ? '−' : '+'}${fmt(Math.abs(Math.round((valeur(dernier) - valeur(precedent)) * 10) / 10))} vs ${granularite === 'jour' ? 'la veille' : granularite === 'semaine' ? 'la semaine d’avant' : 'le mois d’avant'}`
+            : ''}
+        </Text>
+      )}
+      <Text style={styles.legende}>
+        {granularite === 'jour' ? 'Total réel par journée' : 'Moyenne par journée renseignée'} · vert : quota tenu · rouge : dépassé · trait : quota
+        {points.some((p) => p.incomplet) ? ' · * période incomplète (pâle)' : ''}
+      </Text>
     </View>
   );
 }
+
+const MOIS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
 
 function LigneCigarette({
   c,
@@ -102,12 +155,11 @@ export function HistoriqueScreen({ journees, tz, contextesPerso, onFermer, onPre
         </View>
         <ScrollView contentContainerStyle={styles.contenu}>
           <View style={styles.carte}>
-            <Text style={styles.petit}>14 derniers jours</Text>
+            <Text style={styles.petit}>Consommation</Text>
             <Graphe journees={journees} />
-            <Text style={styles.legende}>Barre verte : quota tenu · rouge : quota dépassé · trait : quota</Text>
           </View>
 
-          {journees.map((j) => {
+          {journees.slice(0, 60).map((j) => {
             const estOuvert = ouvert === j.jour;
             return (
               <View key={j.jour} style={styles.carte}>
@@ -186,6 +238,13 @@ const styles = StyleSheet.create({
   quota: { position: 'absolute', left: -1, right: -1, height: 2, backgroundColor: couleurs.encre, zIndex: 1 },
   jourBarre: { color: couleurs.doux, fontSize: 9, marginTop: 3 },
   legende: { color: couleurs.doux, fontSize: 12, marginTop: espace(2) },
+  synthese: { color: couleurs.encre, fontSize: 14, fontWeight: '600', marginTop: espace(2) },
+  barreIncomplete: { opacity: 0.45 },
+  onglets: { flexDirection: 'row', backgroundColor: couleurs.fond, borderRadius: 12, padding: 3, marginBottom: espace(3) },
+  onglet: { flex: 1, paddingVertical: espace(2), borderRadius: 10, alignItems: 'center' },
+  ongletActif: { backgroundColor: couleurs.carte },
+  ongletTexte: { color: couleurs.doux, fontSize: 14, fontWeight: '600' },
+  ongletTexteActif: { color: couleurs.vert, fontWeight: '800' },
   enteteJour: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   jour: { color: couleurs.encre, fontSize: 17, fontWeight: '700', textTransform: 'capitalize' },
   chevron: { color: couleurs.doux, fontSize: 12 },
