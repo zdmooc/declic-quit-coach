@@ -63,7 +63,7 @@ npx eas-cli@latest update --channel preview --environment preview --message "…
 
 ## Pile technique (cible)
 
-React Native + Expo (TypeScript) · SQLite chiffré · expo-notifications · SwiftUI (watchOS) · Compose (Wear OS) · BFF serverless en UE · Claude Haiku 5.5 pour le coach.
+React Native + Expo (TypeScript) · SQLite chiffré · expo-notifications · SwiftUI (watchOS) · Compose (Wear OS) · BFF serverless en UE · coach IA open source (Mistral Small 3.1 via Cloudflare Workers AI, gratuit).
 
 ## Avertissement
 

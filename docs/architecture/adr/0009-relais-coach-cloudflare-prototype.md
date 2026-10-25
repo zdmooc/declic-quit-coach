@@ -9,7 +9,7 @@ ADR-0005 prévoit un BFF sur Scaleway (Paris) pour la publication. Pour l'usage 
 
 ## Décision
 
-- Le relais (`coach-relay/`) est un **Cloudflare Worker** sans état : il garde la clé de l'API IA, vérifie un **code d'accès** (secret partagé saisi dans les réglages du téléphone, jamais dans le dépôt), applique les garde-fous en entrée et appelle un **modèle open source** via **Cloudflare Workers AI** : Mistral Small 3.1 (Apache 2.0), choisi pour sa qualité en français. Révision du 2026-10-25 : le porteur du projet ne veut aucune dépense pour le moment ; Claude Haiku 5.5 (payant) est écarté pour cette phase.
+- Le relais (`coach-relay/`) est un **Cloudflare Worker** sans état : il vérifie un **code d'accès** (secret partagé saisi dans les réglages du téléphone, jamais dans le dépôt), applique les garde-fous en entrée et appelle un **modèle open source** via **Cloudflare Workers AI** : Mistral Small 3.1 (Apache 2.0), choisi pour sa qualité en français. Révision du 2026-10-25 : le porteur du projet ne veut aucune dépense pour le moment ; Claude Haiku 5.5 (payant) est écarté pour cette phase.
 - Il ne journalise ni ne stocke aucun message (observabilité désactivée).
 - Le téléphone n'envoie que le **résumé chiffré** (`resumeCoach`) et les messages de la conversation ; le consentement est un événement du journal (`ConsentementModifie`, finalité `coach-ia`).
 - Garde-fous en double : côté app (domaine `coach.ts`, avant tout envoi) et côté relais.
