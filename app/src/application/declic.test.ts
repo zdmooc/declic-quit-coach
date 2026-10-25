@@ -270,3 +270,12 @@ describe('coach IA (F7.2, F7.5, F7.6)', () => {
     expect((await app.progres())!.records.joursSansTabac).toBe(0);
   });
 });
+
+describe('adresse du relais', () => {
+  it('retire le point final ajouté par le clavier, les espaces et les barres', async () => {
+    const { normaliserUrlCoach } = await import('../adapters/coachHttp');
+    expect(normaliserUrlCoach(' https://declic-coach.zdmooc.workers.dev. ')).toBe('https://declic-coach.zdmooc.workers.dev');
+    expect(normaliserUrlCoach('https://declic-coach.zdmooc.workers.dev/')).toBe('https://declic-coach.zdmooc.workers.dev');
+    expect(normaliserUrlCoach('http://x.workers.dev')).toBe('https://x.workers.dev');
+  });
+});

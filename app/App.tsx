@@ -9,7 +9,7 @@ import { MemoryNotifier, SystemClock, UuidV7Generator } from './src/adapters/mem
 import { modulesNotificationsManquants } from './src/adapters/notificationsDisponibles';
 import type { Notifier } from './src/ports';
 import { SqliteEventStore } from './src/adapters/sqlite';
-import { CoachHttp } from './src/adapters/coachHttp';
+import { CoachHttp, normaliserUrlCoach } from './src/adapters/coachHttp';
 import { ReglagesLocaux } from './src/adapters/reglagesLocaux';
 import type { ContenuSante, JourneeHistorique, MessageCoach, ModeCoach, Progres, ReferencePharma, TableauDeBord } from './src/domain';
 import { CoachScreen, ReglageCoach } from './src/ui/CoachScreen';
@@ -232,8 +232,9 @@ export default function App() {
       await action();
       await ouvrirProgres();
     })();
-  const enregistrerCoach = (url: string, jeton: string) =>
+  const enregistrerCoach = (saisie: string, jeton: string) =>
     void (async () => {
+      const url = normaliserUrlCoach(saisie);
       await app.locaux.definirConfigCoach({ url, jeton });
       declic.brancherCoach(new CoachHttp(url, jeton));
       setUrlCoach(url);

@@ -5,6 +5,14 @@
 
 import type { CoachIa, TourCoach } from '../ports';
 
+/**
+ * Nettoie l'adresse saisie : espaces, barres finales, et point final ajouté par le clavier
+ * (« …workers.dev. » casse la vérification du certificat TLS).
+ */
+export function normaliserUrlCoach(saisie: string): string {
+  return saisie.trim().replace(/[\s/.]+$/, '').replace(/^http:\/\//i, 'https://');
+}
+
 export class CoachHttp implements CoachIa {
   constructor(
     private readonly url: string,
@@ -16,7 +24,7 @@ export class CoachHttp implements CoachIa {
     const abandon = new AbortController();
     const minuteur = setTimeout(() => abandon.abort(), this.delaiMs);
     try {
-      const r = await fetch(`${this.url.replace(/\/+$/, '')}/coach`, {
+      const r = await fetch(`${normaliserUrlCoach(this.url)}/coach`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.jeton}` },
         body: JSON.stringify(requete),
