@@ -72,16 +72,35 @@ export function quotas(plan: PlanInput, jusquAu: LocalDate): Map<LocalDate, numb
   return out;
 }
 
+/**
+ * Cache des quotas par plan : les écrans demandent le quota de centaines de jours ; sans cache,
+ * chaque appel recalculait le plan depuis le premier jour (coût quadratique).
+ * La signature protège contre un plan modifié après coup (palier ajouté, rythme changé).
+ */
+const CACHE_QUOTAS = new WeakMap<PlanInput, { signature: string; jusquAu: LocalDate; quotas: Map<LocalDate, number> }>();
+
+function quotasEnCache(plan: PlanInput, jusquAu: LocalDate): Map<LocalDate, number> {
+  const signature = JSON.stringify(plan);
+  const c = CACHE_QUOTAS.get(plan);
+  if (c && c.signature === signature && daysBetween(jusquAu, c.jusquAu) >= 0) return c.quotas;
+  // On calcule large (au moins un an) pour servir les appels suivants.
+  const horizon = daysBetween(addDays(plan.dateDebut, 365), jusquAu) > 0 ? jusquAu : addDays(plan.dateDebut, 365);
+  const q = quotas(plan, horizon);
+  CACHE_QUOTAS.set(plan, { signature, jusquAu: horizon, quotas: q });
+  return q;
+}
+
 /** Quota d'un jour (RM-01). Avant le début du plan : consommation initiale. */
 export function quotaDuJour(plan: PlanInput, jour: LocalDate): number {
   if (daysBetween(plan.dateDebut, jour) < 0) return plan.initial;
-  return quotas(plan, jour).get(jour) ?? plan.initial;
+  return quotasEnCache(plan, jour).get(jour) ?? plan.initial;
 }
 
 /** Date prévue du zéro, si aucun nouveau palier n'est ajouté. */
 export function dateDuZero(plan: PlanInput, maxJours = 3650): LocalDate | null {
-  const horizon = addDays(plan.dateDebut, maxJours);
-  for (const [jour, q] of quotas(plan, horizon)) if (q === 0) return jour;
+  for (const [jour, q] of quotasEnCache(plan, addDays(plan.dateDebut, 365))) if (q === 0) return jour;
+  if (maxJours <= 365) return null;
+  for (const [jour, q] of quotas(plan, addDays(plan.dateDebut, maxJours))) if (q === 0) return jour;
   return null;
 }
 

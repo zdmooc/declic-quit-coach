@@ -97,3 +97,9 @@ flowchart TD
 | Couper le BFF et vérifier le repli | Chaque version du BFF |
 | Rejouer un journal de 10 000 événements (performance de reconstruction) | Chaque version du domaine |
 | Changement d'heure et changement de fuseau | Dans la suite de tests automatiques |
+
+
+## Mise à jour 2026-10-25 — sauvegarde, restauration et performance
+
+- **Sauvegarde / restauration (F9.1)** : export JSON compact écrit dans un dossier choisi par l'utilisateur (sélecteur système Android, `expo-file-system` déjà présent dans le build) ; restauration depuis un fichier, **entièrement validée avant d'effacer quoi que ce soit** (format, version, types, invariants, identifiants uniques, présence du profil). Le journal est rejoué à l'identique (mêmes identifiants, même ordre). Proposée aussi au premier lancement (nouveau téléphone). Chiffrement de la sauvegarde : avec le lot sécurité.
+- **Performance des projections** : mesurée sur un an d'historique simulé (5 842 événements, serveur de CI) : rejeu 33 ms ; Progrès 181 → 9 ms ; Historique 93 → 5 ms ; tableau de bord 51 → 26 ms. Causes : quotas recalculés depuis le premier jour à chaque appel, et filtrage de toutes les cigarettes pour chaque journée. Correctifs : cache des quotas par plan (avec signature) et index « journée → éléments ». Un snapshot du journal n'est pas nécessaire à ce volume.

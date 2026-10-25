@@ -5,9 +5,11 @@ import { couleurs, espace } from './theme';
 
 interface Props {
   onValider: (profil: NouveauProfil) => Promise<void>;
+  /** Nouveau téléphone : restaurer une sauvegarde au lieu de créer un profil. */
+  onRestaurer?: () => void;
 }
 
-export function OnboardingScreen({ onValider }: Props) {
+export function OnboardingScreen({ onValider, onRestaurer }: Props) {
   const [parJour, setParJour] = useState('20');
   const [prix, setPrix] = useState('13,00');
   const [parPaquet, setParPaquet] = useState('20');
@@ -53,6 +55,11 @@ export function OnboardingScreen({ onValider }: Props) {
       <Pressable style={styles.bouton} onPress={valider} accessibilityRole="button">
         <Text style={styles.boutonTexte}>Commencer l’observation</Text>
       </Pressable>
+      {onRestaurer && (
+        <Pressable onPress={onRestaurer} accessibilityRole="button" hitSlop={8}>
+          <Text style={styles.restaurer}>J’ai déjà une sauvegarde Déclic : la restaurer</Text>
+        </Pressable>
+      )}
       <Text style={styles.mention}>Tes données restent sur ce téléphone. Déclic ne remplace pas un avis médical.</Text>
     </ScrollView>
   );
@@ -112,4 +119,5 @@ const styles = StyleSheet.create({
   bouton: { backgroundColor: couleurs.vert, borderRadius: 14, paddingVertical: espace(4), alignItems: 'center', marginTop: espace(2) },
   boutonTexte: { color: '#FFFFFF', fontSize: 17, fontWeight: '700' },
   mention: { color: couleurs.doux, fontSize: 13, textAlign: 'center', marginTop: espace(4) },
+  restaurer: { color: couleurs.vert, fontSize: 15, fontWeight: '600', textAlign: 'center', textDecorationLine: 'underline', marginTop: espace(4) },
 });

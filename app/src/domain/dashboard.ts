@@ -309,19 +309,38 @@ export function dureeActive(h: Horaires): number {
 export function premierJourPartiel(etat: EtatJournal): { debut: Instant; fraction: number } | null {
   const plan = etat.plan;
   if (!plan) return null;
-  const avant = etat.cigarettes.filter((c) => c.jour === plan.input.dateDebut && c.a < plan.demarreLe);
+  const avant = elementsDuJour(etat.cigarettes, plan.input.dateDebut).filter((c) => c.a < plan.demarreLe);
   if (avant.length === 0) return null;
   const premiere = Math.min(...avant.map((c) => c.a));
   const ecoule = minutesBetween(premiere, plan.demarreLe);
   return { debut: plan.demarreLe, fraction: Math.min(1, Math.max(0, 1 - ecoule / dureeActive(plan.horaires))) };
 }
 
+/**
+ * Index « journée → éléments », construit une fois par journal rejoué : les écrans parcourent
+ * des centaines de journées, et filtrer toutes les cigarettes à chaque fois coûtait cher.
+ */
+const INDEX_JOURS = new WeakMap<readonly { jour: LocalDate }[], { taille: number; parJour: Map<LocalDate, unknown[]> }>();
+
+export function elementsDuJour<T extends { jour: LocalDate }>(liste: readonly T[], jour: LocalDate): readonly T[] {
+  let idx = INDEX_JOURS.get(liste);
+  if (!idx || idx.taille !== liste.length) {
+    const parJour = new Map<LocalDate, unknown[]>();
+    for (const x of liste) {
+      const l = parJour.get(x.jour);
+      if (l) l.push(x);
+      else parJour.set(x.jour, [x]);
+    }
+    idx = { taille: liste.length, parJour };
+    INDEX_JOURS.set(liste, idx);
+  }
+  return (idx.parJour.get(jour) as T[] | undefined) ?? [];
+}
+
 /** Cigarettes comptées pour une journée du plan (hors cigarettes d'avant le démarrage). */
 function fumeesDuJour(etat: EtatJournal, jour: LocalDate): CigaretteJournal[] {
   const plan = etat.plan;
-  return etat.cigarettes.filter(
-    (c) => c.jour === jour && (!plan || jour !== plan.input.dateDebut || c.a >= plan.demarreLe),
-  );
+  return elementsDuJour(etat.cigarettes, jour).filter((c) => !plan || jour !== plan.input.dateDebut || c.a >= plan.demarreLe);
 }
 
 /** Quota affiché d'un jour : celui du plan, réduit au prorata le premier jour partiel. */
@@ -435,7 +454,7 @@ export function tableauDeBord(etat: EtatJournal, maintenant: Instant, tz: string
   const derniere = toutes.length > 0 ? Math.max(...toutes) : null;
   const duJour = fumeesDuJour(etat, jour);
   const horaires = plan?.horaires ?? HORAIRES_PAR_DEFAUT;
-  const ouvertes = etat.cigarettes.filter((c) => c.jour === jour).map((c) => c.a);
+  const ouvertes = elementsDuJour(etat.cigarettes, jour).map((c) => c.a);
   const fenetre = fenetreDuJour(jour, horaires, ouvertes.length > 0 ? Math.min(...ouvertes) : null, tz);
 
   const commun = {
@@ -443,12 +462,12 @@ export function tableauDeBord(etat: EtatJournal, maintenant: Instant, tz: string
     fumees: duJour.length,
     intervalleMoyenJourMinutes: moyenne(
       intervallesEveilles(
-        etat.cigarettes.filter((c) => c.jour === jour),
+        elementsDuJour(etat.cigarettes, jour),
         SEUIL_NUIT_MINUTES,
       ),
     ),
     intervalleMoyen7jMinutes: mesurerHabitudes(etat.cigarettes, jour, tz)?.intervalleMoyenMinutes ?? null,
-    enviesResistees: etat.envies.filter((e) => e.jour === jour).length,
+    enviesResistees: elementsDuJour(etat.envies, jour).length,
     depuisDerniereMinutes: derniere === null ? null : Math.max(0, minutesBetween(derniere, maintenant)),
     patch: etatPatch(etat.patch, maintenant),
     oraux: (['pastille', 'gomme'] as const).map((forme) => {
@@ -617,7 +636,7 @@ export function historiqueJournees(etat: EtatJournal, maintenant: Instant, tz: s
 
   return tries.map((jour) => {
     const enPlan = plan !== null && daysBetween(plan.input.dateDebut, jour) >= 0;
-    const comptees = enPlan ? fumeesDuJour(etat, jour) : etat.cigarettes.filter((c) => c.jour === jour);
+    const comptees = enPlan ? fumeesDuJour(etat, jour) : elementsDuJour(etat.cigarettes, jour);
     const liste = [...comptees].sort((x, y) => x.a - y.a);
     const intervalle =
       enPlan && plan
@@ -645,7 +664,7 @@ export function historiqueJournees(etat: EtatJournal, maintenant: Instant, tz: s
       respectees: respect.respectees,
       nonRespectees: respect.nonRespectees,
       economieCents: lignesPlan.get(jour)?.economieCents ?? null,
-      envies: etat.envies.filter((e) => e.jour === jour).length,
+      envies: elementsDuJour(etat.envies, jour).length,
       cigarettes,
     };
   });

@@ -71,6 +71,37 @@ export interface NouveauProfil {
 
 type Source = DomainEvent['source'];
 
+const TYPES_CONNUS: ReadonlySet<string> = new Set<DomainEvent['type']>([
+  'ProfilCree', 'PlanDemarre', 'RythmeModifie', 'PalierDemande', 'CigaretteFumee', 'EnvieResistee', 'SaisieAnnulee',
+  'CigaretteCorrigee', 'ContexteAjoute', 'RaisonAjoutee', 'ContexteRenomme', 'ContexteArchive', 'IntervalleRecommandeModifie',
+  'PatchPose', 'PatchRetire', 'SubstitutOralPris', 'PrixModifie', 'ObjectifEpargneDefini', 'ObjectifRetire', 'ConsentementModifie',
+]);
+
+/** Lit et valide un fichier d'export Déclic ; lève une erreur lisible sinon. */
+export function lireSauvegarde(texte: string): DomainEvent[] {
+  let brut: unknown;
+  try {
+    brut = JSON.parse(texte.trim());
+  } catch {
+    throw new Error('Ce fichier n’est pas une sauvegarde Déclic (JSON illisible)');
+  }
+  const s = brut as { format?: unknown; version?: unknown; events?: unknown };
+  if (s.format !== 'declic-export' || !Array.isArray(s.events)) throw new Error('Ce fichier n’est pas une sauvegarde Déclic');
+  if (s.version !== 1) throw new Error(`Version de sauvegarde non prise en charge : ${String(s.version)}`);
+  const ids = new Set<string>();
+  const events = s.events as DomainEvent[];
+  events.forEach((e, i) => {
+    if (typeof e !== 'object' || e === null || !TYPES_CONNUS.has(e.type) || typeof e.payload !== 'object' || e.payload === null)
+      throw new Error(`Événement n° ${i + 1} invalide`);
+    const erreurs = validateEvent(e);
+    if (erreurs.length > 0) throw new Error(`Événement n° ${i + 1} (${e.type}) : ${erreurs.join(', ')}`);
+    if (ids.has(e.id)) throw new Error(`Événement n° ${i + 1} en double`);
+    ids.add(e.id);
+  });
+  if (!events.some((e) => e.type === 'ProfilCree')) throw new Error('Sauvegarde sans profil');
+  return events;
+}
+
 export class Declic {
   constructor(private readonly deps: DeclicDeps) {}
 
@@ -214,7 +245,22 @@ export class Declic {
   /** Export complet du journal (JSON), pour sauvegarde ou portabilité (F9.1, RGPD). */
   async exporterDonnees(): Promise<string> {
     const events = await this.deps.store.all();
-    return JSON.stringify({ format: 'declic-export', version: 1, exporteLe: new Date(this.deps.clock.now()).toISOString(), events }, null, 2);
+    // Compact (sans indentation) : un an d'historique tient en moins d'1 Mo.
+    return JSON.stringify({ format: 'declic-export', version: 1, exporteLe: new Date(this.deps.clock.now()).toISOString(), events });
+  }
+
+  /**
+   * Restaure une sauvegarde (F9.1) : tout est vérifié AVANT d'effacer quoi que ce soit.
+   * Le journal est remplacé à l'identique (mêmes identifiants, même ordre).
+   */
+  async importerDonnees(texte: string): Promise<{ evenements: number; journees: number }> {
+    const events = lireSauvegarde(texte);
+    const etat = rejouer(events, this.deps.clock.timeZone());
+    if (!etat) throw new Error('Sauvegarde sans profil');
+    await this.deps.store.effacer();
+    for (const e of events) await this.deps.store.append(e);
+    await this.replanifierNotifications();
+    return { evenements: events.length, journees: new Set(etat.cigarettes.map((c) => c.jour)).size };
   }
 
   /** Historique détaillé des journées (écran Historique). */

@@ -279,3 +279,29 @@ describe('adresse du relais', () => {
     expect(normaliserUrlCoach('http://x.workers.dev')).toBe('https://x.workers.dev');
   });
 });
+
+describe('sauvegarde et restauration (F9.1)', () => {
+  it('export puis import sur un téléphone neuf : tableau de bord identique', async () => {
+    const a = monter();
+    await a.app.creerProfil(PROFIL);
+    a.clock.avancerMinutes(60);
+    await journee(a.app, a.clock, 5, 60);
+    await a.app.definirObjectif('Vélo', 40000);
+    const sauvegarde = await a.app.exporterDonnees();
+
+    const b = monter(a.clock.now());
+    expect(await b.app.importerDonnees(sauvegarde)).toEqual({ evenements: 7, journees: 1 });
+    expect(await b.app.tableauDeBord()).toEqual(await a.app.tableauDeBord());
+    expect(await b.store.all()).toEqual(await a.store.all());
+  });
+
+  it('fichier invalide : rien n\'est effacé', async () => {
+    const { app } = monter();
+    await app.creerProfil(PROFIL);
+    await expect(app.importerDonnees('pas du json')).rejects.toThrow(/JSON illisible/);
+    await expect(app.importerDonnees('{"format":"autre","events":[]}')).rejects.toThrow(/pas une sauvegarde/);
+    await expect(app.importerDonnees('{"format":"declic-export","version":1,"events":[]}')).rejects.toThrow(/sans profil/);
+    await expect(app.importerDonnees('{"format":"declic-export","version":1,"events":[{"type":"Inconnu","payload":{}}]}')).rejects.toThrow(/n° 1 invalide/);
+    expect(await app.aUnProfil()).toBe(true);
+  });
+});

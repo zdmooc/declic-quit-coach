@@ -1,159 +1,43 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, Share, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { getRandomValues } from 'expo-crypto';
-import * as SQLite from 'expo-sqlite';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Declic, type NouveauProfil, type Reglages } from './src/application/declic';
-import { MemoryNotifier, SystemClock, UuidV7Generator } from './src/adapters/memory';
-import { modulesNotificationsManquants } from './src/adapters/notificationsDisponibles';
-import type { Notifier } from './src/ports';
-import { SqliteEventStore } from './src/adapters/sqlite';
+import type { NouveauProfil, Reglages } from './src/application/declic';
 import { CoachHttp, normaliserUrlCoach } from './src/adapters/coachHttp';
-import { ReglagesLocaux } from './src/adapters/reglagesLocaux';
-import type { ContenuSante, JourneeHistorique, MessageCoach, ModeCoach, Progres, ReferencePharma, TableauDeBord } from './src/domain';
-import { CoachScreen, ReglageCoach } from './src/ui/CoachScreen';
-import { ProgresScreen } from './src/ui/ProgresScreen';
-import { HistoriqueScreen } from './src/ui/HistoriqueScreen';
-import { ReglagesScreen } from './src/ui/ReglagesScreen';
+import type { JourneeHistorique, MessageCoach, ModeCoach, Progres } from './src/domain';
+import { effacer, partager, restaurer, sauvegarder } from './src/ui/app/donnees';
+import { useApplication } from './src/ui/app/useApplication';
 import { BandeauMiseAJour } from './src/ui/BandeauMiseAJour';
+import { CoachScreen, ReglageCoach } from './src/ui/CoachScreen';
 import { ContexteSheet, type Precision } from './src/ui/ContexteSheet';
 import { DashboardScreen } from './src/ui/DashboardScreen';
+import { HistoriqueScreen } from './src/ui/HistoriqueScreen';
 import { OnboardingScreen } from './src/ui/OnboardingScreen';
+import { ProgresScreen } from './src/ui/ProgresScreen';
+import { ReglagesScreen } from './src/ui/ReglagesScreen';
 import { SosEnvie } from './src/ui/SosEnvie';
 import { SubstitutsScreen } from './src/ui/SubstitutsScreen';
 import { couleurs } from './src/ui/theme';
-import pharma from './config/pharma-reference.json';
-import sante from './config/health-milestones.json';
 
-type ModuleNotifications = typeof import('./src/adapters/expoNotifications');
-
-interface Application {
-  declic: Declic;
-  clock: SystemClock;
-  /** `null` si les notifications sont indisponibles (Expo Go trop ancien, par exemple). */
-  notifications: ModuleNotifications | null;
-  locaux: ReglagesLocaux;
-  /** Adresse du relais du coach IA, si configuré. */
-  urlCoach: string | null;
-}
-
-/** Charge expo-notifications seulement si ses modules natifs sont présents (sinon l'app planterait). */
-async function chargerNotifications(): Promise<ModuleNotifications | null> {
-  const manquants = modulesNotificationsManquants();
-  if (manquants.length > 0) {
-    console.warn(`Notifications désactivées, modules natifs absents : ${manquants.join(', ')}`);
-    return null;
-  }
-  try {
-    const mod = await import('./src/adapters/expoNotifications');
-    // Un refus de permission ne bloque pas l'app : les notifications ne seront pas programmées.
-    await mod.configurerNotifications().catch(() => false);
-    return mod;
-  } catch (e) {
-    console.warn('Notifications désactivées', e);
-    return null;
-  }
-}
-
-// Journal enregistré dans SQLite sur le téléphone (non chiffré dans Expo Go, voir adapters/sqlite.ts).
-// Notifications locales programmées sur le téléphone (ADR-0007).
-async function creerApplication(): Promise<Application> {
-  const notifications = await chargerNotifications();
-  const notifier: Notifier = notifications ? new notifications.ExpoNotifier() : new MemoryNotifier();
-  const clock = new SystemClock();
-  const db = await SQLite.openDatabaseAsync('declic.db');
-  const store = await SqliteEventStore.ouvrir(db);
-  const locaux = await ReglagesLocaux.ouvrir(db);
-  const configCoach = await locaux.configCoach();
-  const declic = new Declic({
-    store,
-    clock,
-    ids: new UuidV7Generator((b) => {
-      getRandomValues(b);
-    }),
-    notifier,
-    referencePharma: pharma as ReferencePharma,
-    contenuSante: sante as ContenuSante,
-    ...(configCoach ? { coachIa: new CoachHttp(configCoach.url, configCoach.jeton) } : {}),
-  });
-  await declic.replanifierNotifications();
-  return { declic, clock, notifications, locaux, urlCoach: configCoach?.url ?? null };
-}
-
+/**
+ * Racine de l'interface : page principale et écrans ouverts par-dessus.
+ * Composition et cycle de vie : `src/ui/app/` ; règles métier : `src/domain/`.
+ */
 export default function App() {
-  const [app, setApp] = useState<Application | null>(null);
-  const [erreur, setErreur] = useState<string | null>(null);
-  const [chargement, setChargement] = useState(true);
-  const [tdb, setTdb] = useState<TableauDeBord | null>(null);
   /** Cigarette qui vient d'être enregistrée et dont on demande le contexte. */
   const [aPreciser, setAPreciser] = useState<string | null>(null);
   const [sos, setSos] = useState(false);
   const [substituts, setSubstituts] = useState(false);
   const [progresVue, setProgresVue] = useState<{ progres: Progres; mot: MessageCoach | null } | null>(null);
   const [coachMode, setCoachMode] = useState<ModeCoach | null>(null);
-  const [urlCoach, setUrlCoach] = useState<string | null>(null);
-  const [coachDispo, setCoachDispo] = useState(false);
-  /** Écrans secondaires ouverts par-dessus la page principale. */
+  const [urlCoach, setUrlCoach] = useState<string | null | undefined>(undefined);
   const [historique, setHistorique] = useState<JourneeHistorique[] | null>(null);
   const [reglages, setReglages] = useState<Reglages | null>(null);
-  /** Réponses aux notifications déjà traitées (une action ne doit compter qu'une fois). */
-  const reponsesTraitees = useRef(new Set<string>());
 
-  useEffect(() => {
-    creerApplication()
-      .then(setApp)
-      .catch((e: unknown) => setErreur(e instanceof Error ? e.message : String(e)));
-  }, []);
-
-  const rafraichir = useCallback(async () => {
-    if (!app) return;
-    setTdb(await app.declic.tableauDeBord());
-    setCoachDispo(await app.declic.coachIaDisponible());
-    setChargement(false);
-  }, [app]);
-
-  useEffect(() => {
-    if (app) setUrlCoach(app.urlCoach);
-  }, [app]);
-
-  useEffect(() => {
-    void rafraichir();
-    const timer = setInterval(() => void rafraichir(), 30_000);
-    return () => clearInterval(timer);
-  }, [rafraichir]);
-
-  // Retour au premier plan : on recalcule l'écran et on reprogramme les notifications.
-  useEffect(() => {
-    if (!app) return;
-    const sub = AppState.addEventListener('change', (etat) => {
-      if (etat === 'active') void app.declic.replanifierNotifications().then(rafraichir);
-    });
-    return () => sub.remove();
-  }, [app, rafraichir]);
-
-  // Boutons « J'ai fumé » / « J'ai résisté » dans les notifications (et ouverture à froid).
-  useEffect(() => {
-    if (!app?.notifications) return;
-    const sub = app.notifications.ecouterReponses(({ cle, action }) => {
-      if (reponsesTraitees.current.has(cle)) return;
-      reponsesTraitees.current.add(cle);
-      void (async () => {
-        if (action === 'fume') {
-          const id = await app.declic.enregistrerCigarette(undefined, 'notification');
-          setAPreciser(id);
-        } else if (action === 'resiste') {
-          await app.declic.enregistrerEnvieResistee(undefined, 'notification');
-        } else if (/^(soir|bilan)-/.test(cle)) {
-          // Bilan du soir ou de la semaine : on ouvre directement l'écran Progrès.
-          const [progres, mot] = await Promise.all([app.declic.progres(), app.declic.motDuCoach()]);
-          if (progres) setProgresVue({ progres, mot });
-        }
-        await rafraichir();
-      })();
-    });
-    return () => sub.remove();
-  }, [app, rafraichir]);
+  const { app, erreur, chargement, tdb, coachDispo, rafraichir } = useApplication({
+    cigaretteEnregistree: setAPreciser,
+    ouvrirProgres: () => void ouvrirProgres(),
+  });
 
   if (erreur) {
     return (
@@ -170,11 +54,27 @@ export default function App() {
     );
   }
   const { declic, clock } = app;
+  const adresseCoach = urlCoach === undefined ? app.urlCoach : urlCoach;
 
+  /** Exécute une action, puis rafraîchit la page principale. */
   const agir = (action: () => Promise<unknown>) => async () => {
     await action();
     await rafraichir();
   };
+  /** Exécute une action depuis un écran secondaire, puis rafraîchit cet écran et la page principale. */
+  const depuis = (action: () => Promise<unknown>, rouvrir: () => Promise<void>) =>
+    void agir(async () => {
+      await action();
+      await rouvrir();
+    })();
+
+  async function ouvrirProgres() {
+    if (!app) return;
+    const [progres, mot] = await Promise.all([app.declic.progres(), app.declic.motDuCoach()]);
+    if (progres) setProgresVue({ progres, mot });
+  }
+  const ouvrirHistorique = async () => setHistorique(await declic.historique(60));
+  const ouvrirReglages = async () => setReglages(await declic.reglages());
 
   // Protection contre le double appui : confirmation si la dernière cigarette date de moins de 2 min.
   const onFume = () => {
@@ -183,8 +83,8 @@ export default function App() {
       await rafraichir();
       setAPreciser(id);
     };
-    const depuis = tdb?.depuisDerniereMinutes;
-    if (depuis === null || depuis === undefined || depuis >= 2) {
+    const ecart = tdb?.depuisDerniereMinutes;
+    if (ecart === null || ecart === undefined || ecart >= 2) {
       void enregistrer();
       return;
     }
@@ -204,34 +104,25 @@ export default function App() {
     await rafraichir();
   };
 
-  const onEffacer = () =>
-    Alert.alert('Effacer toutes mes données ?', 'Ton profil, ton historique et ton plan seront supprimés de ce téléphone.', [
-      { text: 'Annuler', style: 'cancel' },
-      {
-        text: 'Effacer',
-        style: 'destructive',
-        onPress: () =>
-          void agir(async () => {
-            await declic.effacerToutesLesDonnees();
-            await app.locaux.effacer();
-            declic.brancherCoach(undefined);
-            setUrlCoach(null);
-            setReglages(null);
-            setHistorique(null);
-          })(),
-      },
-    ]);
+  const onRestaurer = () =>
+    void restaurer(declic, async () => {
+      await rafraichir();
+      if (reglages) await ouvrirReglages();
+    });
 
-  const ouvrirHistorique = async () => setHistorique(await declic.historique(60));
-  const ouvrirProgres = async () => {
-    const [progres, mot] = await Promise.all([declic.progres(), declic.motDuCoach()]);
-    if (progres) setProgresVue({ progres, mot });
-  };
-  const depuisProgres = (action: () => Promise<unknown>) =>
-    void agir(async () => {
-      await action();
-      await ouvrirProgres();
-    })();
+  const onEffacer = () =>
+    effacer(
+      () =>
+        void agir(async () => {
+          await declic.effacerToutesLesDonnees();
+          await app.locaux.effacer();
+          declic.brancherCoach(undefined);
+          setUrlCoach(null);
+          setReglages(null);
+          setHistorique(null);
+        })(),
+    );
+
   const enregistrerCoach = (saisie: string, jeton: string) =>
     void (async () => {
       const url = normaliserUrlCoach(saisie);
@@ -240,136 +131,124 @@ export default function App() {
       setUrlCoach(url);
       await rafraichir();
     })();
-  const ouvrirReglages = async () => setReglages(await declic.reglages());
-  /** Exécute une action depuis un écran secondaire, puis rafraîchit l'écran et la page principale. */
-  const depuisHistorique = (action: () => Promise<unknown>) =>
-    void agir(async () => {
-      await action();
-      setHistorique(await declic.historique(60));
-    })();
-  const depuisReglages = (action: () => Promise<unknown>) =>
-    void agir(async () => {
-      await action();
-      setReglages(await declic.reglages());
-    })();
-
-  const onExporter = async () => {
-    const donnees = await declic.exporterDonnees();
-    await Share.share({ title: 'Export Déclic', message: donnees });
-  };
 
   return (
     <SafeAreaProvider>
-    <View style={styles.racine}>
-      <StatusBar style="dark" />
-      {tdb === null ? (
-        <OnboardingScreen onValider={(p: NouveauProfil) => agir(() => declic.creerProfil(p))()} />
-      ) : (
-        <DashboardScreen
-          tdb={tdb}
-          tz={clock.timeZone()}
-          onFume={onFume}
-          onResiste={agir(() => declic.enregistrerEnvieResistee())}
-          onAnnuler={agir(() => declic.annulerDerniereSaisie())}
-          onPalier={agir(() => declic.demanderPalier())}
-          onDemarrerPlan={agir(() => declic.demarrerPlan())}
-          onHistorique={() => void ouvrirHistorique()}
-          onReglages={() => void ouvrirReglages()}
-          onSubstituts={() => setSubstituts(true)}
-          onProgres={() => void ouvrirProgres()}
-          onEcheance={() => void rafraichir()}
-          onSos={() => setSos(true)}
-          notificationsIndisponibles={app.notifications === null}
-        />
-      )}
-      {historique && (
-        <HistoriqueScreen
-          journees={historique}
-          tz={clock.timeZone()}
-          contextesPerso={tdb?.contextesPerso ?? []}
-          onFermer={() => setHistorique(null)}
-          onSupprimer={(id) => depuisHistorique(() => declic.annulerSaisie(id))}
-          onPreciser={(id, { nouveauContexte, contexte }) =>
-            depuisHistorique(async () => {
-              const c = nouveauContexte ? await declic.ajouterContexte(nouveauContexte) : contexte;
-              if (c) await declic.preciserCigarette(id, { contexte: c });
-            })
-          }
-        />
-      )}
-      {substituts && tdb && (
-        <SubstitutsScreen
-          tdb={tdb}
-          tz={clock.timeZone()}
-          maintenant={clock.now()}
-          onFermer={() => setSubstituts(false)}
-          onPoserPatch={(mg, h) => void agir(() => declic.poserPatch(mg, h))()}
-          onRetirerPatch={() => void agir(() => declic.retirerPatch())()}
-          onPrendre={(forme, mg) => void agir(() => declic.prendreSubstitutOral(forme, mg))()}
-        />
-      )}
-      {reglages && (
-        <ReglagesScreen
-          reglages={reglages}
-          onFermer={() => setReglages(null)}
-          onPrix={(p, n) => depuisReglages(() => declic.modifierPrix(p, n))}
-          onIntervalle={(m) => depuisReglages(() => declic.modifierIntervalleRecommande(m))}
-          onRythme={(st) => depuisReglages(() => declic.modifierRythme(st))}
-          onRenommerContexte={(cle, l) => depuisReglages(() => declic.renommerContexte(cle, l))}
-          onArchiverContexte={(cle) => depuisReglages(() => declic.archiverContexte(cle))}
-          onDemarrerPlan={() => depuisReglages(() => declic.demarrerPlan())}
-          onExporter={() => void onExporter()}
-          onEffacer={onEffacer}
-          extra={
-            <ReglageCoach
-              consenti={tdb?.coachIa ?? false}
-              url={urlCoach ?? ''}
-              configure={urlCoach !== null}
-              onEnregistrer={enregistrerCoach}
-              onConsentir={(accorde) => depuisReglages(() => declic.consentirCoachIa(accorde))}
-              onTester={async () => (await declic.parlerAuCoach('soir', [{ role: 'user', texte: 'Test de connexion : dis bonjour en une phrase.' }])).texte}
-            />
-          }
-        />
-      )}
-      {sos && (
-      <SosEnvie
-        raisons={tdb?.raisons ?? []}
-        economieAnCents={tdb?.projection.parAnCents ?? 0}
-        onResiste={() => {
-          setSos(false);
-          void agir(() => declic.enregistrerEnvieResistee('respiration'))();
-        }}
-        onFermer={() => setSos(false)}
-        onAjouterRaison={(texte) => void agir(() => declic.ajouterRaison(texte))()}
-        {...(coachDispo ? { onCoach: () => { setSos(false); setCoachMode('sos'); } } : {})}
-      />
-      )}
-      {progresVue && tdb && (
-        <ProgresScreen
-          tdb={tdb}
-          progres={progresVue.progres}
-          mot={progresVue.mot}
-          coachIa={coachDispo}
-          onFermer={() => setProgresVue(null)}
-          onParlerCoach={() => {
-            setProgresVue(null);
-            setCoachMode(tdb.phase === 'arret' || tdb.phase === 'maintien' ? (tdb.fumees > 0 ? 'fauxpas' : 'soir') : 'soir');
-          }}
-          onAjouterObjectif={(l, c) => depuisProgres(() => declic.definirObjectif(l, c))}
-          onRetirerObjectif={(l) => depuisProgres(() => declic.retirerObjectif(l))}
-        />
-      )}
-      {coachMode && (
-        <CoachScreen mode={coachMode} onFermer={() => setCoachMode(null)} envoyer={(tours) => declic.parlerAuCoach(coachMode, tours)} />
-      )}
-      <ContexteSheet
-        visible={aPreciser !== null}
-        contextesPerso={tdb?.contextesPerso ?? []}
-        onChoisir={(p) => void onPreciser(p)}
-      />
-      <BandeauMiseAJour />
-    </View>
+      <View style={styles.racine}>
+        <StatusBar style="dark" />
+        {tdb === null ? (
+          <OnboardingScreen onValider={(p: NouveauProfil) => agir(() => declic.creerProfil(p))()} onRestaurer={onRestaurer} />
+        ) : (
+          <DashboardScreen
+            tdb={tdb}
+            tz={clock.timeZone()}
+            onFume={onFume}
+            onResiste={agir(() => declic.enregistrerEnvieResistee())}
+            onAnnuler={agir(() => declic.annulerDerniereSaisie())}
+            onPalier={agir(() => declic.demanderPalier())}
+            onDemarrerPlan={agir(() => declic.demarrerPlan())}
+            onHistorique={() => void ouvrirHistorique()}
+            onReglages={() => void ouvrirReglages()}
+            onSubstituts={() => setSubstituts(true)}
+            onProgres={() => void ouvrirProgres()}
+            onEcheance={() => void rafraichir()}
+            onSos={() => setSos(true)}
+            notificationsIndisponibles={app.notifications === null}
+          />
+        )}
+        {historique && (
+          <HistoriqueScreen
+            journees={historique}
+            tz={clock.timeZone()}
+            contextesPerso={tdb?.contextesPerso ?? []}
+            onFermer={() => setHistorique(null)}
+            onSupprimer={(id) => depuis(() => declic.annulerSaisie(id), ouvrirHistorique)}
+            onPreciser={(id, { nouveauContexte, contexte }) =>
+              depuis(async () => {
+                const c = nouveauContexte ? await declic.ajouterContexte(nouveauContexte) : contexte;
+                if (c) await declic.preciserCigarette(id, { contexte: c });
+              }, ouvrirHistorique)
+            }
+          />
+        )}
+        {substituts && tdb && (
+          <SubstitutsScreen
+            tdb={tdb}
+            tz={clock.timeZone()}
+            maintenant={clock.now()}
+            onFermer={() => setSubstituts(false)}
+            onPoserPatch={(mg, h) => void agir(() => declic.poserPatch(mg, h))()}
+            onRetirerPatch={() => void agir(() => declic.retirerPatch())()}
+            onPrendre={(forme, mg) => void agir(() => declic.prendreSubstitutOral(forme, mg))()}
+          />
+        )}
+        {reglages && (
+          <ReglagesScreen
+            reglages={reglages}
+            onFermer={() => setReglages(null)}
+            onPrix={(p, n) => depuis(() => declic.modifierPrix(p, n), ouvrirReglages)}
+            onIntervalle={(m) => depuis(() => declic.modifierIntervalleRecommande(m), ouvrirReglages)}
+            onRythme={(st) => depuis(() => declic.modifierRythme(st), ouvrirReglages)}
+            onRenommerContexte={(cle, l) => depuis(() => declic.renommerContexte(cle, l), ouvrirReglages)}
+            onArchiverContexte={(cle) => depuis(() => declic.archiverContexte(cle), ouvrirReglages)}
+            onDemarrerPlan={() => depuis(() => declic.demarrerPlan(), ouvrirReglages)}
+            onExporter={() => void partager(declic)}
+            onSauvegarder={() => void sauvegarder(declic, clock.now())}
+            onRestaurer={onRestaurer}
+            onEffacer={onEffacer}
+            extra={
+              <ReglageCoach
+                consenti={tdb?.coachIa ?? false}
+                url={adresseCoach ?? ''}
+                configure={adresseCoach !== null}
+                onEnregistrer={enregistrerCoach}
+                onConsentir={(accorde) => depuis(() => declic.consentirCoachIa(accorde), ouvrirReglages)}
+                onTester={async () =>
+                  (await declic.parlerAuCoach('soir', [{ role: 'user', texte: 'Test de connexion : dis bonjour en une phrase.' }])).texte
+                }
+              />
+            }
+          />
+        )}
+        {sos && (
+          <SosEnvie
+            raisons={tdb?.raisons ?? []}
+            economieAnCents={tdb?.projection.parAnCents ?? 0}
+            onResiste={() => {
+              setSos(false);
+              void agir(() => declic.enregistrerEnvieResistee('respiration'))();
+            }}
+            onFermer={() => setSos(false)}
+            onAjouterRaison={(texte) => void agir(() => declic.ajouterRaison(texte))()}
+            {...(coachDispo
+              ? {
+                  onCoach: () => {
+                    setSos(false);
+                    setCoachMode('sos');
+                  },
+                }
+              : {})}
+          />
+        )}
+        {progresVue && tdb && (
+          <ProgresScreen
+            tdb={tdb}
+            progres={progresVue.progres}
+            mot={progresVue.mot}
+            coachIa={coachDispo}
+            onFermer={() => setProgresVue(null)}
+            onParlerCoach={() => {
+              setProgresVue(null);
+              setCoachMode((tdb.phase === 'arret' || tdb.phase === 'maintien') && tdb.fumees > 0 ? 'fauxpas' : 'soir');
+            }}
+            onAjouterObjectif={(l, c) => depuis(() => declic.definirObjectif(l, c), ouvrirProgres)}
+            onRetirerObjectif={(l) => depuis(() => declic.retirerObjectif(l), ouvrirProgres)}
+          />
+        )}
+        {coachMode && <CoachScreen mode={coachMode} onFermer={() => setCoachMode(null)} envoyer={(tours) => declic.parlerAuCoach(coachMode, tours)} />}
+        <ContexteSheet visible={aPreciser !== null} contextesPerso={tdb?.contextesPerso ?? []} onChoisir={(p) => void onPreciser(p)} />
+        <BandeauMiseAJour />
+      </View>
     </SafeAreaProvider>
   );
 }

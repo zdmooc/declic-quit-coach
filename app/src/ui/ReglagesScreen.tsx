@@ -16,6 +16,8 @@ interface Props {
   onArchiverContexte: (cle: `perso:${string}`) => void;
   onDemarrerPlan: () => void;
   onExporter: () => void;
+  onSauvegarder: () => void;
+  onRestaurer: () => void;
   onEffacer: () => void;
   /** Cartes supplémentaires (coach IA). */
   extra?: ReactNode;
@@ -172,9 +174,18 @@ export function ReglagesScreen(props: Props) {
 
           <View style={styles.carte}>
             <Text style={styles.petit}>Mes données</Text>
-            <Text style={styles.aide}>Elles restent sur ce téléphone. Tu peux en exporter une copie complète (fichier texte JSON).</Text>
-            <Pressable style={[styles.bouton, styles.boutonSecondaire]} onPress={props.onExporter} accessibilityRole="button">
-              <Text style={[styles.boutonTexte, styles.boutonTexteSecondaire]}>Exporter mes données</Text>
+            <Text style={styles.aide}>
+              Elles restent sur ce téléphone. Sauvegarde-les régulièrement dans un fichier (Téléchargements, Google Drive…) : en cas de
+              perte ou de changement de téléphone, tu les restaures en un geste.
+            </Text>
+            <Pressable style={styles.bouton} onPress={props.onSauvegarder} accessibilityRole="button">
+              <Text style={styles.boutonTexte}>Sauvegarder dans un fichier</Text>
+            </Pressable>
+            <Pressable style={[styles.bouton, styles.boutonSecondaire]} onPress={props.onRestaurer} accessibilityRole="button">
+              <Text style={[styles.boutonTexte, styles.boutonTexteSecondaire]}>Restaurer une sauvegarde</Text>
+            </Pressable>
+            <Pressable style={styles.effacer} onPress={props.onExporter} accessibilityRole="button">
+              <Text style={styles.lien}>Partager mes données (texte)</Text>
             </Pressable>
             <Pressable style={styles.effacer} onPress={props.onEffacer} accessibilityRole="button">
               <Text style={styles.lienRouge}>Effacer toutes mes données</Text>

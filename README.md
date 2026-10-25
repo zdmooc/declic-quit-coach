@@ -30,6 +30,7 @@
 | Historique | ✅ graphique 14 jours, détail par journée, correction du contexte, suppression |
 | Substituts | ✅ patch (pose, heure de retrait, rappel), pastilles et gommes (prises du jour, dernière prise) · aucun dosage proposé |
 | Réglages | ✅ prix, rythme, intervalle recommandé, contextes perso, export, effacement |
+| Sauvegarde | ✅ sauvegarde dans un fichier (Téléchargements, Google Drive…) et restauration vérifiée, y compris dès le premier lancement sur un nouveau téléphone |
 | Build Android | ✅ APK `preview` via EAS Build · icône et écran de démarrage Déclic |
 | Mises à jour automatiques | ✅ EAS Update (canal `preview`) : les nouveaux écrans arrivent sans réinstaller |
 | Tables pharmacologique et santé | ⚠️ brouillons non validés : maximums et jalons santé inactifs |
