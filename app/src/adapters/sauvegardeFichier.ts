@@ -17,7 +17,8 @@ export async function enregistrerSauvegarde(contenu: string, nom: string): Promi
   }
   const fichier = dossier.createFile(nom, 'application/json');
   await fichier.write(contenu);
-  return fichier.name ?? nom;
+  // Avec Google Drive, `fichier.name` est un identifiant interne illisible : on affiche le nom choisi.
+  return nom;
 }
 
 /** Lit un fichier de sauvegarde choisi. `null` si l'utilisateur annule. */
