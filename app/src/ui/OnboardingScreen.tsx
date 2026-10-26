@@ -114,10 +114,10 @@ const styles = StyleSheet.create({
     paddingVertical: espace(2),
   },
   libelleInterrupteur: { color: couleurs.encre, fontSize: 16, fontWeight: '600' },
-  aide: { color: couleurs.doux, fontSize: 13, marginTop: espace(2), marginBottom: espace(4) },
+  aide: { color: couleurs.doux, fontSize: 15, marginTop: espace(2), marginBottom: espace(4) },
   erreur: { color: couleurs.ambre, marginBottom: espace(3) },
   bouton: { backgroundColor: couleurs.vert, borderRadius: 14, paddingVertical: espace(4), alignItems: 'center', marginTop: espace(2) },
   boutonTexte: { color: '#FFFFFF', fontSize: 17, fontWeight: '700' },
-  mention: { color: couleurs.doux, fontSize: 13, textAlign: 'center', marginTop: espace(4) },
+  mention: { color: couleurs.doux, fontSize: 15, textAlign: 'center', marginTop: espace(4) },
   restaurer: { color: couleurs.vert, fontSize: 15, fontWeight: '600', textAlign: 'center', textDecorationLine: 'underline', marginTop: espace(4) },
 });

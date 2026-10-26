@@ -160,7 +160,7 @@ const styles = StyleSheet.create({
   boutonAjout: { backgroundColor: couleurs.vert, borderRadius: 12, paddingHorizontal: espace(4), justifyContent: 'center' },
   boutonInactif: { opacity: 0.4 },
   boutonAjoutTexte: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-  section: { color: couleurs.doux, fontSize: 13, fontWeight: '600', textTransform: 'uppercase', marginTop: espace(5), marginBottom: espace(2) },
+  section: { color: couleurs.doux, fontSize: 15, fontWeight: '600', textTransform: 'uppercase', marginTop: espace(5), marginBottom: espace(2) },
   moment: { borderRadius: 999, paddingHorizontal: espace(3), paddingVertical: espace(2), backgroundColor: couleurs.ligne },
   momentActif: { backgroundColor: couleurs.encre },
   momentTexte: { color: couleurs.encre, fontSize: 14 },

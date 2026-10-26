@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
   consigne: { color: couleurs.vert, fontSize: 26, fontWeight: '800' },
   temps: { color: couleurs.doux, fontSize: 16, marginTop: espace(1), fontVariant: ['tabular-nums'] },
   carte: { backgroundColor: couleurs.carte, borderRadius: 18, borderWidth: 1, borderColor: couleurs.ligne, padding: espace(4) },
-  petit: { color: couleurs.doux, fontSize: 13, fontWeight: '700', textTransform: 'uppercase', marginBottom: espace(2) },
+  petit: { color: couleurs.doux, fontSize: 15, fontWeight: '700', textTransform: 'uppercase', marginBottom: espace(2) },
   raison: { color: couleurs.encre, fontSize: 16, lineHeight: 24 },
   lien: { color: couleurs.vert, fontSize: 15, fontWeight: '600', marginTop: espace(2) },
   ajout: { flexDirection: 'row', gap: espace(2), marginTop: espace(2) },
@@ -154,5 +154,5 @@ const styles = StyleSheet.create({
   boutonCoachTexte: { color: couleurs.vert },
   fermer: { alignItems: 'center', paddingVertical: espace(3) },
   fermerTexte: { color: couleurs.doux, fontSize: 15, textDecorationLine: 'underline' },
-  mention: { color: couleurs.doux, fontSize: 12, textAlign: 'center' },
+  mention: { color: couleurs.doux, fontSize: 14, textAlign: 'center' },
 });

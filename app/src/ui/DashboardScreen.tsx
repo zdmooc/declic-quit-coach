@@ -270,8 +270,8 @@ const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: couleurs.fond },
   defilement: { flexGrow: 1, paddingHorizontal: espace(4), justifyContent: 'space-between' },
   entete: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingTop: espace(2), paddingRight: espace(14) },
-  marque: { color: couleurs.vert, fontSize: 13, fontWeight: '800', letterSpacing: 2, textTransform: 'uppercase' },
-  statut: { color: couleurs.doux, fontSize: 13, fontWeight: '600', flexShrink: 1, marginLeft: espace(3) },
+  marque: { color: couleurs.vert, fontSize: 15, fontWeight: '800', letterSpacing: 2, textTransform: 'uppercase' },
+  statut: { color: couleurs.doux, fontSize: 15, fontWeight: '600', flexShrink: 1, marginLeft: espace(3) },
 
   hero: {
     backgroundColor: couleurs.vertClair,
@@ -281,16 +281,16 @@ const styles = StyleSheet.create({
     marginTop: espace(2),
     alignItems: 'center',
   },
-  heroPetit: { color: couleurs.vert, fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'center' },
+  heroPetit: { color: couleurs.vert, fontSize: 15, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'center' },
   rebours: { color: couleurs.vert, fontSize: 56, fontWeight: '800', fontVariant: ['tabular-nums'] },
   heroTitre: { color: couleurs.encre, fontSize: 26, fontWeight: '800', marginTop: espace(1) },
-  heroSous: { color: couleurs.doux, fontSize: 13, textAlign: 'center', lineHeight: 18 },
+  heroSous: { color: couleurs.doux, fontSize: 15, textAlign: 'center', lineHeight: 18 },
   heroBouton: { backgroundColor: couleurs.vert, borderRadius: 999, paddingHorizontal: espace(6), paddingVertical: espace(3), marginTop: espace(3) },
   heroBoutonTexte: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
 
   bandeau: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', backgroundColor: couleurs.ambreClair, borderRadius: 999, paddingVertical: espace(2), paddingHorizontal: espace(4), marginTop: espace(2) },
-  bandeauTexte: { color: couleurs.encre, fontSize: 13 },
-  bandeauAction: { color: couleurs.ambre, fontSize: 13, fontWeight: '700', textDecorationLine: 'underline' },
+  bandeauTexte: { color: couleurs.encre, fontSize: 15 },
+  bandeauAction: { color: couleurs.ambre, fontSize: 15, fontWeight: '700', textDecorationLine: 'underline' },
 
   grille: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: espace(2), marginVertical: espace(3) },
   pastille: {
@@ -310,7 +310,7 @@ const styles = StyleSheet.create({
   texteVert: { color: couleurs.vert },
   texteRouge: { color: couleurs.rouge },
   pastilleValeur: { color: couleurs.encre, fontSize: 17, fontWeight: '800', fontVariant: ['tabular-nums'] },
-  pastilleLibelle: { color: couleurs.doux, fontSize: 11, marginTop: 2 },
+  pastilleLibelle: { color: couleurs.doux, fontSize: 13, marginTop: 2 },
 
   actions: { paddingBottom: espace(1) },
   bouton: { backgroundColor: couleurs.vert, borderRadius: 16, paddingVertical: espace(4), alignItems: 'center' },
@@ -321,6 +321,6 @@ const styles = StyleSheet.create({
   boutonTexteSecondaire: { color: couleurs.vert },
   liens: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', columnGap: espace(4), rowGap: espace(2), marginTop: espace(3) },
   bandeauRouge: { backgroundColor: couleurs.rougeClair },
-  lien: { color: couleurs.doux, fontSize: 13, textDecorationLine: 'underline' },
-  mention: { color: couleurs.doux, fontSize: 11, textAlign: 'center', marginTop: espace(2) },
+  lien: { color: couleurs.doux, fontSize: 15, textDecorationLine: 'underline' },
+  mention: { color: couleurs.doux, fontSize: 13, textAlign: 'center', marginTop: espace(2) },
 });
