@@ -111,7 +111,7 @@ export type AgregatSansHeure = Base<
  * Envie signalée, distincte d'une envie résistée : son issue peut être une cigarette
  * ou rester inconnue (le journal ne l'a pas précisée).
  */
-export type EnvieSignalee = Base<'EnvieSignalee', { issue: 'resistee' | 'cigarette' | 'inconnue' } & Provenance>;
+export type EnvieSignalee = Base<'EnvieSignalee', { issue: 'resistee' | 'cigarette' | 'inconnue'; /** Technique de respiration du SOS. */ technique?: string } & Provenance>;
 /** Nouveau contexte saisi par l'utilisateur, proposé ensuite comme les autres (RM-16). */
 export type ContexteAjoute = Base<'ContexteAjoute', { cle: `perso:${string}`; libelle: string }>;
 export type ContexteRenomme = Base<'ContexteRenomme', { cle: `perso:${string}`; libelle: string }>;
@@ -256,6 +256,7 @@ export function validateEvent(e: DomainEvent): string[] {
       break;
     case 'EnvieSignalee':
       if (!['resistee', 'cigarette', 'inconnue'].includes(e.payload.issue)) errors.push('issue invalide');
+      if (e.payload.technique !== undefined && (typeof e.payload.technique !== 'string' || e.payload.technique.length > 40)) errors.push('technique invalide');
       break;
     default:
       break;

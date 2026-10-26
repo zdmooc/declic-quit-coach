@@ -29,6 +29,7 @@ import {
   type Projection,
 } from './savings';
 import { etiqueterCigarettes, intervallesEveilles, journeeDe, moyenne, SEUIL_NUIT_MINUTES } from './sessions';
+import { bilanTechniques, type BilanTechnique } from './respiration';
 import { etatOral, etatPatch, type EtatOral, type EtatPatch, type PatchEnCours, type ReferencePharma } from './substitutes';
 import {
   addDays,
@@ -75,9 +76,9 @@ export interface EtatJournal {
   prix: Prix[];
   plan: PlanEnCours | null;
   cigarettes: CigaretteJournal[];
-  envies: { a: Instant; jour: LocalDate }[];
+  envies: { a: Instant; jour: LocalDate; strategie?: string }[];
   /** Envies signalées (distinctes des envies résistées), avec leur issue. */
-  enviesSignalees: { a: Instant; jour: LocalDate; issue: 'resistee' | 'cigarette' | 'inconnue' }[];
+  enviesSignalees: { a: Instant; jour: LocalDate; issue: 'resistee' | 'cigarette' | 'inconnue'; technique?: string }[];
   /** Saisies historiques sans heure connue (agrégats par journée). */
   sansHeure: { jour: LocalDate; nature: 'cigarettes' | 'envies-signalees'; nombre: number }[];
   patch: PatchEnCours | null;
@@ -210,10 +211,19 @@ export function rejouer(events: readonly DomainEvent[], tz: string): EtatJournal
         });
         break;
       case 'EnvieResistee':
-        etat.envies.push({ a, jour: e.payload.journee ?? journeeDe(a, etat.cigarettes, tz) });
+        etat.envies.push({
+          a,
+          jour: e.payload.journee ?? journeeDe(a, etat.cigarettes, tz),
+          ...(e.payload.strategieUtilisee ? { strategie: e.payload.strategieUtilisee } : {}),
+        });
         break;
       case 'EnvieSignalee':
-        etat.enviesSignalees.push({ a, jour: e.payload.journee ?? journeeDe(a, etat.cigarettes, tz), issue: e.payload.issue });
+        etat.enviesSignalees.push({
+          a,
+          jour: e.payload.journee ?? journeeDe(a, etat.cigarettes, tz),
+          issue: e.payload.issue,
+          ...(e.payload.technique ? { technique: e.payload.technique } : {}),
+        });
         break;
       case 'AgregatSansHeure':
         etat.sansHeure.push({ jour: e.payload.journee, nature: e.payload.nature, nombre: e.payload.nombre });
@@ -511,6 +521,8 @@ export interface TableauDeBord {
   /** Intervalle moyen sur les 7 dernières journées terminées. */
   intervalleMoyen7jMinutes: number | null;
   enviesResistees: number;
+  /** SOS envie par technique de respiration, la plus efficace d'abord. */
+  techniquesSos: BilanTechnique[];
   depuisDerniereMinutes: number | null;
   plusLonguePauseMinutes: number;
   economieJourCents: number;
@@ -565,6 +577,7 @@ export function tableauDeBord(etat: EtatJournal, maintenant: Instant, tz: string
     intervalleMoyen7jMinutes:
       mesurerHabitudes(etat.cigarettes, jour, tz, { sansHeure: cigarettesSansHeureParJour(etat) })?.intervalleMoyenMinutes ?? null,
     enviesResistees: elementsDuJour(etat.envies, jour).length,
+    techniquesSos: bilanTechniques(etat.envies, etat.enviesSignalees),
     depuisDerniereMinutes: derniere === null ? null : Math.max(0, minutesBetween(derniere, maintenant)),
     patch: etatPatch(etat.patch, maintenant),
     oraux: (['pastille', 'gomme'] as const).map((forme) => {

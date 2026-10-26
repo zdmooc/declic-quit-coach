@@ -1,22 +1,22 @@
 import { useEffect, useState } from 'react';
 import { Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { formatEuros } from '../domain';
+import { formatEuros, phaseA, TECHNIQUES, type BilanTechnique, type CleTechnique } from '../domain';
 import { couleurs, espace } from './theme';
 
 interface Props {
   raisons: readonly string[];
   /** Économies projetées sur un an après l'arrêt, pour la motivation. */
   economieAnCents: number;
-  onResiste: () => void;
-  onFermer: () => void;
+  /** Bilan des SOS précédents par technique (la plus efficace d'abord). */
+  techniques: readonly BilanTechnique[];
+  onResiste: (technique: CleTechnique) => void;
+  onFermer: (technique: CleTechnique) => void;
   onAjouterRaison: (texte: string) => void;
   /** Ouvre le coach IA (si activé). */
-  onCoach?: () => void;
+  onCoach?: (technique: CleTechnique) => void;
 }
 
-/** Cohérence cardiaque : 5 s d'inspiration, 5 s d'expiration, pendant 3 minutes. */
-const DEMI_CYCLE_MS = 5_000;
 const DUREE_S = 180;
 
 /**
@@ -24,47 +24,85 @@ const DUREE_S = 180;
  * puis « L'envie est passée » (envie résistée) ou fermeture sans jugement.
  * Monté à l'ouverture et démonté à la fermeture : chaque SOS repart de zéro.
  */
-export function SosEnvie({ raisons, economieAnCents, onResiste, onFermer, onAjouterRaison, onCoach }: Props) {
-  const [ecoule, setEcoule] = useState(0);
+export function SosEnvie({ raisons, economieAnCents, techniques, onResiste, onFermer, onAjouterRaison, onCoach }: Props) {
+  // Par défaut, la technique qui a le mieux marché jusqu'ici.
+  const [cle, setCle] = useState<CleTechnique>(techniques.find((b) => b.resistees > 0)?.cle ?? 'coherence');
+  const tech = TECHNIQUES.find((t) => t.cle === cle)!;
+  const [ms, setMs] = useState(0);
   const [saisie, setSaisie] = useState<string | null>(null);
   const [echelle] = useState(() => new Animated.Value(0.6));
 
+  // Changer de technique relance le cercle et les 3 minutes.
   useEffect(() => {
+    echelle.setValue(0.6);
     const boucle = Animated.loop(
-      Animated.sequence([
-        Animated.timing(echelle, { toValue: 1, duration: DEMI_CYCLE_MS, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(echelle, { toValue: 0.6, duration: DEMI_CYCLE_MS, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      ]),
+      Animated.sequence(
+        tech.phases.map((p) =>
+          p.vers === null
+            ? Animated.delay(p.secondes * 1000)
+            : Animated.timing(echelle, { toValue: p.vers, duration: p.secondes * 1000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        ),
+      ),
     );
     boucle.start();
-    const timer = setInterval(() => setEcoule((s) => Math.min(DUREE_S, s + 1)), 1000);
+    const debut = Date.now();
+    const timer = setInterval(() => setMs(Math.min(DUREE_S * 1000, Date.now() - debut)), 250);
     return () => {
       boucle.stop();
       clearInterval(timer);
     };
-  }, [echelle]);
+  }, [echelle, tech]);
 
+  const ecoule = Math.floor(ms / 1000);
   const termine = ecoule >= DUREE_S;
-  const inspire = Math.floor((ecoule * 1000) / DEMI_CYCLE_MS) % 2 === 0;
+  const consigne = phaseA(tech, ms).consigne;
   const reste = DUREE_S - ecoule;
+  const bilan = techniques.filter((b) => b.resistees + b.sansIssue > 0);
   const texte = saisie?.trim() ?? '';
 
   return (
-    <Modal visible animationType="fade" onRequestClose={onFermer}>
+    <Modal visible animationType="fade" onRequestClose={() => onFermer(cle)}>
       <SafeAreaView style={styles.page} edges={['top', 'bottom']}>
         <ScrollView contentContainerStyle={styles.contenu} keyboardShouldPersistTaps="handled">
           <Text style={styles.titre}>Une envie, c’est une vague : elle passe.</Text>
-          <Text style={styles.sous}>Respire avec le cercle pendant 3 minutes.</Text>
+          <View style={styles.choixTech}>
+            {TECHNIQUES.map((t) => (
+              <Pressable
+                key={t.cle}
+                style={[styles.puce, t.cle === cle && styles.puceActive]}
+                onPress={() => {
+                  setCle(t.cle);
+                  setMs(0);
+                }}
+                accessibilityRole="button"
+                accessibilityState={{ selected: t.cle === cle }}
+              >
+                <Text style={[styles.puceTexte, t.cle === cle && styles.puceTexteActive]}>{t.nom}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={styles.sous}>{tech.description} Suis le cercle pendant 3 minutes.</Text>
 
           <View style={styles.zoneCercle}>
             <Animated.View style={[styles.cercle, { transform: [{ scale: echelle }] }]} />
             <View style={styles.centreCercle}>
-              <Text style={styles.consigne}>{termine ? 'Bravo' : inspire ? 'Inspire…' : 'Expire…'}</Text>
+              <Text style={styles.consigne}>{termine ? 'Bravo' : consigne}</Text>
               <Text style={styles.temps}>
                 {termine ? '3 min tenues' : `${Math.floor(reste / 60)}:${String(reste % 60).padStart(2, '0')}`}
               </Text>
             </View>
           </View>
+
+          {bilan.length > 0 && (
+            <View style={[styles.carte, styles.espaceBas]}>
+              <Text style={styles.petit}>Ce qui marche pour toi</Text>
+              {bilan.map((b) => (
+                <Text key={b.cle} style={styles.raison}>
+                  • {b.nom} : {b.resistees} envie{b.resistees > 1 ? 's' : ''} passée{b.resistees > 1 ? 's' : ''} sur {b.resistees + b.sansIssue}
+                </Text>
+              ))}
+            </View>
+          )}
 
           <View style={styles.carte}>
             <Text style={styles.petit}>Tes raisons</Text>
@@ -108,15 +146,15 @@ export function SosEnvie({ raisons, economieAnCents, onResiste, onFermer, onAjou
         </ScrollView>
 
         <View style={styles.actions}>
-          <Pressable style={styles.bouton} onPress={onResiste} accessibilityRole="button">
+          <Pressable style={styles.bouton} onPress={() => onResiste(cle)} accessibilityRole="button">
             <Text style={styles.boutonTexte}>L’envie est passée</Text>
           </Pressable>
           {onCoach && (
-            <Pressable style={[styles.bouton, styles.boutonCoach]} onPress={onCoach} accessibilityRole="button">
+            <Pressable style={[styles.bouton, styles.boutonCoach]} onPress={() => onCoach(cle)} accessibilityRole="button">
               <Text style={[styles.boutonTexte, styles.boutonCoachTexte]}>Parler au coach</Text>
             </Pressable>
           )}
-          <Pressable style={styles.fermer} onPress={onFermer} accessibilityRole="button">
+          <Pressable style={styles.fermer} onPress={() => onFermer(cle)} accessibilityRole="button">
             <Text style={styles.fermerTexte}>Fermer</Text>
           </Pressable>
           <Text style={styles.mention}>Envie trop forte ou détresse ? Tabac Info Service : 39 89</Text>
@@ -137,6 +175,12 @@ const styles = StyleSheet.create({
   cercle: { position: 'absolute', width: TAILLE, height: TAILLE, borderRadius: TAILLE / 2, backgroundColor: couleurs.vertClair, borderWidth: 3, borderColor: couleurs.vert },
   centreCercle: { alignItems: 'center' },
   consigne: { color: couleurs.vert, fontSize: 26, fontWeight: '800' },
+  choixTech: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: espace(2), marginTop: espace(3) },
+  puce: { borderWidth: 1.5, borderColor: couleurs.vert, borderRadius: 999, paddingHorizontal: espace(3), paddingVertical: espace(1) + 2 },
+  puceActive: { backgroundColor: couleurs.vert },
+  puceTexte: { color: couleurs.vert, fontSize: 14, fontWeight: '700' },
+  puceTexteActive: { color: '#FFFFFF' },
+  espaceBas: { marginBottom: espace(3) },
   temps: { color: couleurs.doux, fontSize: 16, marginTop: espace(1), fontVariant: ['tabular-nums'] },
   carte: { backgroundColor: couleurs.carte, borderRadius: 18, borderWidth: 1, borderColor: couleurs.ligne, padding: espace(4) },
   petit: { color: couleurs.doux, fontSize: 15, fontWeight: '700', textTransform: 'uppercase', marginBottom: espace(2) },

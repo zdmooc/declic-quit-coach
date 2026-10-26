@@ -207,8 +207,8 @@ export class Declic {
   }
 
   /** SOS envie ouvert puis fermé sans « l'envie est passée » : l'envie est comptée, issue inconnue. */
-  signalerEnvie(): Promise<void> {
-    return this.ajouter(this.evenement('EnvieSignalee', { issue: 'inconnue' }));
+  signalerEnvie(technique?: string): Promise<void> {
+    return this.ajouter(this.evenement('EnvieSignalee', technique ? { issue: 'inconnue', technique } : { issue: 'inconnue' }));
   }
 
   /** Supprime une saisie précise depuis l'historique (elle reste dans le journal, annulée). */

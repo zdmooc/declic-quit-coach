@@ -264,20 +264,21 @@ export default function App() {
           <SosEnvie
             raisons={tdb?.raisons ?? []}
             economieAnCents={tdb?.projection.parAnCents ?? 0}
-            onResiste={() => {
+            techniques={tdb?.techniquesSos ?? []}
+            onResiste={(technique) => {
               setSos(false);
-              void agir(() => declic.enregistrerEnvieResistee('respiration'))();
+              void agir(() => declic.enregistrerEnvieResistee(technique))();
             }}
-            onFermer={() => {
+            onFermer={(technique) => {
               setSos(false);
-              void agir(() => declic.signalerEnvie())();
+              void agir(() => declic.signalerEnvie(technique))();
             }}
             onAjouterRaison={(texte) => void agir(() => declic.ajouterRaison(texte))()}
             {...(coachDispo
               ? {
-                  onCoach: () => {
+                  onCoach: (technique: string) => {
                     setSos(false);
-                    void agir(() => declic.signalerEnvie())();
+                    void agir(() => declic.signalerEnvie(technique))();
                     setCoachMode('sos');
                   },
                 }

@@ -163,3 +163,20 @@ describe('séries du graphique (jour, semaine, mois)', () => {
     expect(s.map((p) => [p.debut, p.total, p.jours])).toEqual([['2026-10-01', 50, 4], ['2026-11-01', 10, 1]]);
   });
 });
+
+describe('techniques de respiration du SOS', () => {
+  it('consigne au fil du cycle et bilan : la plus efficace d’abord, ancien « respiration » = cohérence', async () => {
+    const { TECHNIQUES, phaseA, bilanTechniques } = await import('./respiration');
+    const soupir = TECHNIQUES.find((t) => t.cle === 'soupir')!;
+    expect([0, 2500, 4000, 9500].map((ms) => phaseA(soupir, ms).consigne)).toEqual(['Inspire…', 'Encore un peu…', 'Expire lentement…', 'Inspire…']);
+    const b = bilanTechniques(
+      [{ strategie: 'respiration' }, { strategie: 'soupir' }, { strategie: 'soupir' }, {}],
+      [{ technique: 'coherence' }, { technique: 'carree' }, {}],
+    );
+    expect(b.map((x) => [x.cle, x.resistees, x.sansIssue])).toEqual([
+      ['soupir', 2, 0],
+      ['coherence', 1, 1],
+      ['carree', 0, 1],
+    ]);
+  });
+});
