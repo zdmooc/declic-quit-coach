@@ -32,15 +32,15 @@ export interface PatchEnCours {
 
 export type EtatPatch =
   | { statut: 'aucun' }
-  | { statut: 'porte'; retraitPrevu: Instant; resteMinutes: number; dosageMg: number }
-  | { statut: 'a-retirer'; retraitPrevu: Instant; retardMinutes: number; dosageMg: number };
+  | { statut: 'porte'; poseLe: Instant; retraitPrevu: Instant; resteMinutes: number; dosageMg: number }
+  | { statut: 'a-retirer'; poseLe: Instant; retraitPrevu: Instant; retardMinutes: number; dosageMg: number };
 
 export function etatPatch(patch: PatchEnCours | null, maintenant: Instant): EtatPatch {
   if (!patch) return { statut: 'aucun' };
   const retraitPrevu = addMinutes(patch.poseLe, patch.dureePortHeures * 60);
   const reste = minutesBetween(maintenant, retraitPrevu);
-  if (reste > 0) return { statut: 'porte', retraitPrevu, resteMinutes: Math.ceil(reste), dosageMg: patch.dosageMg };
-  return { statut: 'a-retirer', retraitPrevu, retardMinutes: Math.floor(-reste), dosageMg: patch.dosageMg };
+  if (reste > 0) return { statut: 'porte', poseLe: patch.poseLe, retraitPrevu, resteMinutes: Math.ceil(reste), dosageMg: patch.dosageMg };
+  return { statut: 'a-retirer', poseLe: patch.poseLe, retraitPrevu, retardMinutes: Math.floor(-reste), dosageMg: patch.dosageMg };
 }
 
 export interface EtatOral {

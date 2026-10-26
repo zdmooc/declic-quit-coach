@@ -217,8 +217,8 @@ export default function App() {
             tz={clock.timeZone()}
             maintenant={clock.now()}
             onFermer={() => setSubstituts(false)}
-            onPoserPatch={(mg, h) => void agir(() => declic.poserPatch(mg, h))()}
-            onRetirerPatch={() => void agir(() => declic.retirerPatch())()}
+            onPoserPatch={(mg, h, hhmm) => void agir(() => declic.poserPatch(mg, h, hhmm))()}
+            onRetirerPatch={(hhmm) => void agir(() => declic.retirerPatch(hhmm))()}
             onPrendre={(forme, mg) => void agir(() => declic.prendreSubstitutOral(forme, mg))()}
           />
         )}

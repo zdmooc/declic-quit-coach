@@ -410,6 +410,15 @@ function patchsDuJour(etat: EtatJournal, jour: LocalDate, tz: string): JourneeHi
     .map((p) => ({ dosageMg: p.dosageMg, poseA: p.poseLe, renouvellementPrevu: p.poseLe + p.dureePortHeures * 3_600_000, retireA: p.retireLe }));
 }
 
+/**
+ * Patch porté à l'instant donné : posé avant, ni retiré ni arrivé au bout de sa durée de port.
+ * (Un patch oublié au-delà de sa durée n'est plus compté comme porté.)
+ */
+export function patchPorteA(etat: EtatJournal, a: Instant): number | null {
+  const p = etat.patchs.find((x) => x.poseLe <= a && a < Math.min(x.retireLe ?? Infinity, x.poseLe + x.dureePortHeures * 3_600_000));
+  return p ? p.dosageMg : null;
+}
+
 /** Cigarettes sans heure par journée (pour les moyennes d'habitudes). */
 export function cigarettesSansHeureParJour(etat: EtatJournal): Map<LocalDate, number> {
   const m = new Map<LocalDate, number>();
@@ -700,6 +709,8 @@ export interface CigaretteHistorique {
   avantPlan?: true;
   /** Respect de l'intervalle par rapport à la précédente (RM-18) ; `null` pour la première de la journée. */
   respectee: boolean | null;
+  /** Dosage du patch porté au moment de la cigarette ; absent = fumée sans patch. */
+  patchMg?: number;
 }
 
 export interface JourneeHistorique {
@@ -715,6 +726,8 @@ export interface JourneeHistorique {
   enviesSignalees: number;
   /** Patchs portés ce jour-là (avec ou sans patch), avec heure de pose et de renouvellement prévu. */
   patchs: { dosageMg: number; poseA: Instant; renouvellementPrevu: Instant; retireA: Instant | null }[];
+  /** Cigarettes horodatées fumées avec un patch porté. */
+  sousPatch: number;
   quota: number | null;
   intervalleMinutes: number | null;
   respectees: number;
@@ -747,12 +760,13 @@ export function historiqueJournees(etat: EtatJournal, maintenant: Instant, tz: s
       enPlan && plan
         ? intervalleCibleMinutes(dureeActive(plan.horaires), quotaDuJour(plan.input, jour))
         : etat.intervalleRecommande;
-    const cigarettes: CigaretteHistorique[] = liste.map((c, i) => ({
+    const cigarettes: CigaretteHistorique[] = liste.map((c, i, _, patchMg = patchPorteA(etat, c.a)) => ({
       id: c.id,
       a: c.a,
       ...(c.contexte ? { contexte: c.contexte, libelleContexte: libelleContexte(c.contexte, etat.contextesPerso) } : {}),
       ...(c.precision ? { precision: c.precision } : {}),
       ...(ids.has(c.id) ? {} : { avantPlan: true }),
+      ...(patchMg !== null ? { patchMg } : {}),
       respectee:
         i === 0 || intervalle === null
           ? null
@@ -770,6 +784,7 @@ export function historiqueJournees(etat: EtatJournal, maintenant: Instant, tz: s
       sansHeure,
       enviesSignalees: elementsDuJour(etat.enviesSignalees, jour).length + sansHeureDuJour(etat, jour, 'envies-signalees'),
       patchs: patchsDuJour(etat, jour, tz),
+      sousPatch: cigarettes.filter((c) => c.patchMg !== undefined).length,
       quota: enPlan ? quotaEffectif(etat, jour) : null,
       intervalleMinutes: intervalle,
       respectees: respect.respectees,

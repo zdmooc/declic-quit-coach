@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { formatDuree, type TableauDeBord, type TypeSubstitutOral } from '../domain';
 import { couleurs, espace } from './theme';
@@ -14,8 +14,9 @@ interface Props {
   tz: string;
   maintenant: number;
   onFermer: () => void;
-  onPoserPatch: (dosageMg: number, dureePortHeures: 16 | 24) => void;
-  onRetirerPatch: () => void;
+  /** `hhmm` : heure réelle si la pose est déclarée après coup (vide = maintenant). */
+  onPoserPatch: (dosageMg: number, dureePortHeures: 16 | 24, hhmm?: string) => void;
+  onRetirerPatch: (hhmm?: string) => void;
   onPrendre: (forme: TypeSubstitutOral, dosageMg: number) => void;
 }
 
@@ -34,9 +35,30 @@ function Choix({ libelle, actif, onPress }: { libelle: string; actif: boolean; o
   );
 }
 
+/** Heure facultative « HH:MM » : vide = maintenant. */
+function ChampHeure({ valeur, onChange, libelle }: { valeur: string; onChange: (v: string) => void; libelle: string }) {
+  return (
+    <View style={styles.ligneHeure}>
+      <Text style={styles.libelleHeure}>{libelle}</Text>
+      <TextInput
+        style={styles.champHeure}
+        value={valeur}
+        onChangeText={onChange}
+        placeholder="maintenant"
+        placeholderTextColor={couleurs.doux}
+        keyboardType="numbers-and-punctuation"
+        maxLength={5}
+        accessibilityLabel={`${libelle}, format 07:30, vide pour maintenant`}
+      />
+    </View>
+  );
+}
+
 function CartePatch({ tdb, tz, onPoserPatch, onRetirerPatch }: Props) {
   const [duree, setDuree] = useState<16 | 24>(24);
   const [dosage, setDosage] = useState<number | null>(null);
+  const [heurePose, setHeurePose] = useState('');
+  const [heureRetrait, setHeureRetrait] = useState('');
   const p = tdb.patch;
 
   if (p.statut !== 'aucun') {
@@ -45,17 +67,19 @@ function CartePatch({ tdb, tz, onPoserPatch, onRetirerPatch }: Props) {
       <View style={[styles.carte, enRetard && styles.carteAlerte]}>
         <Text style={styles.petit}>Patch</Text>
         <Text style={styles.grand}>{mg(p.dosageMg)}</Text>
+        <Text style={styles.sous}>Posé à {heure(p.poseLe, tz)}</Text>
         <Text style={[styles.etat, enRetard && styles.etatAlerte]}>
           {enRetard
             ? `À retirer depuis ${formatDuree(Math.max(1, p.retardMinutes))} (prévu à ${heure(p.retraitPrevu, tz)})`
             : `Retrait prévu à ${heure(p.retraitPrevu, tz)} · encore ${formatDuree(p.resteMinutes)}`}
         </Text>
+        <ChampHeure libelle="Retiré à" valeur={heureRetrait} onChange={setHeureRetrait} />
         <Pressable
           style={[styles.bouton, !enRetard && styles.boutonSecondaire]}
           onPress={() =>
             Alert.alert('Retirer le patch ?', 'Le rappel de retrait sera annulé.', [
               { text: 'Annuler', style: 'cancel' },
-              { text: 'Retirer', onPress: onRetirerPatch },
+              { text: 'Retirer', onPress: () => onRetirerPatch(heureRetrait) },
             ])
           }
           accessibilityRole="button"
@@ -90,15 +114,16 @@ function CartePatch({ tdb, tz, onPoserPatch, onRetirerPatch }: Props) {
           <Choix key={d} libelle={mg(d)} actif={dosage === d} onPress={() => setDosage(d)} />
         ))}
       </View>
+      <ChampHeure libelle="Posé à" valeur={heurePose} onChange={setHeurePose} />
       <Pressable
         style={[styles.bouton, dosage === null && styles.inactif]}
         disabled={dosage === null}
-        onPress={() => dosage !== null && onPoserPatch(dosage, duree)}
+        onPress={() => dosage !== null && onPoserPatch(dosage, duree, heurePose)}
         accessibilityRole="button"
       >
         <Text style={styles.boutonTexte}>J’ai posé mon patch</Text>
       </Pressable>
-      <Text style={styles.aide}>Déclic calcule l’heure de retrait et te la rappelle.</Text>
+      <Text style={styles.aide}>Posé plus tôt ? Indique l’heure (ex. 07:30) : Déclic saura quelles cigarettes ont été fumées sous patch, calcule l’heure de retrait et te la rappelle.</Text>
     </View>
   );
 }
@@ -168,6 +193,9 @@ export function SubstitutsScreen(props: Props) {
 }
 
 const styles = StyleSheet.create({
+  ligneHeure: { flexDirection: 'row', alignItems: 'center', gap: espace(2), marginTop: espace(3) },
+  libelleHeure: { color: couleurs.encre, fontSize: 15 },
+  champHeure: { width: 110, borderWidth: 1, borderColor: couleurs.ligne, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, fontSize: 16, color: couleurs.encre },
   page: { flex: 1, backgroundColor: couleurs.fond },
   entete: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: espace(4), paddingVertical: espace(3) },
   titre: { color: couleurs.encre, fontSize: 26, fontWeight: '800' },

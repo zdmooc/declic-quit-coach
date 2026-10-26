@@ -167,13 +167,11 @@ export class Declic {
    * saisie, ou la veille si l'heure donnée est après l'heure saisie et passe minuit. Jamais dans le futur.
    */
   async corrigerHeure(evenementId: string, hhmm: string): Promise<void> {
-    const m = /^(\d{1,2})[:h ]?(\d{2})$/.exec(hhmm.trim());
-    if (!m || Number(m[1]) > 23 || Number(m[2]) > 59) throw new Error('Heure invalide (format 08:45)');
+    const heure = lireHeure(hhmm);
     const etat = await this.etat();
     const c = etat?.cigarettes.find((x) => x.id === evenementId);
     if (!c) throw new Error('Cigarette introuvable');
     const tz = this.deps.clock.timeZone();
-    const heure = `${m[1]!.padStart(2, '0')}:${m[2]}`;
     let a = zonedInstant(localDateOf(c.a, tz), heure, tz);
     if (a > this.deps.clock.now()) a = zonedInstant(addDays(localDateOf(c.a, tz), -1), heure, tz);
     if (a > this.deps.clock.now()) throw new Error('Cette heure est dans le futur');
@@ -347,12 +345,27 @@ export class Declic {
     await this.ajouter(this.evenement('PalierDemande', { jour: tdb.jour }));
   }
 
-  poserPatch(dosageMg: number, dureePortHeures: 16 | 24): Promise<void> {
-    return this.ajouter(this.evenement('PatchPose', { dosageMg, dureePortHeures }));
+  /**
+   * Pose d'un patch, maintenant ou à une heure passée (« HH:MM », aujourd'hui ou la veille si
+   * l'heure n'est pas encore passée) : pour savoir quelles cigarettes ont été fumées sous patch.
+   */
+  async poserPatch(dosageMg: number, dureePortHeures: 16 | 24, hhmm?: string): Promise<void> {
+    return this.ajouter(this.aHeure(this.evenement('PatchPose', { dosageMg, dureePortHeures }), hhmm));
   }
 
-  retirerPatch(): Promise<void> {
-    return this.ajouter(this.evenement('PatchRetire', {}));
+  async retirerPatch(hhmm?: string): Promise<void> {
+    return this.ajouter(this.aHeure(this.evenement('PatchRetire', {}), hhmm));
+  }
+
+  /** Antidate un événement à « HH:MM » (heure récente, jamais dans le futur) ; vide = maintenant. */
+  private aHeure<E extends DomainEvent>(e: E, hhmm?: string): E {
+    if (!hhmm?.trim()) return e;
+    const tz = this.deps.clock.timeZone();
+    const now = this.deps.clock.now();
+    const heure = lireHeure(hhmm);
+    let a = zonedInstant(localDateOf(now, tz), heure, tz);
+    if (a > now) a = zonedInstant(addDays(localDateOf(now, tz), -1), heure, tz);
+    return { ...e, occurredAt: new Date(a).toISOString() };
   }
 
   prendreSubstitutOral(forme: TypeSubstitutOral, dosageMg: number, source: Source = 'phone'): Promise<void> {
@@ -444,4 +457,11 @@ export class Declic {
     await notifier.remplacer(planifiees);
     return planifiees;
   }
+}
+
+/** « 8:45 », « 08h45 », « 0845 » → « 08:45 ». */
+function lireHeure(hhmm: string): string {
+  const m = /^(\d{1,2})[:h ]?(\d{2})$/.exec(hhmm.trim());
+  if (!m || Number(m[1]) > 23 || Number(m[2]) > 59) throw new Error('Heure invalide (format 08:45)');
+  return `${m[1]!.padStart(2, '0')}:${m[2]}`;
 }

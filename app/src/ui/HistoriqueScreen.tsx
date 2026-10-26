@@ -165,6 +165,7 @@ function LigneCigarette({
         <Text style={[styles.contexteTexte, !c.libelleContexte && styles.contexteVide]} numberOfLines={1}>
           {c.libelleContexte ?? '+ contexte'}
           {c.avantPlan ? ' · avant le plan' : ''}
+          {c.patchMg !== undefined ? ` · patch ${c.patchMg} mg` : ''}
         </Text>
       </Pressable>
       <Pressable onPress={confirmer} accessibilityRole="button" accessibilityLabel={`Supprimer la cigarette de ${heure(c.a, tz)}`} hitSlop={8}>
@@ -218,6 +219,7 @@ export function HistoriqueScreen({ journees, tz, contextesPerso, onFermer, onPre
                       : j.patchs
                           .map((p) => `Patch ${p.dosageMg} mg · posé ${heure(p.poseA, tz)} · renouvellement ${heure(p.renouvellementPrevu, tz)}${p.retireA ? ` · retiré ${heure(p.retireA, tz)}` : ''}`)
                           .join('  |  ')}
+                    {j.patchs.length > 0 && j.total > 0 ? `  ·  ${j.sousPatch} sous patch, ${j.total - j.sansHeure - j.sousPatch} sans` : ''}
                   </Text>
                   {(j.sansHeure > 0 || j.enviesSignalees > 0) && (
                     <Text style={styles.sousResume}>

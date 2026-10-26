@@ -364,3 +364,24 @@ describe('correction de l’heure après coup', () => {
     expect(j!.cigarettes.map((c) => c.a)).toEqual(['07:40', '08:30', '09:10', '09:55'].map((h) => zonedInstant('2026-10-26', h, TZ)));
   });
 });
+
+describe('patch déclaré après coup', () => {
+  it('pose antidatée : on sait quelles cigarettes ont été fumées avec ou sans patch', async () => {
+    const { app } = monter(zonedInstant('2026-10-26', '10:30', TZ));
+    await app.creerProfil(PROFIL);
+    const ids = [await app.enregistrerCigarette(), await app.enregistrerCigarette(), await app.enregistrerCigarette()];
+    for (const [i, h] of ['07:00', '08:30', '10:00'].entries()) await app.corrigerHeure(ids[i]!, h);
+    await app.poserPatch(21, 24, '08:00');
+    const [j] = await app.historique(1);
+    expect(j!.cigarettes.map((c) => c.patchMg ?? null)).toEqual([null, 21, 21]);
+    expect(j!.sousPatch).toBe(2);
+    expect(j!.patchs[0]!.poseA).toBe(zonedInstant('2026-10-26', '08:00', TZ));
+    const tdb = (await app.tableauDeBord())!;
+    expect(tdb.patch).toMatchObject({ statut: 'porte', poseLe: zonedInstant('2026-10-26', '08:00', TZ) });
+    // Retrait déclaré à 09:00 : la cigarette de 10:00 redevient « sans patch ».
+    await app.retirerPatch('09:00');
+    const [k] = await app.historique(1);
+    expect(k!.cigarettes.map((c) => c.patchMg ?? null)).toEqual([null, 21, null]);
+    await expect(app.poserPatch(21, 24, '8h7')).rejects.toThrow(/invalide/);
+  });
+});
