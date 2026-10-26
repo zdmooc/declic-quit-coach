@@ -1,0 +1,67 @@
+name: Publier sur les téléphones
+
+# Publie une mise à jour EAS Update (canal preview) sans passer par le PC :
+# automatiquement après chaque push sur main qui touche l'app (si les tests passent),
+# ou à la main depuis GitHub (Actions → « Publier sur les téléphones » → Run workflow).
+#
+# Prérequis : secret EXPO_TOKEN (expo.dev → Account settings → Access tokens).
+#
+# Version d'exécution : celle de l'APK installé (calculée sous Windows, empreinte « fingerprint »).
+# Linux calcule une autre empreinte pour le même code : on fixe donc la valeur de l'APK.
+# À METTRE À JOUR après chaque nouveau build d'APK (valeur affichée par `eas update` sous Windows).
+env:
+  RUNTIME_APK: 588937ab223897229eb146e351dfae384bbc529c
+  EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+on:
+  push:
+    branches: [main]
+    paths: ['app/**', '.github/workflows/publier.yml']
+  workflow_dispatch:
+    inputs:
+      message:
+        description: Message de la mise à jour
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publier
+  cancel-in-progress: false
+
+jobs:
+  publier:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      - name: Vérifier avant de publier
+        run: npm run lint && npm run typecheck && npm test
+      - name: Le code natif n'a pas changé depuis l'APK ?
+        # Si l'empreinte Linux change, une dépendance native ou la config a bougé : il faut un nouvel APK.
+        run: |
+          actuelle=$(npx expo-updates runtimeversion:resolve --platform android | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.parse(s.slice(s.indexOf('{'))).runtimeVersion))")
+          echo "Empreinte Linux : $actuelle"
+          if [ "$actuelle" != "6f7a7cc1f8ff5ee653fe2c5bc8dd11814ac47ed3" ]; then
+            echo "::error::Le code natif a changé : refaire un APK (eas build) puis mettre à jour RUNTIME_APK et cette empreinte."
+            exit 1
+          fi
+      - name: Fixer la version d'exécution de l'APK
+        run: node -e "const f='app.json',j=require('./'+f);j.expo.runtimeVersion=process.env.RUNTIME_APK;require('fs').writeFileSync(f,JSON.stringify(j,null,2))"
+      - name: Jeton Expo absent
+        if: env.EXPO_TOKEN == ''
+        run: echo "::warning::Secret EXPO_TOKEN absent : rien n'est publié (Settings → Secrets and variables → Actions)."
+      - name: Publier
+        if: env.EXPO_TOKEN != ''
+        env:
+          MESSAGE: ${{ inputs.message || github.event.head_commit.message }}
+        run: npx eas-cli@latest update --channel preview --environment preview --platform android --non-interactive --message "$(echo "$MESSAGE" | head -1)"
