@@ -233,6 +233,7 @@ export default function App() {
             onFermer={() => setReglages(null)}
             onPrix={(p, n) => depuis(() => declic.modifierPrix(p, n), ouvrirReglages)}
             onIntervalle={(m) => depuis(() => declic.modifierIntervalleRecommande(m), ouvrirReglages)}
+            onObservation={(j) => depuis(() => declic.reglerObservation(j), ouvrirReglages)}
             onRythme={(st) => depuis(() => declic.modifierRythme(st), ouvrirReglages)}
             onPalier={(q) =>
               depuis(async () => {

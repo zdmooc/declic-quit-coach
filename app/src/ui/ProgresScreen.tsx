@@ -220,6 +220,35 @@ export function ProgresScreen(props: Props) {
             )}
           </View>
 
+          {p.patch && (
+            <View style={styles.carte}>
+              <Text style={styles.petit}>Avec ou sans patch</Text>
+              <View style={styles.grille}>
+                <Chiffre valeur={String(p.patch.cigarettesAvec)} libelle="fumées avec patch" />
+                <Chiffre valeur={String(p.patch.cigarettesSans)} libelle="fumées sans patch" />
+              </View>
+              <View style={styles.grille}>
+                <Chiffre valeur={p.patch.intervalleAvec === null ? '—' : formatDuree(p.patch.intervalleAvec)} libelle="écart moyen avec" />
+                <Chiffre valeur={p.patch.intervalleSans === null ? '—' : formatDuree(p.patch.intervalleSans)} libelle="écart moyen sans" />
+              </View>
+              {p.patch.joursAvec || p.patch.joursSans ? (
+                <View style={styles.grille}>
+                  <Chiffre
+                    valeur={p.patch.joursAvec ? p.patch.joursAvec.moyenne.toFixed(1).replace('.', ',') : '—'}
+                    libelle={`/ jour avec (${p.patch.joursAvec?.jours ?? 0} j)`}
+                  />
+                  <Chiffre
+                    valeur={p.patch.joursSans ? p.patch.joursSans.moyenne.toFixed(1).replace('.', ',') : '—'}
+                    libelle={`/ jour sans (${p.patch.joursSans?.jours ?? 0} j)`}
+                  />
+                </View>
+              ) : null}
+              <Text style={styles.aide}>
+                Un écart plus long avec patch veut dire qu’il retarde l’envie. Compare des journées entières une fois quelques-unes terminées.
+              </Text>
+            </View>
+          )}
+
           {p.courbe.length > 0 && (
             <View style={styles.carte}>
               <Text style={styles.petit}>Ton plan jusqu’à zéro</Text>

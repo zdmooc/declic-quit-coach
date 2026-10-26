@@ -401,3 +401,40 @@ describe('SOS envie', () => {
     expect(j!.enviesSignalees).toBe(2);
   });
 });
+
+const aller = (clock: { now(): number; avancerMinutes(m: number): void }, t: number) => clock.avancerMinutes((t - clock.now()) / 60_000);
+
+describe('observation réglable et comparaison avec / sans patch', () => {
+  it('observation d’1 jour : bilan prêt dès la première journée terminée', async () => {
+    const { app, clock } = monter(zonedInstant('2026-10-26', '08:00', TZ));
+    await app.creerProfil(PROFIL);
+    await app.reglerObservation(1);
+    expect((await app.reglages())!.joursObservation).toBe(1);
+    for (const h of ['08:00', '10:00', '12:00', '15:00']) {
+      aller(clock, zonedInstant('2026-10-26', h, TZ));
+      await app.enregistrerCigarette();
+    }
+    aller(clock, zonedInstant('2026-10-27', '09:00', TZ));
+    await app.enregistrerCigarette();
+    const tdb = (await app.tableauDeBord())!;
+    expect(tdb.observation).toMatchObject({ joursMesures: 1, joursRequis: 1, terminee: true });
+    await expect(app.reglerObservation(8)).rejects.toThrow();
+  });
+
+  it('écarts avant les cigarettes fumées avec patch comparés à sans patch', async () => {
+    const { app, clock } = monter(zonedInstant('2026-10-26', '07:00', TZ));
+    await app.creerProfil(PROFIL);
+    for (const h of ['07:00', '07:20', '07:40']) {
+      aller(clock, zonedInstant('2026-10-26', h, TZ));
+      await app.enregistrerCigarette();
+    }
+    aller(clock, zonedInstant('2026-10-26', '07:45', TZ));
+    await app.poserPatch(21, 24);
+    for (const h of ['08:40', '09:40']) {
+      aller(clock, zonedInstant('2026-10-26', h, TZ));
+      await app.enregistrerCigarette();
+    }
+    const p = (await app.progres())!;
+    expect(p.patch).toMatchObject({ cigarettesAvec: 2, cigarettesSans: 3, intervalleSans: 20, intervalleAvec: 60, joursAvec: null });
+  });
+});

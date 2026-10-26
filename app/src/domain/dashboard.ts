@@ -90,6 +90,8 @@ export interface EtatJournal {
   contextesPerso: ContextePerso[];
   /** Intervalle recommandé pendant l'observation (réglage). */
   intervalleRecommande: number;
+  /** Journées mesurées avant de proposer le plan (1 à 7, 3 par défaut). */
+  joursObservation: number;
   /** Raisons personnelles d'arrêter (SOS envie). */
   raisons: string[];
   /** Consentement à l'envoi d'un résumé non identifiant au coach IA (F1.6, F7.6). */
@@ -136,6 +138,7 @@ export function rejouer(events: readonly DomainEvent[], tz: string): EtatJournal
     objectifs: [],
     contextesPerso: [],
     intervalleRecommande: INTERVALLE_RECOMMANDE_OBSERVATION_MINUTES,
+    joursObservation: JOURS_OBSERVATION,
     raisons: [],
     coachIa: false,
     derniereSaisieId: null,
@@ -268,6 +271,9 @@ export function rejouer(events: readonly DomainEvent[], tz: string): EtatJournal
         if (c) c.archive = true;
         break;
       }
+      case 'ObservationReglee':
+        etat.joursObservation = e.payload.jours;
+        break;
       case 'IntervalleRecommandeModifie':
         etat.intervalleRecommande = e.payload.minutes;
         break;
@@ -322,12 +328,12 @@ export function proposerPlan(etat: EtatJournal, maintenant: Instant, tz: string)
   const jour = journeeCourante(etat, maintenant, tz);
   const habitudes = mesurerHabitudes(etat.cigarettes, jour, tz, { depuis: debutObservation(etat, tz), sansHeure: cigarettesSansHeureParJour(etat) });
   const joursMesures = habitudes?.joursMesures ?? 0;
-  const terminee = joursMesures >= JOURS_OBSERVATION;
+  const terminee = joursMesures >= etat.joursObservation;
   const journeeEntamee = etat.cigarettes.some((c) => c.jour === jour);
   const reference = terminee && habitudes ? Math.max(1, Math.round(habitudes.cigarettesParJour)) : etat.declare;
   return {
     joursMesures,
-    joursRequis: JOURS_OBSERVATION,
+    joursRequis: etat.joursObservation,
     terminee,
     habitudes,
     proposition: {

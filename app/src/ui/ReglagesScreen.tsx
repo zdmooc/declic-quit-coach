@@ -11,6 +11,7 @@ interface Props {
   onFermer: () => void;
   onPrix: (prixPaquetCents: number, cigarettesParPaquet: number) => void;
   onIntervalle: (minutes: number) => void;
+  onObservation: (jours: number) => void;
   onRythme: (s: ReductionStrategy) => void;
   onPalier: (quota: number) => void;
   onRenommerContexte: (cle: `perso:${string}`, libelle: string) => void;
@@ -174,6 +175,12 @@ export function ReglagesScreen(props: Props) {
           {!r.planDemarre ? (
             <View style={styles.carte}>
               <Text style={styles.petit}>Observation</Text>
+              <Text style={styles.libelle}>Durée : journées complètes mesurées avant le plan</Text>
+              <View style={styles.grille}>
+                {[1, 2, 3, 4, 5, 6, 7].map((j) => (
+                  <Choix key={j} libelle={j === 7 ? '1 sem.' : `${j} j`} actif={r.joursObservation === j} onPress={() => props.onObservation(j)} />
+                ))}
+              </View>
               <Text style={styles.libelle}>Intervalle recommandé entre deux cigarettes</Text>
               <View style={styles.grille}>
                 {INTERVALLES.map((m) => (

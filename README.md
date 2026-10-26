@@ -21,7 +21,7 @@
 
 | Élément | État |
 |---|---|
-| Domaine : observation 3 jours, journées définies par les cigarettes, habitudes, déclencheurs, plan −1/jour ou paliers libres, intervalles, économies, substituts, jalons, notifications | ✅ codé, 124 tests (dont tests par propriétés) |
+| Domaine : observation de 1 à 7 jours (3 par défaut), journées définies par les cigarettes, habitudes, déclencheurs, plan −1/jour ou paliers libres, intervalles, économies, substituts, jalons, notifications | ✅ codé, 124 tests (dont tests par propriétés) |
 | Cas d'usage (`Declic`) et ports | ✅ |
 | Écrans : profil, page unique, observation et bilan, « J'ai fumé » + contexte, palier | ✅ compteur unique (− jusqu'à l'objectif, + au-delà), moyenne du jour en direct, case patch |
 | Stockage | ✅ SQLite sur le téléphone, les données survivent à la fermeture · ⚠️ **non chiffré** dans Expo Go (chiffrement avec le premier build de développement) |
@@ -35,7 +35,7 @@
 | Build Android | ✅ APK `preview` via EAS Build · icône et écran de démarrage Déclic |
 | Mises à jour automatiques | ✅ EAS Update (canal `preview`) : les nouveaux écrans arrivent sans réinstaller |
 | Tables pharmacologique et santé | ⚠️ brouillons non validés : maximums et jalons santé inactifs |
-| Progrès | ✅ économies projetées (mois, an), objectifs d'épargne avec date estimée, records, bilan de la semaine, courbe du plan jusqu'à zéro |
+| Progrès | ✅ comparaison avec / sans patch (cigarettes, écarts, moyenne par jour), économies projetées (mois, an), objectifs d'épargne avec date estimée, records, bilan de la semaine, courbe du plan jusqu'à zéro |
 | Coach écrit (sans IA) | ✅ bilan du soir, faux pas analysé avec bienveillance, alerte 10 min avant l'heure à risque |
 | Coach IA | ✅ codé : conversation (SOS, soir, faux pas), garde-fous (dosage, symptômes, détresse → 15 / 112 / 3114 / 39 89), consentement · modèle open source gratuit (Mistral Small 3.1 via Cloudflare Workers AI) · ⚙️ relais à déployer ([coach-relay](coach-relay/README.md)) |
 | Montre | ⏳ V2 |

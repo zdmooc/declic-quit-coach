@@ -119,6 +119,8 @@ export type ContexteRenomme = Base<'ContexteRenomme', { cle: `perso:${string}`; 
 export type ContexteArchive = Base<'ContexteArchive', { cle: `perso:${string}` }>;
 /** Intervalle recommandé pendant l'observation (réglage, 60 min par défaut). */
 export type IntervalleRecommandeModifie = Base<'IntervalleRecommandeModifie', { minutes: number }>;
+/** Durée de l'observation choisie par l'utilisateur (1 à 7 journées mesurées). */
+export type ObservationReglee = Base<'ObservationReglee', { jours: number }>;
 /** Une raison personnelle d'arrêter, rappelée pendant le SOS envie (F7.1). */
 export type RaisonAjoutee = Base<'RaisonAjoutee', { texte: string }>;
 export type EnvieResistee = Base<'EnvieResistee', { strategieUtilisee?: string } & Provenance>;
@@ -162,6 +164,7 @@ export type DomainEvent =
   | ContexteRenomme
   | ContexteArchive
   | IntervalleRecommandeModifie
+  | ObservationReglee
   | PatchPose
   | PatchRetire
   | SubstitutOralPris
@@ -223,6 +226,9 @@ export function validateEvent(e: DomainEvent): string[] {
     case 'ContexteRenomme':
       if (e.payload.libelle.trim().length < 1 || e.payload.libelle.trim().length > 30)
         errors.push('libellé de contexte : 1 à 30 caractères');
+      break;
+    case 'ObservationReglee':
+      if (!isInt(e.payload.jours) || e.payload.jours < 1 || e.payload.jours > 7) errors.push('observation : 1 à 7 jours');
       break;
     case 'IntervalleRecommandeModifie':
       if (!isInt(e.payload.minutes) || e.payload.minutes < 10 || e.payload.minutes > 240)

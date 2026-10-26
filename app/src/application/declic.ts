@@ -61,6 +61,8 @@ export interface Reglages {
   prixPaquetCents: number;
   cigarettesParPaquet: number;
   intervalleRecommande: number;
+  /** Durée de l'observation (journées mesurées). */
+  joursObservation: number;
   planDemarre: boolean;
   strategie: ReductionStrategy | null;
   /** Quota du plan aujourd'hui (palier en cours) ; `null` avant le plan. */
@@ -330,11 +332,17 @@ export class Declic {
       prixPaquetCents: prix.prixPaquetCents,
       cigarettesParPaquet: prix.cigarettesParPaquet,
       intervalleRecommande: etat.intervalleRecommande,
+      joursObservation: etat.joursObservation,
       planDemarre: etat.plan !== null,
       strategie: etat.plan ? strategieCourante(etat.plan.input, addDays(tdb!.jour, 1)) : null,
       palierActuel: etat.plan ? quotaDuJour(etat.plan.input, tdb!.jour) : null,
       contextesPerso: etat.contextesPerso.filter((c) => !c.archive),
     };
+  }
+
+  /** Durée de l'observation, de 1 à 7 journées (ta méthode : un jour à une semaine). */
+  reglerObservation(jours: number): Promise<void> {
+    return this.ajouter(this.evenement('ObservationReglee', { jours }));
   }
 
   async annulerDerniereSaisie(): Promise<boolean> {

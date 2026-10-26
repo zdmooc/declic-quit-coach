@@ -6,6 +6,7 @@
 import { libelleContexte } from './analyse';
 import { historiqueJournees, journeeCourante, type EtatJournal, type JourneeHistorique } from './dashboard';
 import { dateDuZero, quotaDuJour } from './reduction';
+import { moyenne, SEUIL_NUIT_MINUTES } from './sessions';
 import { addDays, daysBetween, minutesBetween, type Instant, type LocalDate } from './time';
 
 export interface Records {
@@ -43,7 +44,50 @@ export interface PointCourbe {
   fumees: number | null;
 }
 
+/** Effet du patch : cigarettes et écarts avec patch porté, comparés à sans patch. */
+export interface ComparaisonPatch {
+  /** Cigarettes horodatées fumées avec / sans patch porté (journée en cours comprise). */
+  cigarettesAvec: number;
+  cigarettesSans: number;
+  /** Écart moyen (minutes) avant une cigarette fumée avec / sans patch (nuit exclue). */
+  intervalleAvec: number | null;
+  intervalleSans: number | null;
+  /** Journées terminées avec un patch porté / sans patch : nombre et cigarettes par jour. */
+  joursAvec: { jours: number; moyenne: number } | null;
+  joursSans: { jours: number; moyenne: number } | null;
+}
+
+export function comparerPatch(journees: readonly JourneeHistorique[], aujourdhui: LocalDate): ComparaisonPatch | null {
+  const notees = journees.filter((j) => j.total > 0);
+  if (!notees.some((j) => j.patchs.length > 0)) return null;
+  const ecartsAvec: number[] = [];
+  const ecartsSans: number[] = [];
+  let avec = 0;
+  let sans = 0;
+  for (const j of notees) {
+    j.cigarettes.forEach((c, i) => {
+      if (c.patchMg !== undefined) avec++;
+      else sans++;
+      if (i === 0) return;
+      const ecart = minutesBetween(j.cigarettes[i - 1]!.a, c.a);
+      if (ecart < SEUIL_NUIT_MINUTES) (c.patchMg !== undefined ? ecartsAvec : ecartsSans).push(ecart);
+    });
+  }
+  const terminees = notees.filter((j) => j.jour !== aujourdhui);
+  const groupe = (js: JourneeHistorique[]) => (js.length === 0 ? null : { jours: js.length, moyenne: somme(js.map((j) => j.total)) / js.length });
+  return {
+    cigarettesAvec: avec,
+    cigarettesSans: sans,
+    intervalleAvec: moyenne(ecartsAvec),
+    intervalleSans: moyenne(ecartsSans),
+    joursAvec: groupe(terminees.filter((j) => j.patchs.length > 0)),
+    joursSans: groupe(terminees.filter((j) => j.patchs.length === 0)),
+  };
+}
+
 export interface Progres {
+  /** `null` tant qu'aucun patch n'a été déclaré. */
+  patch: ComparaisonPatch | null;
   records: Records;
   bilanSemaine: BilanSemaine | null;
   courbe: PointCourbe[];
@@ -120,6 +164,7 @@ export function progres(etat: EtatJournal, maintenant: Instant, tz: string): Pro
   }
 
   return {
+    patch: comparerPatch(toutes, aujourdhui),
     records: {
       joursSansTabac,
       meilleureJournee: meilleure ? { jour: meilleure.jour, fumees: meilleure.fumees } : null,
