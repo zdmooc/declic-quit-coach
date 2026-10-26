@@ -347,3 +347,20 @@ describe('descente par paliers libres', () => {
     expect(j2!.patchs).toHaveLength(1); // porté jusqu'au retrait du lendemain
   });
 });
+
+describe('correction de l’heure après coup', () => {
+  it('4 saisies d’un coup puis heures réelles : intervalles recalculés, futur refusé', async () => {
+    const { app, clock } = monter(zonedInstant('2026-10-26', '10:00', TZ));
+    await app.creerProfil(PROFIL);
+    const ids = [await app.enregistrerCigarette(), await app.enregistrerCigarette(), await app.enregistrerCigarette(), await app.enregistrerCigarette()];
+    expect((await app.tableauDeBord())!.respect.nonRespectees).toBe(3);
+    for (const [i, h] of ['07:40', '08:30', '09:10', '09:55'].entries()) await app.corrigerHeure(ids[i]!, h);
+    const tdb = (await app.tableauDeBord())!;
+    expect(tdb.fumees).toBe(4);
+    expect(tdb.intervalleMoyenJourMinutes).toBeCloseTo((50 + 40 + 45) / 3);
+    await expect(app.corrigerHeure(ids[0]!, '25:00')).rejects.toThrow(/invalide/);
+    clock.avancerMinutes(0);
+    const [j] = await app.historique(1);
+    expect(j!.cigarettes.map((c) => c.a)).toEqual(['07:40', '08:30', '09:10', '09:55'].map((h) => zonedInstant('2026-10-26', h, TZ)));
+  });
+});

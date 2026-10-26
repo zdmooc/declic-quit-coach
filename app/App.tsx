@@ -194,6 +194,15 @@ export default function App() {
             contextesPerso={tdb?.contextesPerso ?? []}
             onFermer={() => setHistorique(null)}
             onSupprimer={(id) => depuis(() => declic.annulerSaisie(id), ouvrirHistorique)}
+            onCorrigerHeure={(id, hhmm) =>
+              depuis(async () => {
+                try {
+                  await declic.corrigerHeure(id, hhmm);
+                } catch (e) {
+                  Alert.alert('Heure non modifiée', e instanceof Error ? e.message : String(e));
+                }
+              }, ouvrirHistorique)
+            }
             onPreciser={(id, { nouveauContexte, contexte }) =>
               depuis(async () => {
                 const c = nouveauContexte ? await declic.ajouterContexte(nouveauContexte) : contexte;

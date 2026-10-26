@@ -4,6 +4,8 @@
 
 import {
   addDays,
+  localDateOf,
+  zonedInstant,
   garde,
   messageDuSoir,
   progres,
@@ -158,6 +160,24 @@ export class Declic {
     }
     if (!payload.contexte && !payload.occurredAt) return;
     await this.ajouter(this.evenement('CigaretteCorrigee', payload));
+  }
+
+  /**
+   * Corrige l'heure d'une cigarette (saisie après coup) : « HH:MM » le même jour civil que la
+   * saisie, ou la veille si l'heure donnée est après l'heure saisie et passe minuit. Jamais dans le futur.
+   */
+  async corrigerHeure(evenementId: string, hhmm: string): Promise<void> {
+    const m = /^(\d{1,2})[:h ]?(\d{2})$/.exec(hhmm.trim());
+    if (!m || Number(m[1]) > 23 || Number(m[2]) > 59) throw new Error('Heure invalide (format 08:45)');
+    const etat = await this.etat();
+    const c = etat?.cigarettes.find((x) => x.id === evenementId);
+    if (!c) throw new Error('Cigarette introuvable');
+    const tz = this.deps.clock.timeZone();
+    const heure = `${m[1]!.padStart(2, '0')}:${m[2]}`;
+    let a = zonedInstant(localDateOf(c.a, tz), heure, tz);
+    if (a > this.deps.clock.now()) a = zonedInstant(addDays(localDateOf(c.a, tz), -1), heure, tz);
+    if (a > this.deps.clock.now()) throw new Error('Cette heure est dans le futur');
+    await this.ajouter(this.evenement('CigaretteCorrigee', { evenementId, occurredAt: new Date(a).toISOString() }));
   }
 
   /**

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { formatDuree, formatEuros, serieConsommation, type CigaretteHistorique, type ContextePerso, type Granularite, type JourneeHistorique, type PointSerie } from '../domain';
 import { ContexteSheet, type Precision } from './ContexteSheet';
@@ -13,6 +13,8 @@ interface Props {
   /** Change le contexte d'une cigarette passée (ou en ajoute un nouveau). */
   onPreciser: (cigaretteId: string, precision: Precision) => void;
   onSupprimer: (cigaretteId: string) => void;
+  /** Corrige l'heure d'une cigarette (« HH:MM »). */
+  onCorrigerHeure: (cigaretteId: string, hhmm: string) => void;
 }
 
 const heure = (t: number, tz: string) =>
@@ -117,7 +119,9 @@ function LigneCigarette({
   tz,
   onChangerContexte,
   onSupprimer,
-}: { c: CigaretteHistorique; tz: string; onChangerContexte: (id: string) => void } & Pick<Props, 'onSupprimer'>) {
+  onCorrigerHeure,
+}: { c: CigaretteHistorique; tz: string; onChangerContexte: (id: string) => void } & Pick<Props, 'onSupprimer' | 'onCorrigerHeure'>) {
+  const [saisie, setSaisie] = useState<string | null>(null);
   const confirmer = () =>
     Alert.alert('Supprimer cette cigarette ?', `Cigarette de ${heure(c.a, tz)}`, [
       { text: 'Annuler', style: 'cancel' },
@@ -126,7 +130,37 @@ function LigneCigarette({
   return (
     <View style={styles.ligne}>
       <View style={[styles.point, c.respectee === true && styles.pointVert, c.respectee === false && styles.pointRouge]} />
-      <Text style={styles.heure}>{c.precision === 'approximative' ? '~' : ''}{heure(c.a, tz)}</Text>
+      {saisie === null ? (
+        <Pressable onPress={() => setSaisie(heure(c.a, tz))} accessibilityRole="button" accessibilityLabel={`Modifier l’heure ${heure(c.a, tz)}`} hitSlop={6}>
+          <Text style={[styles.heure, styles.heureModifiable]}>
+            {c.precision === 'approximative' ? '~' : ''}
+            {heure(c.a, tz)}
+          </Text>
+        </Pressable>
+      ) : (
+        <View style={styles.ligneHeure}>
+          <TextInput
+            style={styles.champHeure}
+            value={saisie}
+            onChangeText={setSaisie}
+            keyboardType="numbers-and-punctuation"
+            autoFocus
+            selectTextOnFocus
+            maxLength={5}
+            accessibilityLabel="Nouvelle heure, format 08:45"
+          />
+          <Pressable
+            onPress={() => {
+              onCorrigerHeure(c.id, saisie);
+              setSaisie(null);
+            }}
+            accessibilityRole="button"
+            hitSlop={6}
+          >
+            <Text style={styles.ok}>OK</Text>
+          </Pressable>
+        </View>
+      )}
       <Pressable style={styles.contexte} onPress={() => onChangerContexte(c.id)} accessibilityRole="button" hitSlop={6}>
         <Text style={[styles.contexteTexte, !c.libelleContexte && styles.contexteVide]} numberOfLines={1}>
           {c.libelleContexte ?? '+ contexte'}
@@ -140,7 +174,7 @@ function LigneCigarette({
   );
 }
 
-export function HistoriqueScreen({ journees, tz, contextesPerso, onFermer, onPreciser, onSupprimer }: Props) {
+export function HistoriqueScreen({ journees, tz, contextesPerso, onFermer, onPreciser, onSupprimer, onCorrigerHeure }: Props) {
   const [ouvert, setOuvert] = useState<string | null>(journees[0]?.jour ?? null);
   const [enEdition, setEnEdition] = useState<string | null>(null);
   const onChangerContexte = (id: string) => setEnEdition(id);
@@ -203,7 +237,7 @@ export function HistoriqueScreen({ journees, tz, contextesPerso, onFermer, onPre
                     <Text style={styles.vide}>Aucune cigarette ce jour-là.</Text>
                   ) : (
                     j.cigarettes.map((c) => (
-                      <LigneCigarette key={c.id} c={c} tz={tz} onChangerContexte={onChangerContexte} onSupprimer={onSupprimer} />
+                      <LigneCigarette key={c.id} c={c} tz={tz} onChangerContexte={onChangerContexte} onSupprimer={onSupprimer} onCorrigerHeure={onCorrigerHeure} />
                     ))
                   ))}
               </View>
@@ -245,6 +279,10 @@ const styles = StyleSheet.create({
   quota: { position: 'absolute', left: -1, right: -1, height: 2, backgroundColor: couleurs.encre, zIndex: 1 },
   jourBarre: { color: couleurs.doux, fontSize: 9, marginTop: 3 },
   legende: { color: couleurs.doux, fontSize: 12, marginTop: espace(2) },
+  heureModifiable: { textDecorationLine: 'underline', textDecorationStyle: 'dotted' },
+  ligneHeure: { flexDirection: 'row', alignItems: 'center', gap: espace(1) },
+  champHeure: { width: 64, borderWidth: 1, borderColor: couleurs.vert, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, fontSize: 15, color: couleurs.encre },
+  ok: { color: couleurs.vert, fontWeight: '800', fontSize: 15 },
   synthese: { color: couleurs.encre, fontSize: 14, fontWeight: '600', marginTop: espace(2) },
   barreIncomplete: { opacity: 0.45 },
   onglets: { flexDirection: 'row', backgroundColor: couleurs.fond, borderRadius: 12, padding: 3, marginBottom: espace(3) },
