@@ -180,3 +180,13 @@ describe('techniques de respiration du SOS', () => {
     ]);
   });
 });
+
+describe('moyenne en direct', () => {
+  it('inclut la pause en cours, sauf au-delà du seuil de nuit', async () => {
+    const { moyenneEnDirect } = await import('./sessions');
+    const t0 = 0;
+    expect(moyenneEnDirect([20, 40], t0, t0 + 60 * 60_000)).toBe(40);
+    expect(moyenneEnDirect([20, 40], t0, t0 + 10 * 60 * 60_000)).toBe(30);
+    expect(moyenneEnDirect([], t0, t0 + 15 * 60_000)).toBe(15);
+  });
+});

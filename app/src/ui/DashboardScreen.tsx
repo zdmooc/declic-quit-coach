@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { formatDuree, formatEuros, type TableauDeBord } from '../domain';
+import { formatDuree, formatEuros, moyenneEnDirect, type TableauDeBord } from '../domain';
 import { couleurs, espace } from './theme';
 
 interface Props {
@@ -115,6 +115,9 @@ function Rebours({ tdb, tz, onEcheance, onDemarrerPlan }: Pick<Props, 'tdb' | 't
     sous = indicatif ? 'Fume normalement, et note-la.' : 'Ou tiens 10 minutes de plus : chaque minute compte.';
   }
 
+  // Moyenne des écarts du jour, pause en cours comprise : elle monte tant que tu tiens.
+  const enDirect = signe !== null && tdb.derniereDuJourA !== null ? moyenneEnDirect(tdb.intervallesJourMinutes, tdb.derniereDuJourA, maintenant) : null;
+
   return (
     <View style={[styles.hero, signe === 'moins' && styles.heroAmbre]}>
       {petit !== '' && <Text style={[styles.heroPetit, signe === 'moins' && styles.texteAmbre]}>{petit}</Text>}
@@ -122,6 +125,12 @@ function Rebours({ tdb, tz, onEcheance, onDemarrerPlan }: Pick<Props, 'tdb' | 't
         {grand}
       </Text>
       <Text style={styles.heroSous}>{sous}</Text>
+      {enDirect !== null && (
+        <Text style={styles.heroMoyenne}>
+          Moyenne du jour : <Text style={styles.heroMoyenneValeur}>{formatRebours(enDirect * 60_000)}</Text>
+          {tdb.intervalleMoyenJourMinutes !== null && enDirect > tdb.intervalleMoyenJourMinutes + 0.02 ? '  ↑' : ''}
+        </Text>
+      )}
     </View>
   );
 }
@@ -292,6 +301,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   heroPetit: { color: couleurs.vert, fontSize: 15, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'center' },
+  heroMoyenne: { color: couleurs.encre, fontSize: 16, textAlign: 'center', marginTop: espace(2) },
+  heroMoyenneValeur: { fontWeight: '800', fontVariant: ['tabular-nums'] },
   heroAmbre: { backgroundColor: couleurs.ambreClair },
   texteAmbre: { color: couleurs.ambre },
   rebours: { color: couleurs.vert, fontSize: 56, fontWeight: '800', fontVariant: ['tabular-nums'] },

@@ -76,3 +76,18 @@ export function mediane(valeurs: readonly number[]): number | null {
   const m = Math.floor(t.length / 2);
   return t.length % 2 === 1 ? t[m]! : (t[m - 1]! + t[m]!) / 2;
 }
+
+/**
+ * Moyenne du jour « en direct » : les écarts déjà faits plus la pause en cours, comme si la
+ * prochaine cigarette était fumée maintenant. La pause en cours ne compte pas au-delà du seuil de nuit.
+ */
+export function moyenneEnDirect(
+  intervalles: readonly number[],
+  derniere: number | null,
+  maintenant: number,
+  seuilMinutes = SEUIL_NUIT_MINUTES,
+): number | null {
+  if (derniere === null) return moyenne(intervalles);
+  const pause = Math.max(0, (maintenant - derniere) / 60_000);
+  return pause >= seuilMinutes ? moyenne(intervalles) : moyenne([...intervalles, pause]);
+}

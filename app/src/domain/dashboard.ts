@@ -518,6 +518,10 @@ export interface TableauDeBord {
   intervalleCibleMinutes: number | null;
   /** Intervalle moyen entre deux cigarettes aujourd'hui (nuit exclue). */
   intervalleMoyenJourMinutes: number | null;
+  /** Écarts du jour (nuit exclue), pour la moyenne en direct. */
+  intervallesJourMinutes: number[];
+  /** Dernière cigarette de la journée en cours. */
+  derniereDuJourA: Instant | null;
   /** Intervalle moyen sur les 7 dernières journées terminées. */
   intervalleMoyen7jMinutes: number | null;
   enviesResistees: number;
@@ -559,6 +563,7 @@ export function tableauDeBord(etat: EtatJournal, maintenant: Instant, tz: string
   const ouvertes = elementsDuJour(etat.cigarettes, jour).map((c) => c.a);
   const fenetre = fenetreDuJour(jour, horaires, ouvertes.length > 0 ? debutEveil(ouvertes) : null, tz);
 
+  const intervallesJour = intervallesEveilles(elementsDuJour(etat.cigarettes, jour), SEUIL_NUIT_MINUTES);
   const sansHeureCigarettes = sansHeureDuJour(etat, jour, 'cigarettes');
   /** Comptées pour le quota : hors cigarettes d'avant le démarrage du plan (RM-13). */
   const comptees = duJour.length + sansHeureCigarettes;
@@ -568,12 +573,9 @@ export function tableauDeBord(etat: EtatJournal, maintenant: Instant, tz: string
     fumeesJournee: elementsDuJour(etat.cigarettes, jour).length + sansHeureCigarettes,
     enviesSignalees:
       elementsDuJour(etat.enviesSignalees, jour).length + sansHeureDuJour(etat, jour, 'envies-signalees'),
-    intervalleMoyenJourMinutes: moyenne(
-      intervallesEveilles(
-        elementsDuJour(etat.cigarettes, jour),
-        SEUIL_NUIT_MINUTES,
-      ),
-    ),
+    intervalleMoyenJourMinutes: moyenne(intervallesJour),
+    intervallesJourMinutes: intervallesJour,
+    derniereDuJourA: ouvertes.length > 0 ? Math.max(...ouvertes) : null,
     intervalleMoyen7jMinutes:
       mesurerHabitudes(etat.cigarettes, jour, tz, { sansHeure: cigarettesSansHeureParJour(etat) })?.intervalleMoyenMinutes ?? null,
     enviesResistees: elementsDuJour(etat.envies, jour).length,
