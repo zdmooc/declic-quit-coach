@@ -59,7 +59,8 @@ jobs:
         run: node -e "const f='app.json',j=require('./'+f);j.expo.runtimeVersion=process.env.RUNTIME_APK;require('fs').writeFileSync(f,JSON.stringify(j,null,2))"
       - name: Jeton Expo absent
         if: env.EXPO_TOKEN == ''
-        run: echo "::warning::Secret EXPO_TOKEN absent : rien n'est publié (Settings → Secrets and variables → Actions)."
+        run: |
+          echo "::warning::Secret EXPO_TOKEN absent, rien n'est publié (Settings, Secrets and variables, Actions)."
       - name: Publier
         if: env.EXPO_TOKEN != ''
         env:
