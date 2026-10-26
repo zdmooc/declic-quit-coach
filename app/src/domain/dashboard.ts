@@ -738,6 +738,8 @@ export interface CigaretteHistorique {
   avantPlan?: true;
   /** Respect de l'intervalle par rapport à la précédente (RM-18) ; `null` pour la première de la journée. */
   respectee: boolean | null;
+  /** Écart avec la précédente (minutes) ; `null` pour la première et après la nuit. */
+  ecartMinutes: number | null;
   /** Dosage du patch porté au moment de la cigarette ; absent = fumée sans patch. */
   patchMg?: number;
 }
@@ -796,6 +798,7 @@ export function historiqueJournees(etat: EtatJournal, maintenant: Instant, tz: s
       ...(c.precision ? { precision: c.precision } : {}),
       ...(ids.has(c.id) ? {} : { avantPlan: true }),
       ...(patchMg !== null ? { patchMg } : {}),
+      ecartMinutes: i === 0 || minutesBetween(liste[i - 1]!.a, c.a) >= SEUIL_NUIT_MINUTES ? null : Math.round(minutesBetween(liste[i - 1]!.a, c.a)),
       respectee:
         i === 0 || intervalle === null
           ? null

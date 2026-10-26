@@ -114,13 +114,31 @@ function Graphe({ journees }: { journees: JourneeHistorique[] }) {
 
 const MOIS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
 
+/** Rouge (écart le plus court du jour) → ambre → vert (le plus long). */
+function couleurEcart(ecart: number, min: number, max: number): string {
+  const t = max === min ? 1 : (ecart - min) / (max - min);
+  const hex = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const [a, b] = t < 0.5 ? [hex(couleurs.rouge), hex(couleurs.ambre)] : [hex(couleurs.ambre), hex(couleurs.vert)];
+  const u = t < 0.5 ? t * 2 : (t - 0.5) * 2;
+  return `rgb(${a.map((x, i) => Math.round(x + (b[i]! - x) * u)).join(',')})`;
+}
+
+/** Plus petit et plus grand écart de la journée (au moins deux écarts pour colorer). */
+function bornesEcarts(cs: readonly CigaretteHistorique[]): [number, number] | null {
+  const e = cs.map((c) => c.ecartMinutes).filter((x): x is number => x !== null);
+  return e.length < 2 ? null : [Math.min(...e), Math.max(...e)];
+}
+
+const dureeCourte = (m: number) => (m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}`);
+
 function LigneCigarette({
   c,
   tz,
+  bornes,
   onChangerContexte,
   onSupprimer,
   onCorrigerHeure,
-}: { c: CigaretteHistorique; tz: string; onChangerContexte: (id: string) => void } & Pick<Props, 'onSupprimer' | 'onCorrigerHeure'>) {
+}: { c: CigaretteHistorique; tz: string; bornes: [number, number] | null; onChangerContexte: (id: string) => void } & Pick<Props, 'onSupprimer' | 'onCorrigerHeure'>) {
   const [saisie, setSaisie] = useState<string | null>(null);
   const confirmer = () =>
     Alert.alert('Supprimer cette cigarette ?', `Cigarette de ${heure(c.a, tz)}`, [
@@ -161,6 +179,12 @@ function LigneCigarette({
           </Pressable>
         </View>
       )}
+      <Text
+        style={[styles.ecart, c.ecartMinutes !== null && bornes && { color: couleurEcart(c.ecartMinutes, bornes[0], bornes[1]) }]}
+        accessibilityLabel={c.ecartMinutes === null ? 'Première de la série' : `${dureeCourte(c.ecartMinutes)} après la précédente`}
+      >
+        {c.ecartMinutes === null ? '—' : dureeCourte(c.ecartMinutes)}
+      </Text>
       <Pressable style={styles.contexte} onPress={() => onChangerContexte(c.id)} accessibilityRole="button" hitSlop={6}>
         <Text style={[styles.contexteTexte, !c.libelleContexte && styles.contexteVide]} numberOfLines={1}>
           {c.libelleContexte ?? '+ contexte'}
@@ -169,7 +193,7 @@ function LigneCigarette({
         </Text>
       </Pressable>
       <Pressable onPress={confirmer} accessibilityRole="button" accessibilityLabel={`Supprimer la cigarette de ${heure(c.a, tz)}`} hitSlop={8}>
-        <Text style={styles.supprimer}>Supprimer</Text>
+        <Text style={styles.supprimer}>✕</Text>
       </Pressable>
     </View>
   );
@@ -239,7 +263,7 @@ export function HistoriqueScreen({ journees, tz, contextesPerso, onFermer, onPre
                     <Text style={styles.vide}>Aucune cigarette ce jour-là.</Text>
                   ) : (
                     j.cigarettes.map((c) => (
-                      <LigneCigarette key={c.id} c={c} tz={tz} onChangerContexte={onChangerContexte} onSupprimer={onSupprimer} onCorrigerHeure={onCorrigerHeure} />
+                      <LigneCigarette key={c.id} c={c} tz={tz} bornes={bornesEcarts(j.cigarettes)} onChangerContexte={onChangerContexte} onSupprimer={onSupprimer} onCorrigerHeure={onCorrigerHeure} />
                     ))
                   ))}
               </View>
@@ -306,7 +330,8 @@ const styles = StyleSheet.create({
   pointRouge: { backgroundColor: couleurs.rouge },
   heure: { color: couleurs.encre, fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'], width: 48 },
   contexte: { flex: 1 },
+  ecart: { color: couleurs.doux, fontSize: 14, fontWeight: '800', fontVariant: ['tabular-nums'], width: 62, textAlign: 'right' },
   contexteTexte: { color: couleurs.vert, fontSize: 14, fontWeight: '600' },
   contexteVide: { color: couleurs.doux, fontWeight: '400' },
-  supprimer: { color: couleurs.rouge, fontSize: 15, textDecorationLine: 'underline' },
+  supprimer: { color: couleurs.rouge, fontSize: 20, fontWeight: '700', paddingHorizontal: 4 },
 });
