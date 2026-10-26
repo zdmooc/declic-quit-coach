@@ -60,8 +60,13 @@ export default function App() {
   const adresseCoach = urlCoach === undefined ? app.urlCoach : urlCoach;
 
   /** Exécute une action, puis rafraîchit la page principale. */
+  /** Toute action : en cas d'échec, on le dit (rien n'est enregistré), puis on rafraîchit. */
   const agir = (action: () => Promise<unknown>) => async () => {
-    await action();
+    try {
+      await action();
+    } catch (e) {
+      Alert.alert('Non enregistré', e instanceof Error ? e.message : String(e));
+    }
     await rafraichir();
   };
   /** Exécute une action depuis un écran secondaire, puis rafraîchit cet écran et la page principale. */

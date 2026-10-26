@@ -158,7 +158,7 @@ function Pastille({ valeur, libelle, ton = 'neutre' }: InfoPastille) {
       >
         {valeur}
       </Text>
-      <Text style={styles.pastilleLibelle} numberOfLines={1}>
+      <Text style={styles.pastilleLibelle} numberOfLines={2}>
         {libelle}
       </Text>
     </View>
@@ -168,7 +168,7 @@ function Pastille({ valeur, libelle, ton = 'neutre' }: InfoPastille) {
 const duree = (m: number | null) => (m === null || m <= 0 ? '—' : formatDuree(m));
 
 export function DashboardScreen(props: Props) {
-  const { tdb, onFume, onResiste, onAnnuler, onPalier, onHistorique, onReglages, onSos, onSubstituts, onProgres } = props;
+  const { tdb, tz, onFume, onResiste, onAnnuler, onPalier, onHistorique, onReglages, onSos, onSubstituts, onProgres } = props;
   const obs = tdb.observation;
   const top = tdb.analyse.declencheurs[0];
   const heureRisque = tdb.analyse.heuresARisque[0];
@@ -188,19 +188,29 @@ export function DashboardScreen(props: Props) {
       libelle: tdb.quota === null ? 'fumées' : tdb.fumeesJournee > tdb.fumees ? `quota · ${tdb.fumeesJournee} au total` : 'fumées / quota',
     },
     // RM-18 : en vert les cigarettes qui ont respecté l'intervalle, en rouge les autres.
+    // En observation, l'intervalle n'est qu'indicatif : pas de rouge pendant qu'on mesure.
     { valeur: String(tdb.respect.respectees), libelle: 'intervalle tenu', ton: 'vert' },
-    { valeur: String(tdb.respect.nonRespectees), libelle: 'trop tôt', ton: tdb.respect.nonRespectees > 0 ? 'rouge' : 'neutre' },
+    {
+      valeur: String(tdb.respect.nonRespectees),
+      libelle: 'trop tôt',
+      ton: tdb.respect.nonRespectees > 0 && tdb.phase !== 'observation' ? 'rouge' : 'neutre',
+    },
     tdb.enviesSignalees > 0
       ? { valeur: `${tdb.enviesResistees} / ${tdb.enviesResistees + tdb.enviesSignalees}`, libelle: 'envies résistées / total' }
       : { valeur: String(tdb.enviesResistees), libelle: 'envies résistées' },
     tdb.phase === 'observation'
       ? { valeur: duree(tdb.depuisDerniereMinutes), libelle: 'depuis la dernière' }
       : { valeur: formatEuros(tdb.economieTotaleCents), libelle: 'économisés' },
-    { valeur: duree(tdb.intervalleMoyenJourMinutes), libelle: 'intervalle du jour' },
-    { valeur: duree(tdb.intervalleMoyen7jMinutes), libelle: 'intervalle 7 jours' },
+    tdb.patch.statut === 'aucun'
+      ? { valeur: '—', libelle: 'sans patch' }
+      : tdb.patch.statut === 'a-retirer'
+        ? { valeur: `${tdb.patch.dosageMg} mg`, libelle: 'patch à retirer', ton: 'rouge' }
+        : { valeur: `${tdb.patch.dosageMg} mg`, libelle: `patch depuis ${heure(tdb.patch.poseLe, tz)}`, ton: 'vert' },
+    // La moyenne du jour est affichée en direct sous le compteur : pas de case en double.
+    ...(tdb.intervalleMoyen7jMinutes !== null ? [{ valeur: duree(tdb.intervalleMoyen7jMinutes), libelle: 'moyenne 7 jours' }] : []),
     { valeur: duree(tdb.plusLonguePauseMinutes), libelle: 'plus longue pause' },
     { valeur: duree(intervalleRef), libelle: 'recommandé' },
-    { valeur: tdb.analyse.cigarettes > 0 ? String(tdb.analyse.cigarettes) : '—', libelle: 'notées (14 jours)' },
+    { valeur: tdb.analyse.cigarettes > 0 ? String(tdb.analyse.cigarettes) : '—', libelle: 'notées en 14 jours' },
     { valeur: top ? `${Math.round(top.part * 100)} %` : '—', libelle: top ? top.libelle : 'déclencheur n° 1' },
     { valeur: heureRisque ? `${heureRisque.heure} h` : '—', libelle: 'heure à risque' },
   ];
@@ -333,7 +343,7 @@ const styles = StyleSheet.create({
   texteVert: { color: couleurs.vert },
   texteRouge: { color: couleurs.rouge },
   pastilleValeur: { color: couleurs.encre, fontSize: 17, fontWeight: '800', fontVariant: ['tabular-nums'] },
-  pastilleLibelle: { color: couleurs.doux, fontSize: 13, marginTop: 2 },
+  pastilleLibelle: { color: couleurs.doux, fontSize: 13, marginTop: 2, textAlign: 'center', lineHeight: 16 },
 
   actions: { paddingBottom: espace(1) },
   bouton: { backgroundColor: couleurs.vert, borderRadius: 16, paddingVertical: espace(4), alignItems: 'center' },

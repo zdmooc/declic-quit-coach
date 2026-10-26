@@ -21,14 +21,14 @@
 
 | Élément | État |
 |---|---|
-| Domaine : observation 3 jours, journées définies par les cigarettes, habitudes, déclencheurs, plan −1/jour, intervalles, économies, substituts, jalons, notifications | ✅ codé, 86 tests (dont tests par propriétés) |
+| Domaine : observation 3 jours, journées définies par les cigarettes, habitudes, déclencheurs, plan −1/jour ou paliers libres, intervalles, économies, substituts, jalons, notifications | ✅ codé, 124 tests (dont tests par propriétés) |
 | Cas d'usage (`Declic`) et ports | ✅ |
-| Écrans : profil, page unique (compte à rebours, pastilles, actions), observation et bilan, « J'ai fumé » + contexte, palier | ✅ prototype |
+| Écrans : profil, page unique, observation et bilan, « J'ai fumé » + contexte, palier | ✅ compteur unique (− jusqu'à l'objectif, + au-delà), moyenne du jour en direct, case patch |
 | Stockage | ✅ SQLite sur le téléphone, les données survivent à la fermeture · ⚠️ **non chiffré** dans Expo Go (chiffrement avec le premier build de développement) |
 | Notifications | ✅ locales sur le téléphone (expo-notifications), avec boutons « J'ai fumé » / « J'ai résisté » ; pendant l'observation, seul le « bilan prêt » est notifié |
-| SOS envie | ✅ respiration guidée 3 min, raisons d'arrêter, envie résistée |
-| Historique | ✅ graphique 14 jours, détail par journée, correction du contexte, suppression |
-| Substituts | ✅ patch (pose, heure de retrait, rappel), pastilles et gommes (prises du jour, dernière prise) · aucun dosage proposé |
+| SOS envie | ✅ 4 respirations guidées au choix (cohérence cardiaque, soupir cyclique, expiration longue, carrée), raisons d'arrêter, chaque SOS compté (résisté ou sans issue), bilan « ce qui marche pour toi » |
+| Historique | ✅ graphique par jour / semaine / mois, détail par journée, correction du contexte et de l'heure, suppression, cigarettes avec ou sans patch |
+| Substituts | ✅ patch (pose et retrait à l'heure réelle, même après coup, rappel de retrait), pastilles et gommes (prises du jour, dernière prise) · aucun dosage proposé |
 | Réglages | ✅ prix, rythme, intervalle recommandé, contextes perso, export, effacement |
 | Sauvegarde | ✅ sauvegarde dans un fichier (Téléchargements, Google Drive…) et restauration vérifiée, y compris dès le premier lancement sur un nouveau téléphone |
 | Import d'historique | ✅ journal tenu à part (format v2 ou source de préparation) : aperçu, totaux par journée, heures exactes / approximatives / inconnues, rapprochement manuel des doublons, changement d'heure, idempotent ([ADR-0010](docs/architecture/adr/0010-import-historique-migration.md)) |
