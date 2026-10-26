@@ -78,8 +78,10 @@ export function mediane(valeurs: readonly number[]): number | null {
 }
 
 /**
- * Moyenne du jour « en direct » : les écarts déjà faits plus la pause en cours, comme si la
- * prochaine cigarette était fumée maintenant. La pause en cours ne compte pas au-delà du seuil de nuit.
+ * Moyenne du jour « en direct » : elle ne fait que MONTER pendant que tu tiens. La pause en cours
+ * n'entre dans le calcul que lorsqu'elle tire la moyenne vers le haut (sinon, juste après une
+ * cigarette, une pause de quelques secondes ferait chuter la moyenne affichée). Au-delà du seuil de
+ * nuit, la pause n'est pas comptée.
  */
 export function moyenneEnDirect(
   intervalles: readonly number[],
@@ -87,7 +89,10 @@ export function moyenneEnDirect(
   maintenant: number,
   seuilMinutes = SEUIL_NUIT_MINUTES,
 ): number | null {
-  if (derniere === null) return moyenne(intervalles);
+  const reelle = moyenne(intervalles);
+  if (derniere === null) return reelle;
   const pause = Math.max(0, (maintenant - derniere) / 60_000);
-  return pause >= seuilMinutes ? moyenne(intervalles) : moyenne([...intervalles, pause]);
+  if (pause >= seuilMinutes) return reelle;
+  const avecPause = moyenne([...intervalles, pause])!;
+  return reelle === null ? avecPause : Math.max(reelle, avecPause);
 }

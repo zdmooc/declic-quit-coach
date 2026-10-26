@@ -188,5 +188,7 @@ describe('moyenne en direct', () => {
     expect(moyenneEnDirect([20, 40], t0, t0 + 60 * 60_000)).toBe(40);
     expect(moyenneEnDirect([20, 40], t0, t0 + 10 * 60 * 60_000)).toBe(30);
     expect(moyenneEnDirect([], t0, t0 + 15 * 60_000)).toBe(15);
+    // Juste après une cigarette : la moyenne ne chute pas (pause de quelques secondes ignorée).
+    expect(moyenneEnDirect([60, 64], t0, t0 + 10_000)).toBe(62);
   });
 });
