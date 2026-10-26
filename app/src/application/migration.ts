@@ -35,7 +35,7 @@ export const TYPES_CONNUS: ReadonlySet<string> = new Set<DomainEvent['type']>([
   'ProfilCree', 'PlanDemarre', 'RythmeModifie', 'PalierDemande', 'CigaretteFumee', 'EnvieResistee', 'SaisieAnnulee',
   'CigaretteCorrigee', 'ContexteAjoute', 'RaisonAjoutee', 'ContexteRenomme', 'ContexteArchive', 'IntervalleRecommandeModifie',
   'PatchPose', 'PatchRetire', 'SubstitutOralPris', 'PrixModifie', 'ObjectifEpargneDefini', 'ObjectifRetire', 'ConsentementModifie',
-  'AgregatSansHeure', 'EnvieSignalee', 'PalierFixe', 'ObservationReglee',
+  'AgregatSansHeure', 'EnvieSignalee', 'PalierFixe', 'ObservationReglee', 'ParadeDefinie',
 ]);
 
 /** Version écrite par l'app ; les versions 1 et 2 sont lues. */

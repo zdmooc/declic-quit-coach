@@ -76,7 +76,9 @@ export interface EtatJournal {
   prix: Prix[];
   plan: PlanEnCours | null;
   cigarettes: CigaretteJournal[];
-  envies: { a: Instant; jour: LocalDate; strategie?: string }[];
+  envies: { a: Instant; jour: LocalDate; strategie?: string; contexte?: ContexteCigarette }[];
+  /** Parade (nouveau réflexe) choisie par contexte. */
+  parades: Partial<Record<ContexteCigarette, string>>;
   /** Envies signalées (distinctes des envies résistées), avec leur issue. */
   enviesSignalees: { a: Instant; jour: LocalDate; issue: 'resistee' | 'cigarette' | 'inconnue'; technique?: string }[];
   /** Saisies historiques sans heure connue (agrégats par journée). */
@@ -140,6 +142,7 @@ export function rejouer(events: readonly DomainEvent[], tz: string): EtatJournal
     intervalleRecommande: INTERVALLE_RECOMMANDE_OBSERVATION_MINUTES,
     joursObservation: JOURS_OBSERVATION,
     raisons: [],
+    parades: {},
     coachIa: false,
     derniereSaisieId: null,
     derniereCigaretteId: null,
@@ -218,6 +221,7 @@ export function rejouer(events: readonly DomainEvent[], tz: string): EtatJournal
           a,
           jour: e.payload.journee ?? journeeDe(a, etat.cigarettes, tz),
           ...(e.payload.strategieUtilisee ? { strategie: e.payload.strategieUtilisee } : {}),
+          ...(e.payload.contexte ? { contexte: e.payload.contexte } : {}),
         });
         break;
       case 'EnvieSignalee':
@@ -271,6 +275,10 @@ export function rejouer(events: readonly DomainEvent[], tz: string): EtatJournal
         if (c) c.archive = true;
         break;
       }
+      case 'ParadeDefinie':
+        if (e.payload.parade.trim()) etat.parades[e.payload.contexte] = e.payload.parade.trim();
+        else delete etat.parades[e.payload.contexte];
+        break;
       case 'ObservationReglee':
         etat.joursObservation = e.payload.jours;
         break;

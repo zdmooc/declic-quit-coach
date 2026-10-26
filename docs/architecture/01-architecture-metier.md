@@ -122,6 +122,8 @@ stateDiagram-v2
 | RM-18 | **Respect de l'intervalle** : chaque cigarette de la journée, sauf la première, est comparée à la précédente. Écart ≥ intervalle recommandé (60 min pendant l'observation, intervalle cible pendant le plan), à 1 min près : **intervalle tenu** (affiché en vert) ; sinon **trop tôt** (affiché en rouge). Le compteur est informatif, jamais culpabilisant (RM-11). |
 | RM-19 | **Descente par paliers libres** (méthode de l'utilisateur) : après l'observation (apport réel, contextes), on descend par **paliers choisis** (taille libre, −x) jusqu'à trouver la **limite** où ça devient difficile, en remplaçant chaque contexte par une nouvelle habitude ; un palier s'applique dès le jour même et ne peut **jamais remonter** au-dessus du palier en cours ; en paliers libres, le quota ne baisse pas automatiquement. Une fois la limite trouvée et stabilisée, on passe au rythme « −1 » (par jour, tous les 2 jours ou par semaine). |
 | RM-20 | **Patch par journée** : chaque journée indique « avec » ou « sans » patch, le dosage, l'heure de pose et l'heure de renouvellement prévue (pose + durée de port, en temps réel, changement d'heure compris) et, s'il est connu, l'heure de retrait. |
+| RM-21 | **Observation réglable** : de 1 à 7 journées complètes mesurées (3 par défaut) avant de proposer le premier palier. |
+| RM-22 | **Contextes et parades** : pour chaque contexte, l'utilisateur choisit une parade (nouveau réflexe, 60 caractères). « J'ai résisté » demande le contexte. Sur 7 jours, chaque contexte affiche ses cigarettes, ses envies résistées et une tendance calculée sur les journées terminées (2 dernières contre les précédentes) : à observer, nouveau, persiste, en baisse (≤ 75 %), disparu. |
 
 ## 6. Objets métier
 

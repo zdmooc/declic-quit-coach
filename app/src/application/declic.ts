@@ -204,8 +204,15 @@ export class Declic {
     return this.ajouter(this.evenement('RaisonAjoutee', { texte: texte.trim() }));
   }
 
-  enregistrerEnvieResistee(strategieUtilisee?: string, source: Source = 'phone'): Promise<void> {
-    return this.ajouter(this.evenement('EnvieResistee', strategieUtilisee ? { strategieUtilisee } : {}, source));
+  enregistrerEnvieResistee(strategieUtilisee?: string, source: Source = 'phone', contexte?: ContexteCigarette): Promise<void> {
+    return this.ajouter(
+      this.evenement('EnvieResistee', { ...(strategieUtilisee ? { strategieUtilisee } : {}), ...(contexte ? { contexte } : {}) }, source),
+    );
+  }
+
+  /** Nouveau réflexe pour un contexte (méthode : remplacer l'ancien réflexe) ; vide = retirer. */
+  definirParade(contexte: ContexteCigarette, parade: string): Promise<void> {
+    return this.ajouter(this.evenement('ParadeDefinie', { contexte, parade: parade.trim().slice(0, 60) }));
   }
 
   /** SOS envie ouvert puis fermé sans « l'envie est passée » : l'envie est comptée, issue inconnue. */

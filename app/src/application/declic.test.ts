@@ -438,3 +438,50 @@ describe('observation réglable et comparaison avec / sans patch', () => {
     expect(p.patch).toMatchObject({ cigarettesAvec: 2, cigarettesSans: 3, intervalleSans: 20, intervalleAvec: 60, joursAvec: null });
   });
 });
+
+describe('contextes, parades et bilan d’observation', () => {
+  it('suivi par contexte sur 7 jours, parade, envie résistée avec contexte, tendance', async () => {
+    const { app, clock } = monter(zonedInstant('2026-10-22', '08:00', TZ));
+    await app.creerProfil(PROFIL);
+    // Café : 3, 3, 3 puis 1, 0 → en baisse ; Stress : 0, 0, 0 puis 2, 1 → nouveau.
+    const plan: Record<string, ('cafe' | 'stress')[]> = {
+      '2026-10-22': ['cafe', 'cafe', 'cafe'],
+      '2026-10-23': ['cafe', 'cafe', 'cafe'],
+      '2026-10-24': ['cafe', 'cafe', 'cafe'],
+      '2026-10-25': ['cafe', 'stress', 'stress'],
+      '2026-10-26': ['stress'],
+    };
+    for (const [jour, contextes] of Object.entries(plan)) {
+      for (const [i, c] of contextes.entries()) {
+        aller(clock, zonedInstant(jour, `${String(9 + i * 2).padStart(2, '0')}:00`, TZ));
+        await app.enregistrerCigarette(c);
+      }
+    }
+    aller(clock, zonedInstant('2026-10-27', '09:00', TZ));
+    await app.enregistrerCigarette('stress');
+    await app.enregistrerEnvieResistee(undefined, 'phone', 'cafe');
+    await app.definirParade('cafe', '  café sur le balcon sans cigarette ');
+    const p = (await app.progres())!;
+    const cafe = p.contextes.find((c) => c.contexte === 'cafe')!;
+    const stress = p.contextes.find((c) => c.contexte === 'stress')!;
+    expect(cafe).toMatchObject({ fumees: 10, resistees: 1, parade: 'café sur le balcon sans cigarette', tendance: 'en-baisse' });
+    expect(cafe.parJour).toEqual([0, 3, 3, 3, 1, 0, 0]);
+    expect(stress.tendance).toBe('nouveau');
+    expect(p.contextes[0]!.contexte).toBe('cafe');
+    await app.definirParade('cafe', '');
+    expect((await app.progres())!.contextes.find((c) => c.contexte === 'cafe')!.parade).toBeNull();
+  });
+
+  it('bilan d’observation : par jour, dans l’heure du réveil, avant midi', async () => {
+    const { app, clock } = monter(zonedInstant('2026-10-26', '07:00', TZ));
+    await app.creerProfil(PROFIL);
+    for (const h of ['07:00', '07:20', '07:50', '10:00', '14:00', '20:00']) {
+      aller(clock, zonedInstant('2026-10-26', h, TZ));
+      await app.enregistrerCigarette();
+    }
+    aller(clock, zonedInstant('2026-10-27', '08:00', TZ));
+    await app.enregistrerCigarette();
+    const o = (await app.progres())!.observation!;
+    expect(o).toMatchObject({ joursMesures: 1, cigarettesParJour: 6, premiereHeure: 3, avantMidi: 4 });
+  });
+});

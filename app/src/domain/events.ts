@@ -123,7 +123,9 @@ export type IntervalleRecommandeModifie = Base<'IntervalleRecommandeModifie', { 
 export type ObservationReglee = Base<'ObservationReglee', { jours: number }>;
 /** Une raison personnelle d'arrêter, rappelée pendant le SOS envie (F7.1). */
 export type RaisonAjoutee = Base<'RaisonAjoutee', { texte: string }>;
-export type EnvieResistee = Base<'EnvieResistee', { strategieUtilisee?: string } & Provenance>;
+export type EnvieResistee = Base<'EnvieResistee', { strategieUtilisee?: string; /** Contexte de l'envie (parades). */ contexte?: ContexteCigarette } & Provenance>;
+/** Nouveau réflexe choisi pour remplacer la cigarette dans un contexte (vide = retiré). */
+export type ParadeDefinie = Base<'ParadeDefinie', { contexte: ContexteCigarette; parade: string }>;
 export type SaisieAnnulee = Base<'SaisieAnnulee', { evenementId: string }>;
 /** Précise une cigarette après coup : contexte (RM-16) et/ou heure réelle. */
 export type CigaretteCorrigee = Base<
@@ -165,6 +167,7 @@ export type DomainEvent =
   | ContexteArchive
   | IntervalleRecommandeModifie
   | ObservationReglee
+  | ParadeDefinie
   | PatchPose
   | PatchRetire
   | SubstitutOralPris
@@ -226,6 +229,10 @@ export function validateEvent(e: DomainEvent): string[] {
     case 'ContexteRenomme':
       if (e.payload.libelle.trim().length < 1 || e.payload.libelle.trim().length > 30)
         errors.push('libellé de contexte : 1 à 30 caractères');
+      break;
+    case 'ParadeDefinie':
+      if (typeof e.payload.contexte !== 'string' || e.payload.contexte.length === 0) errors.push('contexte manquant');
+      if (typeof e.payload.parade !== 'string' || e.payload.parade.length > 60) errors.push('parade : 60 caractères au plus');
       break;
     case 'ObservationReglee':
       if (!isInt(e.payload.jours) || e.payload.jours < 1 || e.payload.jours > 7) errors.push('observation : 1 à 7 jours');

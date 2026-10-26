@@ -29,6 +29,7 @@ export default function App() {
   /** Cigarette qui vient d'être enregistrée et dont on demande le contexte. */
   const [aPreciser, setAPreciser] = useState<string | null>(null);
   const [sos, setSos] = useState(false);
+  const [resiste, setResiste] = useState(false);
   const [substituts, setSubstituts] = useState(false);
   const [progresVue, setProgresVue] = useState<{ progres: Progres; mot: MessageCoach | null } | null>(null);
   const [coachMode, setCoachMode] = useState<ModeCoach | null>(null);
@@ -179,7 +180,7 @@ export default function App() {
             tdb={tdb}
             tz={clock.timeZone()}
             onFume={onFume}
-            onResiste={agir(() => declic.enregistrerEnvieResistee())}
+            onResiste={() => setResiste(true)}
             onAnnuler={agir(() => declic.annulerDerniereSaisie())}
             onPalier={agir(() => declic.demanderPalier())}
             onDemarrerPlan={agir(() => declic.demarrerPlan())}
@@ -304,6 +305,7 @@ export default function App() {
             }}
             onAjouterObjectif={(l, c) => depuis(() => declic.definirObjectif(l, c), ouvrirProgres)}
             onRetirerObjectif={(l) => depuis(() => declic.retirerObjectif(l), ouvrirProgres)}
+            onParade={(c, p) => depuis(() => declic.definirParade(c, p), ouvrirProgres)}
           />
         )}
         {coachMode && <CoachScreen mode={coachMode} onFermer={() => setCoachMode(null)} envoyer={(tours) => declic.parlerAuCoach(coachMode, tours)} />}
@@ -320,6 +322,19 @@ export default function App() {
           />
         )}
         <ContexteSheet visible={aPreciser !== null} contextesPerso={tdb?.contextesPerso ?? []} onChoisir={(p) => void onPreciser(p)} />
+        {/* « J'ai résisté » : dans quel contexte ? (pour suivre les parades) ; « Passer » enregistre sans contexte. */}
+        <ContexteSheet
+          visible={resiste}
+          avecMoment={false}
+          contextesPerso={tdb?.contextesPerso ?? []}
+          onChoisir={({ contexte, nouveauContexte }) => {
+            setResiste(false);
+            void agir(async () => {
+              const c = nouveauContexte ? await declic.ajouterContexte(nouveauContexte) : contexte;
+              await declic.enregistrerEnvieResistee(undefined, 'phone', c);
+            })();
+          }}
+        />
         <BandeauMiseAJour />
       </View>
     </SafeAreaProvider>

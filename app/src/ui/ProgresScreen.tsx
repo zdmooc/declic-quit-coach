@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { addDays, formatEuros, type MessageCoach, type PointCourbe, type Progres, type TableauDeBord } from '../domain';
+import { addDays, formatEuros, IDEES_PARADES, type ContexteCigarette, type MessageCoach, type PointCourbe, type Progres, type SuiviContexte, type TableauDeBord } from '../domain';
 import { couleurs, espace } from './theme';
 
 /**
@@ -17,6 +17,62 @@ interface Props {
   onParlerCoach: () => void;
   onAjouterObjectif: (libelle: string, montantCents: number) => void;
   onRetirerObjectif: (libelle: string) => void;
+  onParade: (contexte: ContexteCigarette, parade: string) => void;
+}
+
+const TENDANCES: Record<SuiviContexte['tendance'], { texte: string; couleur: string }> = {
+  'a-observer': { texte: 'à observer', couleur: couleurs.doux },
+  nouveau: { texte: 'nouveau', couleur: couleurs.ambre },
+  persiste: { texte: 'persiste', couleur: couleurs.rouge },
+  'en-baisse': { texte: 'en baisse', couleur: couleurs.vert },
+  disparu: { texte: 'disparu', couleur: couleurs.vert },
+};
+
+const virgule = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1).replace('.', ','));
+
+/** Un contexte : fréquence sur 7 jours, tendance, et la parade choisie (modifiable). */
+function LigneContexte({ c, onParade }: { c: SuiviContexte; onParade: Props['onParade'] }) {
+  const [saisie, setSaisie] = useState<string | null>(null);
+  const t = TENDANCES[c.tendance];
+  return (
+    <View style={styles.ligneContexte}>
+      <View style={styles.enteteContexte}>
+        <Text style={styles.nomContexte}>{c.libelle}</Text>
+        <Text style={[styles.tendance, { color: t.couleur }]}>{t.texte}</Text>
+      </View>
+      <Text style={styles.aide}>
+        {c.fumees} fumée{c.fumees > 1 ? 's' : ''} · {c.resistees} résistée{c.resistees > 1 ? 's' : ''} sur 7 jours · par jour : {c.parJour.join(' ')}
+      </Text>
+      {saisie === null ? (
+        <Pressable onPress={() => setSaisie(c.parade ?? '')} accessibilityRole="button" hitSlop={6}>
+          <Text style={c.parade ? styles.parade : styles.lien}>{c.parade ? `Parade : ${c.parade}` : '+ Choisir une parade'}</Text>
+        </Pressable>
+      ) : (
+        <View style={styles.ajout}>
+          <TextInput
+            style={[styles.champ, styles.flex]}
+            value={saisie}
+            onChangeText={setSaisie}
+            placeholder={IDEES_PARADES[c.contexte] ? `ex. : ${IDEES_PARADES[c.contexte]}` : 'Ton nouveau réflexe'}
+            placeholderTextColor={couleurs.doux}
+            maxLength={60}
+            autoFocus
+            accessibilityLabel={`Parade pour ${c.libelle}`}
+          />
+          <Pressable
+            style={styles.boutonAjout}
+            onPress={() => {
+              onParade(c.contexte, saisie);
+              setSaisie(null);
+            }}
+            accessibilityRole="button"
+          >
+            <Text style={styles.boutonAjoutTexte}>OK</Text>
+          </Pressable>
+        </View>
+      )}
+    </View>
+  );
 }
 
 const MOIS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
@@ -174,6 +230,43 @@ export function ProgresScreen(props: Props) {
             </View>
           )}
 
+          {p.observation && (
+            <View style={styles.carte}>
+              <Text style={styles.petit}>Ton observation</Text>
+              <Text style={styles.aide}>
+                {p.observation.joursMesures} / {p.observation.joursRequis} journée{p.observation.joursRequis > 1 ? 's' : ''} mesurée
+                {p.observation.joursMesures > 1 ? 's' : ''}
+                {p.observation.debutHabituel ? ` · de ${p.observation.debutHabituel} à ${p.observation.finHabituelle}` : ''}
+              </Text>
+              {p.observation.cigarettesParJour !== null ? (
+                <View style={styles.grille}>
+                  <Chiffre valeur={virgule(p.observation.cigarettesParJour)} libelle="cigarettes / jour" />
+                  <Chiffre valeur={virgule(p.observation.premiereHeure ?? 0)} libelle="dans l’heure du réveil" />
+                  <Chiffre valeur={virgule(p.observation.avantMidi ?? 0)} libelle="avant midi" />
+                </View>
+              ) : (
+                <Text style={styles.aide}>Les chiffres arrivent à la fin de ta première journée complète.</Text>
+              )}
+              <Text style={styles.motTexte}>
+                Premier palier proposé : {p.observation.quotaPropose} par jour
+                {p.observation.origine === 'declaration' ? ' (d’après ta déclaration, en attendant la mesure)' : ' (d’après ta mesure)'}.
+              </Text>
+            </View>
+          )}
+
+          {p.contextes.length > 0 && (
+            <View style={styles.carte}>
+              <Text style={styles.petit}>Tes contextes et parades</Text>
+              <Text style={styles.aide}>
+                Pour chaque contexte, choisis un nouveau réflexe. « J’ai résisté » te demande le contexte : tu verras ce qui marche et ce qui
+                persiste.
+              </Text>
+              {p.contextes.map((c) => (
+                <LigneContexte key={c.contexte} c={c} onParade={props.onParade} />
+              ))}
+            </View>
+          )}
+
           <View style={styles.carte}>
             <Text style={styles.petit}>Économies</Text>
             <View style={styles.grille}>
@@ -286,6 +379,15 @@ const styles = StyleSheet.create({
   chiffre: { width: '31%', flexGrow: 1, borderRadius: 14, borderWidth: 1, borderColor: couleurs.ligne, paddingVertical: espace(2), paddingHorizontal: espace(2), alignItems: 'center' },
   chiffreValeur: { color: couleurs.encre, fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums'] },
   chiffreLibelle: { color: couleurs.doux, fontSize: 14, textAlign: 'center' },
+  lien: { color: couleurs.vert, fontSize: 15, fontWeight: '600' },
+  ajout: { flexDirection: 'row', gap: espace(2), marginTop: espace(1) },
+  boutonAjout: { backgroundColor: couleurs.vert, borderRadius: 12, paddingHorizontal: espace(4), justifyContent: 'center' },
+  boutonAjoutTexte: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },
+  ligneContexte: { borderTopWidth: 1, borderTopColor: couleurs.ligne, paddingTop: espace(2), gap: 2 },
+  enteteContexte: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  nomContexte: { color: couleurs.encre, fontSize: 17, fontWeight: '700' },
+  tendance: { fontSize: 14, fontWeight: '800' },
+  parade: { color: couleurs.vert, fontSize: 15, fontWeight: '600', textDecorationLine: 'underline', textDecorationStyle: 'dotted' },
   aide: { color: couleurs.doux, fontSize: 15, lineHeight: 18 },
   ligne: { flexDirection: 'row', alignItems: 'center', gap: espace(2) },
   flex: { flex: 1 },

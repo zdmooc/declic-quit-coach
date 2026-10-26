@@ -4,10 +4,11 @@
  */
 
 import { libelleContexte } from './analyse';
-import { historiqueJournees, journeeCourante, type EtatJournal, type JourneeHistorique } from './dashboard';
+import { historiqueJournees, journeeCourante, proposerPlan, type EtatJournal, type JourneeHistorique } from './dashboard';
+import { suiviContextes, type SuiviContexte } from './parades';
 import { dateDuZero, quotaDuJour } from './reduction';
 import { moyenne, SEUIL_NUIT_MINUTES } from './sessions';
-import { addDays, daysBetween, minutesBetween, type Instant, type LocalDate } from './time';
+import { addDays, daysBetween, minutesBetween, minutesOfDay, localDateOf, type Instant, type LocalDate } from './time';
 
 export interface Records {
   /** Jours entiers sans cigarette depuis la dernière (arrondi inférieur). */
@@ -85,7 +86,54 @@ export function comparerPatch(journees: readonly JourneeHistorique[], aujourdhui
   };
 }
 
+/** Bilan détaillé de l'observation (avant le démarrage du plan). */
+export interface BilanObservation {
+  joursMesures: number;
+  joursRequis: number;
+  /** Moyenne par journée terminée ; `null` sans journée terminée. */
+  cigarettesParJour: number | null;
+  /** Cigarettes dans la première heure après le réveil (moyenne par journée terminée). */
+  premiereHeure: number | null;
+  /** Cigarettes avant midi (moyenne par journée terminée). */
+  avantMidi: number | null;
+  debutHabituel: string | null;
+  finHabituelle: string | null;
+  /** Premier palier proposé à partir de la mesure (ou de la déclaration, si pas encore assez de jours). */
+  quotaPropose: number;
+  origine: 'observation' | 'declaration';
+}
+
+export function bilanObservation(etat: EtatJournal, maintenant: Instant, tz: string): BilanObservation | null {
+  if (etat.plan) return null;
+  const obs = proposerPlan(etat, maintenant, tz);
+  const aujourdhui = journeeCourante(etat, maintenant, tz);
+  const parJour = new Map<LocalDate, Instant[]>();
+  for (const c of etat.cigarettes) if (c.jour !== aujourdhui) parJour.set(c.jour, [...(parJour.get(c.jour) ?? []), c.a]);
+  const jours = [...parJour.values()];
+  const moy = (f: (xs: Instant[]) => number) => (jours.length === 0 ? null : somme(jours.map(f)) / jours.length);
+  return {
+    joursMesures: obs.joursMesures,
+    joursRequis: obs.joursRequis,
+    cigarettesParJour: moy((xs) => xs.length),
+    premiereHeure: moy((xs) => {
+      // La journée commence à sa première cigarette (journées définies par les cigarettes).
+      const reveil = Math.min(...xs);
+      return xs.filter((a) => a >= reveil && a - reveil < 60 * 60_000).length;
+    }),
+    // Une cigarette après minuit appartient à la veille : elle n'est pas « avant midi ».
+    avantMidi: moy((xs) => xs.filter((a) => localDateOf(a, tz) === localDateOf(Math.min(...xs), tz) && minutesOfDay(a, tz) < 12 * 60).length),
+    debutHabituel: obs.habitudes?.debutHabituel ?? null,
+    finHabituelle: obs.habitudes?.finHabituelle ?? null,
+    quotaPropose: obs.proposition.quotaDepart,
+    origine: obs.proposition.origine,
+  };
+}
+
 export interface Progres {
+  /** Contextes des 7 derniers jours, parades et tendance. */
+  contextes: SuiviContexte[];
+  /** Pendant l'observation seulement. */
+  observation: BilanObservation | null;
   /** `null` tant qu'aucun patch n'a été déclaré. */
   patch: ComparaisonPatch | null;
   records: Records;
@@ -164,6 +212,8 @@ export function progres(etat: EtatJournal, maintenant: Instant, tz: string): Pro
   }
 
   return {
+    contextes: suiviContextes(etat, aujourdhui),
+    observation: bilanObservation(etat, maintenant, tz),
     patch: comparerPatch(toutes, aujourdhui),
     records: {
       joursSansTabac,
