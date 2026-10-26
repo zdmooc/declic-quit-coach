@@ -82,6 +82,8 @@ function Rebours({ tdb, tz, onEcheance, onDemarrerPlan }: Pick<Props, 'tdb' | 't
   let petit = '';
   let grand = '';
   let sous = '';
+  // Un seul compteur : « − » (ambre) jusqu'à l'intervalle recommandé, puis « + » (vert) au-delà.
+  let signe: 'moins' | 'plus' | null = null;
   if (tdb.phase === 'avant-debut') {
     grand = 'Plan demain';
     sous = 'Continue de noter tes cigarettes ce soir.';
@@ -94,13 +96,19 @@ function Rebours({ tdb, tz, onEcheance, onDemarrerPlan }: Pick<Props, 'tdb' | 't
     grand = '0 restante';
     sous = 'Une envie ? « J’ai résisté » est là.';
   } else if (p.statut === 'attendre' && reste !== null && reste > 0) {
-    petit = 'Prochaine recommandée dans';
-    grand = formatRebours(reste);
+    petit = 'Objectif dans';
+    grand = `−${formatRebours(reste)}`;
+    signe = 'moins';
     sous = `à ${heure(p.a, tz)}${indicatif ? ' · indicatif, fume normalement' : ''}`;
   } else if (p.statut === 'disponible' && p.depuis === null) {
     petit = 'Ta journée n’a pas commencé';
     grand = '—';
     sous = indicatif ? 'Ta première cigarette ouvrira la journée.' : 'Et si tu repoussais la première un peu ?';
+  } else if (p.statut === 'disponible' && p.depuis !== null) {
+    petit = 'Au-delà de l’objectif';
+    grand = `+${formatRebours(Math.max(0, maintenant - p.depuis))}`;
+    signe = 'plus';
+    sous = `objectif atteint à ${heure(p.depuis, tz)} · ${indicatif ? 'fume normalement, et note-la' : 'chaque minute de plus compte'}`;
   } else {
     petit = indicatif ? 'Intervalle recommandé atteint' : 'Tu peux fumer ta prochaine';
     grand = '00:00';
@@ -108,9 +116,9 @@ function Rebours({ tdb, tz, onEcheance, onDemarrerPlan }: Pick<Props, 'tdb' | 't
   }
 
   return (
-    <View style={styles.hero}>
-      {petit !== '' && <Text style={styles.heroPetit}>{petit}</Text>}
-      <Text style={styles.rebours} adjustsFontSizeToFit numberOfLines={1}>
+    <View style={[styles.hero, signe === 'moins' && styles.heroAmbre]}>
+      {petit !== '' && <Text style={[styles.heroPetit, signe === 'moins' && styles.texteAmbre]}>{petit}</Text>}
+      <Text style={[styles.rebours, signe === 'moins' && styles.texteAmbre]} adjustsFontSizeToFit numberOfLines={1}>
         {grand}
       </Text>
       <Text style={styles.heroSous}>{sous}</Text>
@@ -284,6 +292,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   heroPetit: { color: couleurs.vert, fontSize: 15, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'center' },
+  heroAmbre: { backgroundColor: couleurs.ambreClair },
+  texteAmbre: { color: couleurs.ambre },
   rebours: { color: couleurs.vert, fontSize: 56, fontWeight: '800', fontVariant: ['tabular-nums'] },
   heroTitre: { color: couleurs.encre, fontSize: 26, fontWeight: '800', marginTop: espace(1) },
   heroSous: { color: couleurs.doux, fontSize: 15, textAlign: 'center', lineHeight: 18 },
