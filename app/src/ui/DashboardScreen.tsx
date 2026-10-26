@@ -101,6 +101,20 @@ function Rebours({ tdb, tz, onEcheance, onDemarrerPlan }: Pick<Props, 'tdb' | 't
     petit = 'Ta journée n’a pas commencé';
     grand = '—';
     sous = indicatif ? 'Ta première cigarette ouvrira la journée.' : 'Et si tu repoussais la première un peu ?';
+  } else if (p.statut === 'disponible' && p.depuis !== null && p.derniere !== undefined) {
+    // L'intervalle est atteint : le compteur continue de monter (temps sans fumer), avec le bonus
+    // gagné au-delà de l'intervalle et le record de pause du jour à battre.
+    const pauseMs = Math.max(0, maintenant - p.derniere);
+    const bonusMin = Math.floor(Math.max(0, maintenant - p.depuis) / 60_000);
+    const recordMin = tdb.recordPauseJourMinutes;
+    const pauseMin = Math.floor(pauseMs / 60_000);
+    petit = 'Sans fumer depuis';
+    grand = formatRebours(pauseMs);
+    const bonus = bonusMin > 0 ? `+${formatDuree(bonusMin)} au-delà de l’intervalle` : `intervalle atteint à ${heure(p.depuis, tz)}`;
+    const record =
+      recordMin === 0 ? '' : pauseMin > recordMin ? 'nouveau record de pause du jour !' : `record du jour ${formatDuree(recordMin)} : encore ${formatDuree(recordMin - pauseMin)}`;
+    const ligne = record ? `${bonus} · ${record}` : bonus;
+    sous = indicatif ? ligne : `${ligne}\nChaque minute de plus compte.`;
   } else {
     petit = indicatif ? 'Intervalle recommandé atteint' : 'Tu peux fumer ta prochaine';
     grand = '00:00';

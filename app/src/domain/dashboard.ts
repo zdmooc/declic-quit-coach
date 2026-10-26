@@ -429,6 +429,13 @@ export function patchPorteA(etat: EtatJournal, a: Instant): number | null {
   return p ? p.dosageMg : null;
 }
 
+function plusLongEcart(instants: readonly Instant[]): number {
+  const t = [...instants].sort((a, b) => a - b);
+  let max = 0;
+  for (let i = 1; i < t.length; i++) max = Math.max(max, minutesBetween(t[i - 1]!, t[i]!));
+  return Math.floor(max);
+}
+
 /** Cigarettes sans heure par journée (pour les moyennes d'habitudes). */
 export function cigarettesSansHeureParJour(etat: EtatJournal): Map<LocalDate, number> {
   const m = new Map<LocalDate, number>();
@@ -525,6 +532,8 @@ export interface TableauDeBord {
   techniquesSos: BilanTechnique[];
   depuisDerniereMinutes: number | null;
   plusLonguePauseMinutes: number;
+  /** Plus long écart entre deux cigarettes d'aujourd'hui (pause en cours exclue) : le record à battre. */
+  recordPauseJourMinutes: number;
   economieJourCents: number;
   economieTotaleCents: number;
   projection: Projection;
@@ -598,6 +607,7 @@ export function tableauDeBord(etat: EtatJournal, maintenant: Instant, tz: string
     contextesPerso: etat.contextesPerso.filter((c) => !c.archive),
     raisons: etat.raisons,
     fenetreJour: fenetre,
+    recordPauseJourMinutes: plusLongEcart(elementsDuJour(etat.cigarettes, jour).map((c) => c.a)),
     derniereCigaretteId: etat.derniereCigaretteId,
     coachIa: etat.coachIa,
   };

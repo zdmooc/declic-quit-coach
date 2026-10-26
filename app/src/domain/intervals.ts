@@ -16,7 +16,7 @@ export function intervalleCibleMinutes(dureeActiveMinutes: number, quota: number
 export type StatutProchaine =
   | { statut: 'arret' }
   | { statut: 'quota-atteint' }
-  | { statut: 'disponible'; depuis: Instant | null }
+  | { statut: 'disponible'; depuis: Instant | null; /** Dernière cigarette du jour, si l'intervalle est atteint. */ derniere?: Instant }
   | { statut: 'attendre'; a: Instant; resteMinutes: number };
 
 /**
@@ -33,8 +33,9 @@ export function prochaineCigarette(params: {
   if (quota <= 0) return { statut: 'arret' };
   if (fumeesAujourdhui.length >= quota) return { statut: 'quota-atteint' };
   if (fumeesAujourdhui.length === 0 || intervalleMinutes === null) return { statut: 'disponible', depuis: null };
-  const a = addMinutes(Math.max(...fumeesAujourdhui), intervalleMinutes);
-  if (a <= maintenant) return { statut: 'disponible', depuis: a };
+  const derniere = Math.max(...fumeesAujourdhui);
+  const a = addMinutes(derniere, intervalleMinutes);
+  if (a <= maintenant) return { statut: 'disponible', depuis: a, derniere };
   return { statut: 'attendre', a, resteMinutes: Math.ceil(minutesBetween(maintenant, a)) };
 }
 
