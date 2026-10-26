@@ -124,6 +124,8 @@ stateDiagram-v2
 | RM-20 | **Patch par journée** : chaque journée indique « avec » ou « sans » patch, le dosage, l'heure de pose et l'heure de renouvellement prévue (pose + durée de port, en temps réel, changement d'heure compris) et, s'il est connu, l'heure de retrait. |
 | RM-21 | **Observation réglable** : de 1 à 7 journées complètes mesurées (3 par défaut) avant de proposer le premier palier. |
 | RM-22 | **Contextes et parades** : pour chaque contexte, l'utilisateur choisit une parade (nouveau réflexe, 60 caractères). « J'ai résisté » demande le contexte. Sur 7 jours, chaque contexte affiche ses cigarettes, ses envies résistées et une tendance calculée sur les journées terminées (2 dernières contre les précédentes) : à observer, nouveau, persiste, en baisse (≤ 75 %), disparu. |
+| RM-23 | **Suivi biologique** : bilans saisis (date, valeurs) ou importés ; courbe et évolution par paramètre ; non-HDL calculé ; statut par rapport à la norme (usuelle, du laboratoire ou objectif du médecin saisi par l'utilisateur) : dans la norme, à surveiller (à moins de 15 % d'une limite ou seuil propre : B12 < 300 pg/mL, HbA1c ≥ 5,7 %), trop haut, trop bas. Aucun objectif ni traitement proposé. Les bilans restent sur le téléphone et ne sont jamais envoyés au coach IA. |
+| RM-24 | **Aliments selon toutes les anomalies** : chaque aliment a un effet établi (+ aide, − aggrave) par objectif (LDL, HDL, triglycérides, B12, glycémie, inflammation ; sources ESC/EAS 2019, ANSES). Règle stricte : à éliminer dès qu'il aggrave UN objectif actif ; à privilégier s'il en aide au moins un sans en aggraver aucun ; neutre sinon. |
 
 ## 6. Objets métier
 

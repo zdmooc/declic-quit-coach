@@ -30,6 +30,7 @@ import {
 } from './savings';
 import { etiqueterCigarettes, intervallesEveilles, journeeDe, moyenne, SEUIL_NUIT_MINUTES } from './sessions';
 import { bilanTechniques, type BilanTechnique } from './respiration';
+import type { Bilan } from './sante';
 import { etatOral, etatPatch, type EtatOral, type EtatPatch, type PatchEnCours, type ReferencePharma } from './substitutes';
 import {
   addDays,
@@ -79,6 +80,9 @@ export interface EtatJournal {
   envies: { a: Instant; jour: LocalDate; strategie?: string; contexte?: ContexteCigarette }[];
   /** Parade (nouveau réflexe) choisie par contexte. */
   parades: Partial<Record<ContexteCigarette, string>>;
+  /** Bilans biologiques et normes du laboratoire / objectifs du médecin (RM-23). */
+  bilans: Bilan[];
+  normes: Record<string, { min?: number; max?: number }>;
   /** Envies signalées (distinctes des envies résistées), avec leur issue. */
   enviesSignalees: { a: Instant; jour: LocalDate; issue: 'resistee' | 'cigarette' | 'inconnue'; technique?: string }[];
   /** Saisies historiques sans heure connue (agrégats par journée). */
@@ -143,6 +147,8 @@ export function rejouer(events: readonly DomainEvent[], tz: string): EtatJournal
     joursObservation: JOURS_OBSERVATION,
     raisons: [],
     parades: {},
+    bilans: [],
+    normes: {},
     coachIa: false,
     derniereSaisieId: null,
     derniereCigaretteId: null,
@@ -275,6 +281,15 @@ export function rejouer(events: readonly DomainEvent[], tz: string): EtatJournal
         if (c) c.archive = true;
         break;
       }
+      case 'BilanSaisi':
+        etat.bilans.push({ id: e.id, date: e.payload.date, valeurs: e.payload.valeurs });
+        break;
+      case 'NormeDefinie':
+        etat.normes[e.payload.parametre] = {
+          ...(e.payload.min !== undefined ? { min: e.payload.min } : {}),
+          ...(e.payload.max !== undefined ? { max: e.payload.max } : {}),
+        };
+        break;
       case 'ParadeDefinie':
         if (e.payload.parade.trim()) etat.parades[e.payload.contexte] = e.payload.parade.trim();
         else delete etat.parades[e.payload.contexte];

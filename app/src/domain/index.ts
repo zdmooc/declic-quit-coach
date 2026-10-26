@@ -15,3 +15,4 @@ export * from './progres';
 export * from './coach';
 export * from './respiration';
 export * from './parades';
+export * from './sante';

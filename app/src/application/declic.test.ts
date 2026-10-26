@@ -485,3 +485,21 @@ describe('contextes, parades et bilan d’observation', () => {
     expect(o).toMatchObject({ joursMesures: 1, cigarettesParJour: 6, premiereHeure: 3, avantMidi: 4 });
   });
 });
+
+describe('santé', () => {
+  it('bilans saisis, suppression, objectif du médecin', async () => {
+    const { app } = monter(zonedInstant('2026-10-26', '20:00', TZ));
+    await app.creerProfil(PROFIL);
+    await app.saisirBilan('2026-01-10', { ldl: 1.7, b12: 280 });
+    await app.saisirBilan('2026-03-10', { ldl: 1.4, b12: 260 });
+    let s = (await app.sante())!;
+    expect(s.bilans.map((b) => b.date)).toEqual(['2026-03-10', '2026-01-10']);
+    expect(s.objectifs.map((o) => o.objectif).sort()).toEqual(['b12', 'ldl']);
+    await app.definirNorme('ldl', undefined, 0.7);
+    s = (await app.sante())!;
+    expect(s.suivi.find((x) => x.parametre.cle === 'ldl')!.derniere!.statut).toBe('haut');
+    await app.supprimerBilan(s.bilans[0]!.id);
+    expect((await app.sante())!.bilans).toHaveLength(1);
+    await expect(app.saisirBilan('26/10/2026', { ldl: 1 })).rejects.toThrow();
+  });
+});

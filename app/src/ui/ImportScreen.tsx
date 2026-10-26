@@ -27,6 +27,8 @@ const LIBELLES_TYPE: Record<string, string> = {
   PatchRetire: 'retraits de patch',
   ContexteAjoute: 'contextes',
   CigaretteCorrigee: 'corrections',
+  BilanSaisi: 'bilans biologiques',
+  NormeDefinie: 'normes de bilan',
 };
 const JOURS = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
 const dateLongue = (j: string) => `${JOURS[new Date(`${j}T12:00:00Z`).getUTCDay()]} ${j.slice(8, 10)}/${j.slice(5, 7)}`;

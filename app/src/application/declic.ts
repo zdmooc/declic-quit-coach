@@ -42,6 +42,7 @@ import {
   type TableauDeBord,
   type TypeSubstitutOral,
 } from '../domain';
+import { classerAliments, objectifsActifs, suiviBiologique, type Bilan, type Objectif, type SuiviParametre } from '../domain/sante';
 import type { Clock, CoachIa, EventStore, IdGenerator, Notifier, TourCoach } from '../ports';
 import { analyserImport, lireFichierDeclic, simulerImport, VERSION_EXPORT, type Apercu, type Choix, type Simulation } from './migration';
 
@@ -68,6 +69,13 @@ export interface Reglages {
   /** Quota du plan aujourd'hui (palier en cours) ; `null` avant le plan. */
   palierActuel: number | null;
   contextesPerso: ContextePerso[];
+}
+
+export interface Sante {
+  bilans: Bilan[];
+  suivi: SuiviParametre[];
+  objectifs: { objectif: Objectif; raisons: string[] }[];
+  aliments: ReturnType<typeof classerAliments>;
 }
 
 export interface NouveauProfil {
@@ -208,6 +216,35 @@ export class Declic {
     return this.ajouter(
       this.evenement('EnvieResistee', { ...(strategieUtilisee ? { strategieUtilisee } : {}), ...(contexte ? { contexte } : {}) }, source),
     );
+  }
+
+  /** Bilan biologique (date AAAA-MM-JJ, valeurs par paramètre) ; les champs vides sont ignorés. */
+  saisirBilan(date: string, valeurs: Record<string, number>): Promise<void> {
+    return this.ajouter(this.evenement('BilanSaisi', { date, valeurs }));
+  }
+
+  supprimerBilan(id: string): Promise<void> {
+    return this.ajouter(this.evenement('SaisieAnnulee', { evenementId: id }));
+  }
+
+  /** Norme du laboratoire ou objectif du médecin (sans bornes = retour à la norme usuelle). */
+  definirNorme(parametre: string, min?: number, max?: number): Promise<void> {
+    return this.ajouter(this.evenement('NormeDefinie', { parametre, ...(min !== undefined ? { min } : {}), ...(max !== undefined ? { max } : {}) }));
+  }
+
+  /** Suivi biologique, objectifs actifs et classement des aliments (RM-23, RM-24). */
+  async sante(): Promise<Sante | null> {
+    const etat = await this.etat();
+    if (!etat) return null;
+    const normes = Object.fromEntries(Object.entries(etat.normes).filter(([, n]) => n.min !== undefined || n.max !== undefined));
+    const suivi = suiviBiologique(etat.bilans, normes);
+    const objectifs = objectifsActifs(suivi);
+    return {
+      bilans: [...etat.bilans].sort((a, b) => b.date.localeCompare(a.date)),
+      suivi,
+      objectifs,
+      aliments: classerAliments(objectifs.map((o) => o.objectif)),
+    };
   }
 
   /** Nouveau réflexe pour un contexte (méthode : remplacer l'ancien réflexe) ; vide = retirer. */

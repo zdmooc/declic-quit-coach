@@ -2,7 +2,7 @@ import { useState, type ComponentProps } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import type { NouveauProfil, Reglages } from './src/application/declic';
+import type { NouveauProfil, Reglages, Sante } from './src/application/declic';
 import { CoachHttp, normaliserUrlCoach } from './src/adapters/coachHttp';
 import type { JourneeHistorique, MessageCoach, ModeCoach, Progres } from './src/domain';
 import type { Apercu, Choix, Simulation } from './src/application/migration';
@@ -17,6 +17,7 @@ import { HistoriqueScreen } from './src/ui/HistoriqueScreen';
 import { OnboardingScreen } from './src/ui/OnboardingScreen';
 import { ProgresScreen } from './src/ui/ProgresScreen';
 import { ReglagesScreen } from './src/ui/ReglagesScreen';
+import { SanteScreen } from './src/ui/SanteScreen';
 import { SosEnvie } from './src/ui/SosEnvie';
 import { SubstitutsScreen } from './src/ui/SubstitutsScreen';
 import { couleurs } from './src/ui/theme';
@@ -30,6 +31,7 @@ export default function App() {
   const [aPreciser, setAPreciser] = useState<string | null>(null);
   const [sos, setSos] = useState(false);
   const [resiste, setResiste] = useState(false);
+  const [santeVue, setSanteVue] = useState<Sante | null>(null);
   const [substituts, setSubstituts] = useState(false);
   const [progresVue, setProgresVue] = useState<{ progres: Progres; mot: MessageCoach | null } | null>(null);
   const [coachMode, setCoachMode] = useState<ModeCoach | null>(null);
@@ -82,6 +84,7 @@ export default function App() {
     const [progres, mot] = await Promise.all([app.declic.progres(), app.declic.motDuCoach()]);
     if (progres) setProgresVue({ progres, mot });
   }
+  const ouvrirSante = async () => setSanteVue(await declic.sante());
   const ouvrirHistorique = async () => setHistorique(await declic.historique(400));
   const ouvrirReglages = async () => setReglages(await declic.reglages());
 
@@ -187,6 +190,7 @@ export default function App() {
             onHistorique={() => void ouvrirHistorique()}
             onReglages={() => void ouvrirReglages()}
             onSubstituts={() => setSubstituts(true)}
+            onSante={() => void ouvrirSante()}
             onProgres={() => void ouvrirProgres()}
             onEcheance={() => void rafraichir()}
             onSos={() => setSos(true)}
@@ -306,6 +310,16 @@ export default function App() {
             onAjouterObjectif={(l, c) => depuis(() => declic.definirObjectif(l, c), ouvrirProgres)}
             onRetirerObjectif={(l) => depuis(() => declic.retirerObjectif(l), ouvrirProgres)}
             onParade={(c, p) => depuis(() => declic.definirParade(c, p), ouvrirProgres)}
+          />
+        )}
+        {santeVue && tdb && (
+          <SanteScreen
+            sante={santeVue}
+            aujourdhui={tdb.jour}
+            onFermer={() => setSanteVue(null)}
+            onSaisirBilan={(d, v) => depuis(() => declic.saisirBilan(d, v), ouvrirSante)}
+            onSupprimerBilan={(id) => depuis(() => declic.supprimerBilan(id), ouvrirSante)}
+            onNorme={(p, min, max) => depuis(() => declic.definirNorme(p, min, max), ouvrirSante)}
           />
         )}
         {coachMode && <CoachScreen mode={coachMode} onFermer={() => setCoachMode(null)} envoyer={(tours) => declic.parlerAuCoach(coachMode, tours)} />}

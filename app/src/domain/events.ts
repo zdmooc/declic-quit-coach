@@ -119,6 +119,10 @@ export type ContexteRenomme = Base<'ContexteRenomme', { cle: `perso:${string}`; 
 export type ContexteArchive = Base<'ContexteArchive', { cle: `perso:${string}` }>;
 /** Intervalle recommandé pendant l'observation (réglage, 60 min par défaut). */
 export type IntervalleRecommandeModifie = Base<'IntervalleRecommandeModifie', { minutes: number }>;
+/** Bilan biologique saisi (date du prélèvement, valeurs par paramètre ; RM-23). */
+export type BilanSaisi = Base<'BilanSaisi', { date: string; valeurs: Record<string, number> }>;
+/** Norme du laboratoire ou objectif fixé par le médecin pour un paramètre. */
+export type NormeDefinie = Base<'NormeDefinie', { parametre: string; min?: number; max?: number }>;
 /** Durée de l'observation choisie par l'utilisateur (1 à 7 journées mesurées). */
 export type ObservationReglee = Base<'ObservationReglee', { jours: number }>;
 /** Une raison personnelle d'arrêter, rappelée pendant le SOS envie (F7.1). */
@@ -168,6 +172,8 @@ export type DomainEvent =
   | IntervalleRecommandeModifie
   | ObservationReglee
   | ParadeDefinie
+  | BilanSaisi
+  | NormeDefinie
   | PatchPose
   | PatchRetire
   | SubstitutOralPris
@@ -229,6 +235,17 @@ export function validateEvent(e: DomainEvent): string[] {
     case 'ContexteRenomme':
       if (e.payload.libelle.trim().length < 1 || e.payload.libelle.trim().length > 30)
         errors.push('libellé de contexte : 1 à 30 caractères');
+      break;
+    case 'BilanSaisi': {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(e.payload.date)) errors.push('date de bilan invalide');
+      const vs = Object.entries(e.payload.valeurs ?? {});
+      if (vs.length === 0 || vs.length > 60) errors.push('bilan : 1 à 60 valeurs');
+      for (const [k, v] of vs) if (!/^[a-z0-9-]{1,30}$/.test(k) || typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > 100_000) errors.push(`valeur invalide : ${k}`);
+      break;
+    }
+    case 'NormeDefinie':
+      if (!/^[a-z0-9-]{1,30}$/.test(e.payload.parametre)) errors.push('paramètre invalide');
+      for (const v of [e.payload.min, e.payload.max]) if (v !== undefined && (!Number.isFinite(v) || v < 0)) errors.push('norme invalide');
       break;
     case 'ParadeDefinie':
       if (typeof e.payload.contexte !== 'string' || e.payload.contexte.length === 0) errors.push('contexte manquant');

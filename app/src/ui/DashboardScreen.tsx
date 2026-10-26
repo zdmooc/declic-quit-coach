@@ -15,6 +15,7 @@ interface Props {
   onHistorique: () => void;
   onSubstituts: () => void;
   onProgres: () => void;
+  onSante: () => void;
   onReglages: () => void;
   /** Appelé quand le compte à rebours arrive à zéro (pour rafraîchir l'état). */
   onEcheance: () => void;
@@ -168,7 +169,7 @@ function Pastille({ valeur, libelle, ton = 'neutre' }: InfoPastille) {
 const duree = (m: number | null) => (m === null || m <= 0 ? '—' : formatDuree(m));
 
 export function DashboardScreen(props: Props) {
-  const { tdb, tz, onFume, onResiste, onAnnuler, onPalier, onHistorique, onReglages, onSos, onSubstituts, onProgres } = props;
+  const { tdb, tz, onFume, onResiste, onAnnuler, onPalier, onHistorique, onReglages, onSos, onSubstituts, onProgres, onSante } = props;
   const obs = tdb.observation;
   const top = tdb.analyse.declencheurs[0];
   const heureRisque = tdb.analyse.heuresARisque[0];
@@ -279,6 +280,9 @@ export function DashboardScreen(props: Props) {
           </Pressable>
           <Pressable onPress={onSubstituts} accessibilityRole="button" hitSlop={8}>
             <Text style={styles.lien}>{tdb.patch.statut === 'porte' ? 'Patch ●' : 'Substituts'}</Text>
+          </Pressable>
+          <Pressable onPress={onSante} accessibilityRole="button" hitSlop={8}>
+            <Text style={styles.lien}>Santé</Text>
           </Pressable>
           <Pressable onPress={onReglages} accessibilityRole="button" hitSlop={8}>
             <Text style={styles.lien}>Réglages</Text>
