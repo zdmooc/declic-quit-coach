@@ -385,3 +385,19 @@ describe('patch déclaré après coup', () => {
     await expect(app.poserPatch(21, 24, '8h7')).rejects.toThrow(/invalide/);
   });
 });
+
+describe('SOS envie', () => {
+  it('chaque SOS compte : résisté ou fermé sans issue', async () => {
+    const { app } = monter(zonedInstant('2026-10-26', '11:00', TZ));
+    await app.creerProfil(PROFIL);
+    await app.enregistrerEnvieResistee('respiration');
+    await app.signalerEnvie();
+    await app.signalerEnvie();
+    const tdb = (await app.tableauDeBord())!;
+    expect(tdb.enviesResistees).toBe(1);
+    expect(tdb.enviesSignalees).toBe(2);
+    const [j] = await app.historique(1);
+    expect(j!.envies).toBe(1);
+    expect(j!.enviesSignalees).toBe(2);
+  });
+});

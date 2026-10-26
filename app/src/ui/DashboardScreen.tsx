@@ -173,7 +173,9 @@ export function DashboardScreen(props: Props) {
     // RM-18 : en vert les cigarettes qui ont respecté l'intervalle, en rouge les autres.
     { valeur: String(tdb.respect.respectees), libelle: 'intervalle tenu', ton: 'vert' },
     { valeur: String(tdb.respect.nonRespectees), libelle: 'trop tôt', ton: tdb.respect.nonRespectees > 0 ? 'rouge' : 'neutre' },
-    { valeur: String(tdb.enviesResistees), libelle: 'envies résistées' },
+    tdb.enviesSignalees > 0
+      ? { valeur: `${tdb.enviesResistees} / ${tdb.enviesResistees + tdb.enviesSignalees}`, libelle: 'envies résistées / total' }
+      : { valeur: String(tdb.enviesResistees), libelle: 'envies résistées' },
     tdb.phase === 'observation'
       ? { valeur: duree(tdb.depuisDerniereMinutes), libelle: 'depuis la dernière' }
       : { valeur: formatEuros(tdb.economieTotaleCents), libelle: 'économisés' },

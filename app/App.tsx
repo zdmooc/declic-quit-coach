@@ -268,12 +268,16 @@ export default function App() {
               setSos(false);
               void agir(() => declic.enregistrerEnvieResistee('respiration'))();
             }}
-            onFermer={() => setSos(false)}
+            onFermer={() => {
+              setSos(false);
+              void agir(() => declic.signalerEnvie())();
+            }}
             onAjouterRaison={(texte) => void agir(() => declic.ajouterRaison(texte))()}
             {...(coachDispo
               ? {
                   onCoach: () => {
                     setSos(false);
+                    void agir(() => declic.signalerEnvie())();
                     setCoachMode('sos');
                   },
                 }
