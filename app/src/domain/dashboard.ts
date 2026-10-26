@@ -81,6 +81,8 @@ export interface EtatJournal {
   /** Saisies historiques sans heure connue (agrégats par journée). */
   sansHeure: { jour: LocalDate; nature: 'cigarettes' | 'envies-signalees'; nombre: number }[];
   patch: PatchEnCours | null;
+  /** Historique des patchs : pose, dosage, durée prévue, retrait. */
+  patchs: { poseLe: Instant; dosageMg: number; dureePortHeures: 16 | 24; retireLe: Instant | null }[];
   oraux: { a: Instant; jour: LocalDate; forme: TypeSubstitutOral; dosageMg: number }[];
   objectifs: { libelle: string; montantCents: number }[];
   /** Contextes ajoutés par l'utilisateur (RM-16). */
@@ -128,6 +130,7 @@ export function rejouer(events: readonly DomainEvent[], tz: string): EtatJournal
     enviesSignalees: [],
     sansHeure: [],
     patch: null,
+    patchs: [],
     oraux: [],
     objectifs: [],
     contextesPerso: [],
@@ -174,6 +177,7 @@ export function rejouer(events: readonly DomainEvent[], tz: string): EtatJournal
   // 2. Autres événements.
   const rythmes: PlanInput['rythmes'][number][] = [];
   const paliers: LocalDate[] = [];
+  const fixes: { aPartirDu: LocalDate; quota: number }[] = [];
   for (const e of evs) {
     const a = instantOf(e);
     if (SAISIES.has(e.type)) etat.derniereSaisieId = e.id;
@@ -182,7 +186,7 @@ export function rejouer(events: readonly DomainEvent[], tz: string): EtatJournal
         if (etat.plan) break; // un seul démarrage
         rythmes.push({ aPartirDu: e.payload.dateDebut, strategie: e.payload.strategie ?? MOINS_UN_PAR_JOUR });
         etat.plan = {
-          input: { initial: e.payload.quotaDepart, dateDebut: e.payload.dateDebut, rythmes, paliers },
+          input: { initial: e.payload.quotaDepart, dateDebut: e.payload.dateDebut, rythmes, paliers, fixes },
           reference: e.payload.referenceParJour,
           horaires: { wake: e.payload.debutHabituel, bed: e.payload.finHabituelle },
           demarreLe: a,
@@ -194,6 +198,9 @@ export function rejouer(events: readonly DomainEvent[], tz: string): EtatJournal
         break;
       case 'PalierDemande':
         paliers.push(e.payload.jour);
+        break;
+      case 'PalierFixe':
+        fixes.push({ aPartirDu: e.payload.aPartirDu, quota: e.payload.quota });
         break;
       case 'PrixModifie':
         etat.prix.push({
@@ -211,12 +218,20 @@ export function rejouer(events: readonly DomainEvent[], tz: string): EtatJournal
       case 'AgregatSansHeure':
         etat.sansHeure.push({ jour: e.payload.journee, nature: e.payload.nature, nombre: e.payload.nombre });
         break;
-      case 'PatchPose':
+      case 'PatchPose': {
+        // Un nouveau patch remplace le précédent s'il n'a pas été déclaré retiré.
+        const ouvert = etat.patchs.find((p) => p.retireLe === null);
+        if (ouvert) ouvert.retireLe = a;
         etat.patch = { poseLe: a, dosageMg: e.payload.dosageMg, dureePortHeures: e.payload.dureePortHeures };
+        etat.patchs.push({ ...etat.patch, retireLe: null });
         break;
-      case 'PatchRetire':
+      }
+      case 'PatchRetire': {
+        const ouvert = etat.patchs.find((p) => p.retireLe === null);
+        if (ouvert) ouvert.retireLe = a;
         etat.patch = null;
         break;
+      }
       case 'SubstitutOralPris':
         etat.oraux.push({ a, jour: journeeDe(a, etat.cigarettes, tz), forme: e.payload.forme, dosageMg: e.payload.dosageMg });
         break;
@@ -384,6 +399,15 @@ export function sansHeureDuJour(etat: EtatJournal, jour: LocalDate, nature: 'cig
   return elementsDuJour(etat.sansHeure, jour)
     .filter((a) => a.nature === nature)
     .reduce((s, a) => s + a.nombre, 0);
+}
+
+/** Patchs portés pendant le jour civil donné. */
+function patchsDuJour(etat: EtatJournal, jour: LocalDate, tz: string): JourneeHistorique['patchs'] {
+  const debut = zonedInstant(jour, '00:00', tz);
+  const fin = zonedInstant(addDays(jour, 1), '00:00', tz);
+  return etat.patchs
+    .filter((p) => p.poseLe < fin && (p.retireLe === null || p.retireLe > debut))
+    .map((p) => ({ dosageMg: p.dosageMg, poseA: p.poseLe, renouvellementPrevu: p.poseLe + p.dureePortHeures * 3_600_000, retireA: p.retireLe }));
 }
 
 /** Cigarettes sans heure par journée (pour les moyennes d'habitudes). */
@@ -689,6 +713,8 @@ export interface JourneeHistorique {
   sansHeure: number;
   /** Envies signalées (horodatées et sans heure), distinctes des envies résistées. */
   enviesSignalees: number;
+  /** Patchs portés ce jour-là (avec ou sans patch), avec heure de pose et de renouvellement prévu. */
+  patchs: { dosageMg: number; poseA: Instant; renouvellementPrevu: Instant; retireA: Instant | null }[];
   quota: number | null;
   intervalleMinutes: number | null;
   respectees: number;
@@ -705,6 +731,7 @@ export function historiqueJournees(etat: EtatJournal, maintenant: Instant, tz: s
   const plan = etat.plan;
   const lignesPlan = new Map(historiqueQuotidien(etat, aujourdhui).map((l) => [l.jour, l]));
   const jours = new Set<LocalDate>([...etat.cigarettes, ...etat.sansHeure, ...etat.enviesSignalees, ...etat.envies].map((c) => c.jour));
+  for (const p of etat.patchs) jours.add(localDateOf(p.poseLe, tz));
   jours.add(aujourdhui);
   for (const l of lignesPlan.keys()) jours.add(l);
   const tries = [...jours].filter((j) => daysBetween(j, aujourdhui) >= 0).sort().reverse().slice(0, nbJours);
@@ -742,6 +769,7 @@ export function historiqueJournees(etat: EtatJournal, maintenant: Instant, tz: s
       total: liste.length + sansHeure,
       sansHeure,
       enviesSignalees: elementsDuJour(etat.enviesSignalees, jour).length + sansHeureDuJour(etat, jour, 'envies-signalees'),
+      patchs: patchsDuJour(etat, jour, tz),
       quota: enPlan ? quotaEffectif(etat, jour) : null,
       intervalleMinutes: intervalle,
       respectees: respect.respectees,

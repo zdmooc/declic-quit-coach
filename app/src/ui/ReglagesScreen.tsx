@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { Reglages } from '../application/declic';
-import { MOINS_UN_PAR_JOUR, MOINS_UN_PAR_SEMAINE, MOINS_UN_TOUS_LES_2_JOURS, type ReductionStrategy } from '../domain';
+import { MOINS_UN_PAR_JOUR, MOINS_UN_PAR_SEMAINE, MOINS_UN_TOUS_LES_2_JOURS, PALIERS_LIBRES, type ReductionStrategy } from '../domain';
 import { libelleVersion } from './BandeauMiseAJour';
 import { couleurs, espace } from './theme';
 
@@ -12,6 +12,7 @@ interface Props {
   onPrix: (prixPaquetCents: number, cigarettesParPaquet: number) => void;
   onIntervalle: (minutes: number) => void;
   onRythme: (s: ReductionStrategy) => void;
+  onPalier: (quota: number) => void;
   onRenommerContexte: (cle: `perso:${string}`, libelle: string) => void;
   onArchiverContexte: (cle: `perso:${string}`) => void;
   onDemarrerPlan: () => void;
@@ -26,6 +27,7 @@ interface Props {
 
 const INTERVALLES = [30, 45, 60, 90, 120];
 const RYTHMES: { libelle: string; strategie: ReductionStrategy }[] = [
+  { libelle: 'Paliers libres (je choisis)', strategie: PALIERS_LIBRES },
   { libelle: '−1 par jour', strategie: MOINS_UN_PAR_JOUR },
   { libelle: '−1 tous les 2 jours', strategie: MOINS_UN_TOUS_LES_2_JOURS },
   { libelle: '−1 par semaine', strategie: MOINS_UN_PAR_SEMAINE },
@@ -38,6 +40,49 @@ function Choix({ libelle, actif, onPress }: { libelle: string; actif: boolean; o
     <Pressable style={[styles.choix, actif && styles.choixActif]} onPress={onPress} accessibilityRole="button" accessibilityState={{ selected: actif }}>
       <Text style={[styles.choixTexte, actif && styles.choixTexteActif]}>{libelle}</Text>
     </Pressable>
+  );
+}
+
+/** Descente par paliers libres : un nouveau palier, toujours plus bas, appliqué dès aujourd'hui. */
+function Palier({ actuel, onPalier }: { actuel: number | null; onPalier: (quota: number) => void }) {
+  const [saisie, setSaisie] = useState('');
+  if (actuel === null) return null;
+  const n = Number(saisie);
+  const valide = saisie.trim() !== '' && Number.isInteger(n) && n >= 0 && n < actuel;
+  return (
+    <View style={styles.palier}>
+      <Text style={styles.libelle}>Palier actuel : {actuel} par jour</Text>
+      <View style={styles.ligne}>
+        <TextInput
+          style={[styles.champ, styles.flex]}
+          value={saisie}
+          onChangeText={setSaisie}
+          keyboardType="number-pad"
+          placeholder={`Nouveau palier (moins de ${actuel})`}
+          accessibilityLabel="Nouveau palier par jour"
+        />
+        <Pressable
+          style={[styles.petitBouton, !valide && styles.inactif]}
+          disabled={!valide}
+          onPress={() =>
+            Alert.alert(`Descendre à ${n} par jour ?`, 'Dès aujourd’hui. Tu ne pourras plus remonter au-dessus de ce palier ; le plan reste à ce niveau jusqu’à ton prochain choix.', [
+              { text: 'Annuler', style: 'cancel' },
+              {
+                text: 'Descendre',
+                onPress: () => {
+                  onPalier(n);
+                  setSaisie('');
+                },
+              },
+            ])
+          }
+          accessibilityRole="button"
+        >
+          <Text style={styles.petitBoutonTexte}>Descendre</Text>
+        </Pressable>
+      </View>
+      <Text style={styles.aide}>Descends par paliers jusqu’à trouver ta limite, stabilise-toi, puis passe à « −1 par jour ».</Text>
+    </View>
   );
 }
 
@@ -157,6 +202,7 @@ export function ReglagesScreen(props: Props) {
                 ))}
               </View>
               <Text style={styles.aide}>Le nouveau rythme s’applique à partir de demain.</Text>
+              <Palier actuel={r.palierActuel} onPalier={props.onPalier} />
             </View>
           )}
 
@@ -236,5 +282,6 @@ const styles = StyleSheet.create({
   petitBouton: { backgroundColor: couleurs.vert, borderRadius: 10, paddingHorizontal: espace(4), paddingVertical: espace(2) },
   petitBoutonTexte: { color: '#FFFFFF', fontWeight: '700' },
   effacer: { alignItems: 'center', paddingTop: espace(2) },
+  palier: { gap: espace(2), marginTop: espace(2), paddingTop: espace(3), borderTopWidth: 1, borderTopColor: couleurs.ligne },
   mention: { color: couleurs.doux, fontSize: 12, textAlign: 'center' },
 });

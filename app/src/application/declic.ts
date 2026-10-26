@@ -18,6 +18,8 @@ import {
   strategieCourante,
   LIBELLES_CONTEXTE,
   MOINS_UN_PAR_JOUR,
+  PALIERS_LIBRES,
+  quotaDuJour,
   planifier,
   PREFERENCES_PAR_DEFAUT,
   proposerPlan,
@@ -59,6 +61,8 @@ export interface Reglages {
   intervalleRecommande: number;
   planDemarre: boolean;
   strategie: ReductionStrategy | null;
+  /** Quota du plan aujourd'hui (palier en cours) ; `null` avant le plan. */
+  palierActuel: number | null;
   contextesPerso: ContextePerso[];
 }
 
@@ -206,6 +210,25 @@ export class Declic {
     await this.ajouter(this.evenement('RythmeModifie', { aPartirDu: addDays(tdb.jour, 1), strategie }));
   }
 
+  /**
+   * Descente par paliers libres : fixe dès aujourd'hui un palier plus bas que le quota en cours
+   * (jamais au-dessus : on ne revient pas au palier précédent). Le plan passe en « paliers libres »
+   * (pas de baisse automatique) tant que l'utilisateur ne choisit pas un autre rythme, comme −1 par jour.
+   */
+  async fixerPalier(quota: number): Promise<void> {
+    const etat = await this.etat();
+    const tdb = await this.tableauDeBord();
+    if (!etat?.plan || !tdb) throw new Error('Démarre d’abord ton plan');
+    const actuel = quotaDuJour(etat.plan.input, tdb.jour);
+    if (!Number.isInteger(quota) || quota < 0) throw new Error('Palier invalide');
+    if (quota >= actuel) throw new Error(`Le nouveau palier doit être sous le palier actuel (${actuel})`);
+    const events: DomainEvent[] = [];
+    if (strategieCourante(etat.plan.input, tdb.jour).pas !== 0)
+      events.push(this.evenement('RythmeModifie', { aPartirDu: tdb.jour, strategie: PALIERS_LIBRES }));
+    events.push(this.evenement('PalierFixe', { aPartirDu: tdb.jour, quota }));
+    await this.ajouter(...events);
+  }
+
   /** Intervalle recommandé pendant l'observation (10 à 240 min). */
   modifierIntervalleRecommande(minutes: number): Promise<void> {
     return this.ajouter(this.evenement('IntervalleRecommandeModifie', { minutes }));
@@ -286,6 +309,7 @@ export class Declic {
       intervalleRecommande: etat.intervalleRecommande,
       planDemarre: etat.plan !== null,
       strategie: etat.plan ? strategieCourante(etat.plan.input, addDays(tdb!.jour, 1)) : null,
+      palierActuel: etat.plan ? quotaDuJour(etat.plan.input, tdb!.jour) : null,
       contextesPerso: etat.contextesPerso.filter((c) => !c.archive),
     };
   }

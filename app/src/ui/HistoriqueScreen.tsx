@@ -178,6 +178,13 @@ export function HistoriqueScreen({ journees, tz, contextesPerso, onFermer, onPre
                     {j.envies > 0 ? `  ·  ${j.envies} envie${j.envies > 1 ? 's' : ''} résistée${j.envies > 1 ? 's' : ''}` : ''}
                     {j.economieCents !== null ? `  ·  ${formatEuros(j.economieCents)}` : ''}
                   </Text>
+                  <Text style={styles.sousResume}>
+                    {j.patchs.length === 0
+                      ? 'Sans patch'
+                      : j.patchs
+                          .map((p) => `Patch ${p.dosageMg} mg · posé ${heure(p.poseA, tz)} · renouvellement ${heure(p.renouvellementPrevu, tz)}${p.retireA ? ` · retiré ${heure(p.retireA, tz)}` : ''}`)
+                          .join('  |  ')}
+                  </Text>
                   {(j.sansHeure > 0 || j.enviesSignalees > 0) && (
                     <Text style={styles.sousResume}>
                       {j.sansHeure > 0 ? `${j.sansHeure} sans heure connue (historique importé)` : ''}

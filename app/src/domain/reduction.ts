@@ -14,6 +14,8 @@ export interface ReductionStrategy {
 export const MOINS_UN_PAR_JOUR: ReductionStrategy = { kind: 'pas', pas: 1, periodeJours: 1 };
 export const MOINS_UN_TOUS_LES_2_JOURS: ReductionStrategy = { kind: 'pas', pas: 1, periodeJours: 2 };
 export const MOINS_UN_PAR_SEMAINE: ReductionStrategy = { kind: 'pas', pas: 1, periodeJours: 7 };
+/** Paliers libres : le quota ne baisse que quand l'utilisateur fixe un nouveau palier. */
+export const PALIERS_LIBRES: ReductionStrategy = { kind: 'pas', pas: 0, periodeJours: 1 };
 
 export interface PlanInput {
   initial: number;
@@ -22,6 +24,8 @@ export interface PlanInput {
   rythmes: readonly { aPartirDu: LocalDate; strategie: ReductionStrategy }[];
   /** Jours où le quota reste celui de la veille. */
   paliers: readonly LocalDate[];
+  /** Paliers choisis par l'utilisateur : le quota prend cette valeur à partir de ce jour. */
+  fixes?: readonly { aPartirDu: LocalDate; quota: number }[];
 }
 
 function strategieActive(plan: PlanInput, jour: LocalDate): { depuis: LocalDate; strategie: ReductionStrategy } {
@@ -49,12 +53,21 @@ export function quotas(plan: PlanInput, jusquAu: LocalDate): Map<LocalDate, numb
   const total = daysBetween(plan.dateDebut, jusquAu);
   if (total < 0) return out;
   const paliers = new Set(plan.paliers);
-  let quota = plan.initial;
+  const fixes = new Map((plan.fixes ?? []).map((f) => [f.aPartirDu, f.quota]));
+  let quota = Math.min(plan.initial, fixes.get(plan.dateDebut) ?? plan.initial);
   let compteur = 0;
   let depuisCourant = plan.dateDebut;
   out.set(plan.dateDebut, quota);
   for (let i = 1; i <= total; i++) {
     const jour = addDays(plan.dateDebut, i);
+    const fixe = fixes.get(jour);
+    if (fixe !== undefined) {
+      // Palier choisi : il ne peut pas remonter au-dessus du quota en cours.
+      quota = Math.min(quota, fixe);
+      compteur = 0;
+      out.set(jour, quota);
+      continue;
+    }
     const { depuis, strategie } = strategieActive(plan, jour);
     if (depuis !== depuisCourant) {
       // Le jour du changement est le « jour 0 » du nouveau rythme : quota inchangé.

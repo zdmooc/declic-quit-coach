@@ -305,3 +305,45 @@ describe('sauvegarde et restauration (F9.1)', () => {
     expect(await app.aUnProfil()).toBe(true);
   });
 });
+
+describe('descente par paliers libres', () => {
+  it('palier choisi dès aujourd’hui, jamais au-dessus du palier en cours, puis −1 quand on le décide', async () => {
+    const { app, clock } = monter();
+    await app.creerProfil({ ...PROFIL, cigarettesParJour: 40 });
+    await app.demarrerPlan(); // démarrage immédiat sur la déclaration : quota 39
+    expect((await app.tableauDeBord())!.quota).toBeGreaterThan(20);
+
+    await app.fixerPalier(20);
+    expect((await app.tableauDeBord())!.quota).toBe(20);
+    await expect(app.fixerPalier(25)).rejects.toThrow(/sous le palier actuel \(20\)/);
+    await expect(app.fixerPalier(20)).rejects.toThrow(/sous le palier actuel/);
+
+    // Paliers libres : pas de baisse automatique les jours suivants.
+    clock.avancerMinutes(24 * 60);
+    expect((await app.tableauDeBord())!.quota).toBe(20);
+    clock.avancerMinutes(24 * 60);
+    await app.fixerPalier(13);
+    expect((await app.tableauDeBord())!.quota).toBe(13);
+
+    // Puis on passe à −1 par jour à partir de demain.
+    await app.modifierRythme({ kind: 'pas', pas: 1, periodeJours: 1 });
+    clock.avancerMinutes(24 * 60);
+    expect((await app.tableauDeBord())!.quota).toBe(13); // jour du changement de rythme : inchangé
+    clock.avancerMinutes(24 * 60);
+    expect((await app.tableauDeBord())!.quota).toBe(12);
+  });
+
+  it('patchs par journée : avec ou sans, dosage, pose et renouvellement prévu', async () => {
+    const { app, clock } = monter();
+    await app.creerProfil(PROFIL);
+    clock.avancerMinutes(60);
+    await app.poserPatch(21, 24);
+    const pose = clock.now();
+    clock.avancerMinutes(26 * 60);
+    await app.retirerPatch();
+    const retrait = clock.now();
+    const [j2, j1] = await app.historique(5);
+    expect(j1!.patchs).toEqual([{ dosageMg: 21, poseA: pose, renouvellementPrevu: pose + 24 * 3_600_000, retireA: retrait }]);
+    expect(j2!.patchs).toHaveLength(1); // porté jusqu'au retrait du lendemain
+  });
+});

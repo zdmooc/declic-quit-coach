@@ -220,6 +220,15 @@ export default function App() {
             onPrix={(p, n) => depuis(() => declic.modifierPrix(p, n), ouvrirReglages)}
             onIntervalle={(m) => depuis(() => declic.modifierIntervalleRecommande(m), ouvrirReglages)}
             onRythme={(st) => depuis(() => declic.modifierRythme(st), ouvrirReglages)}
+            onPalier={(q) =>
+              depuis(async () => {
+                try {
+                  await declic.fixerPalier(q);
+                } catch (e) {
+                  Alert.alert('Palier impossible', e instanceof Error ? e.message : String(e));
+                }
+              }, ouvrirReglages)
+            }
             onRenommerContexte={(cle, l) => depuis(() => declic.renommerContexte(cle, l), ouvrirReglages)}
             onArchiverContexte={(cle) => depuis(() => declic.archiverContexte(cle), ouvrirReglages)}
             onDemarrerPlan={() => depuis(() => declic.demarrerPlan(), ouvrirReglages)}

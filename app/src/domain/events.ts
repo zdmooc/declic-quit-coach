@@ -80,6 +80,8 @@ export type PlanDemarre = Base<
 >;
 export type RythmeModifie = Base<'RythmeModifie', { aPartirDu: LocalDate; strategie: ReductionStrategy }>;
 export type PalierDemande = Base<'PalierDemande', { jour: LocalDate }>;
+/** Palier choisi par l'utilisateur (descente libre) : jamais au-dessus du quota en cours. */
+export type PalierFixe = Base<'PalierFixe', { aPartirDu: LocalDate; quota: number }>;
 
 export type CigaretteFumee = Base<
   'CigaretteFumee',
@@ -148,6 +150,7 @@ export type DomainEvent =
   | PlanDemarre
   | RythmeModifie
   | PalierDemande
+  | PalierFixe
   | CigaretteFumee
   | AgregatSansHeure
   | EnvieSignalee
@@ -240,6 +243,9 @@ export function validateEvent(e: DomainEvent): string[] {
     case 'SubstitutOralPris':
     case 'PatchPose':
       if (!(e.payload.dosageMg > 0)) errors.push('dosageMg invalide');
+      break;
+    case 'PalierFixe':
+      if (!isInt(e.payload.quota) || e.payload.quota < 0 || e.payload.quota > 100) errors.push('palier : entier de 0 à 100');
       break;
     case 'AgregatSansHeure':
       if (!/^\d{4}-\d{2}-\d{2}$/.test(e.payload.journee)) errors.push('journée invalide');
