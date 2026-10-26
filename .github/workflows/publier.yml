@@ -46,15 +46,9 @@ jobs:
       - run: npm ci
       - name: Vérifier avant de publier
         run: npm run lint && npm run typecheck && npm test
-      - name: Le code natif n'a pas changé depuis l'APK ?
-        # Si l'empreinte Linux change, une dépendance native ou la config a bougé : il faut un nouvel APK.
-        run: |
-          actuelle=$(npx expo-updates runtimeversion:resolve --platform android | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.parse(s.slice(s.indexOf('{'))).runtimeVersion))")
-          echo "Empreinte Linux : $actuelle"
-          if [ "$actuelle" != "6f7a7cc1f8ff5ee653fe2c5bc8dd11814ac47ed3" ]; then
-            echo "::error::Le code natif a changé : refaire un APK (eas build) puis mettre à jour RUNTIME_APK et cette empreinte."
-            exit 1
-          fi
+      # L'empreinte calculée ici diffère de celle de Windows même sans changement natif : on ne
+      # peut pas la comparer. Règle : toute nouvelle dépendance native (expo install …) ou tout
+      # changement d'app.json impose un nouvel APK avant de publier, puis la mise à jour de RUNTIME_APK.
       - name: Fixer la version d'exécution de l'APK
         run: node -e "const f='app.json',j=require('./'+f);j.expo.runtimeVersion=process.env.RUNTIME_APK;require('fs').writeFileSync(f,JSON.stringify(j,null,2))"
       - name: Jeton Expo absent
