@@ -129,7 +129,7 @@ function Rebours({ tdb, tz, onEcheance, onDemarrerPlan }: Pick<Props, 'tdb' | 't
       <Text style={styles.heroSous}>{sous}</Text>
       {enDirect !== null && (
         <Text style={styles.heroMoyenne}>
-          Moyenne du jour : <Text style={styles.heroMoyenneValeur}>{formatRebours(enDirect * 60_000)}</Text>
+          Moyenne du jour (hors nuit) : <Text style={styles.heroMoyenneValeur}>{formatRebours(enDirect * 60_000)}</Text>
           {tdb.intervalleMoyenJourMinutes !== null && enDirect > tdb.intervalleMoyenJourMinutes + 0.02 ? '  ↑' : ''}
         </Text>
       )}
@@ -210,7 +210,11 @@ export function DashboardScreen(props: Props) {
         : { valeur: `${tdb.patch.dosageMg} mg`, libelle: `patch depuis ${heure(tdb.patch.poseLe, tz)}`, ton: 'vert' },
     // La moyenne du jour est affichée en direct sous le compteur : pas de case en double.
     ...(tdb.intervalleMoyen7jMinutes !== null ? [{ valeur: duree(tdb.intervalleMoyen7jMinutes), libelle: 'moyenne 7 jours' }] : []),
-    { valeur: duree(tdb.plusLonguePauseMinutes), libelle: 'plus longue pause' },
+    { valeur: duree(tdb.plusLonguePauseJourMinutes), libelle: 'plus longue pause (jour)' },
+    {
+      valeur: tdb.derniereNuit ? duree(tdb.derniereNuit.minutes) : '—',
+      libelle: tdb.moyenneNuitsMinutes !== null ? `nuit · moy. ${duree(tdb.moyenneNuitsMinutes)}` : 'nuit sans fumer',
+    },
     { valeur: duree(intervalleRef), libelle: 'recommandé' },
     {
       valeur: tdb.cafeine.quota !== null ? `${tdb.cafeine.aujourdhui.boissons} / ${tdb.cafeine.quota}` : String(tdb.cafeine.aujourdhui.boissons),

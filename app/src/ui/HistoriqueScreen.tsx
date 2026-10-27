@@ -129,6 +129,12 @@ function bornesEcarts(cs: readonly CigaretteHistorique[]): [number, number] | nu
   return e.length < 2 ? null : [Math.min(...e), Math.max(...e)];
 }
 
+/** Moyenne des écarts d'éveil de la journée (nuit exclue). */
+function moyenneEcarts(cs: readonly CigaretteHistorique[]): number | null {
+  const e = cs.map((c) => c.ecartMinutes).filter((x): x is number => x !== null);
+  return e.length === 0 ? null : Math.round(e.reduce((s, x) => s + x, 0) / e.length);
+}
+
 const dureeCourte = (m: number) => (m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}`);
 
 function LigneCigarette({
@@ -250,6 +256,13 @@ export function HistoriqueScreen({ journees, tz, contextesPerso, onFermer, onPre
                       {j.sansHeure > 0 ? `${j.sansHeure} sans heure connue (historique importé)` : ''}
                       {j.sansHeure > 0 && j.enviesSignalees > 0 ? ' · ' : ''}
                       {j.enviesSignalees > 0 ? `${j.enviesSignalees} envie${j.enviesSignalees > 1 ? 's' : ''} signalée${j.enviesSignalees > 1 ? 's' : ''}` : ''}
+                    </Text>
+                  )}
+                  {(j.nuitAvant || moyenneEcarts(j.cigarettes) !== null) && (
+                    <Text style={styles.sousResume}>
+                      {moyenneEcarts(j.cigarettes) !== null ? `Moyenne du jour : ${dureeCourte(moyenneEcarts(j.cigarettes)!)}` : ''}
+                      {j.nuitAvant && moyenneEcarts(j.cigarettes) !== null ? '  ·  ' : ''}
+                      {j.nuitAvant ? `Nuit : ${dureeCourte(j.nuitAvant.minutes)} (${heure(j.nuitAvant.debut, tz)} → ${heure(j.nuitAvant.fin, tz)})` : ''}
                     </Text>
                   )}
                   {j.intervalleMinutes !== null && (

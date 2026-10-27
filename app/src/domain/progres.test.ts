@@ -139,6 +139,7 @@ describe('séries du graphique (jour, semaine, mois)', () => {
     jour, total, fumees: total, quota, enPlan: quota !== null, sansHeure: 0, enviesSignalees: 0, envies: 0,
     intervalleMinutes: null, respectees: 0, nonRespectees: 0, economieCents: null, cigarettes: [], patchs: [],
     sousPatch: 0,
+    nuitAvant: null,
   });
   const hist = [j('2026-10-23', 8), j('2026-10-24', 11), j('2026-10-25', 11, 30), j('2026-10-26', 20, 38), j('2026-11-02', 10, 31)];
 

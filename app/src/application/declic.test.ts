@@ -525,3 +525,22 @@ describe('caféine', () => {
     expect((await app.tableauDeBord())!.cafeine.aujourdhui.mg).toBe(120);
   });
 });
+
+describe('nuits', () => {
+  it('nuit = dernière cigarette de la veille → première du jour ; moyenne du jour sans la nuit', async () => {
+    const { app, clock } = monter(zonedInstant('2026-10-26', '08:00', TZ));
+    await app.creerProfil(PROFIL);
+    for (const [j, h] of [['2026-10-26', '08:00'], ['2026-10-26', '09:00'], ['2026-10-26', '23:30'], ['2026-10-27', '07:45'], ['2026-10-27', '08:45']]) {
+      aller(clock, zonedInstant(j!, h!, TZ));
+      await app.enregistrerCigarette();
+    }
+    aller(clock, zonedInstant('2026-10-27', '09:15', TZ));
+    const tdb = (await app.tableauDeBord())!;
+    expect(tdb.derniereNuit).toMatchObject({ minutes: 8 * 60 + 15, jour: '2026-10-27' });
+    expect(tdb.moyenneNuitsMinutes).toBe(495);
+    expect(tdb.intervalleMoyenJourMinutes).toBe(60);
+    expect(tdb.plusLonguePauseJourMinutes).toBe(60);
+    const [auj] = await app.historique(2);
+    expect(auj!.nuitAvant!.minutes).toBe(495);
+  });
+});

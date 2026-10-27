@@ -28,7 +28,7 @@ import {
   type Prix,
   type Projection,
 } from './savings';
-import { etiqueterCigarettes, intervallesEveilles, journeeDe, moyenne, SEUIL_NUIT_MINUTES } from './sessions';
+import { etiqueterCigarettes, intervallesEveilles, journeeDe, moyenne, nuits, SEUIL_NUIT_MINUTES, type Nuit } from './sessions';
 import { bilanTechniques, type BilanTechnique } from './respiration';
 import type { Bilan } from './sante';
 import { suiviCafeine, type Boisson, type SuiviCafeine } from './cafeine';
@@ -571,6 +571,12 @@ export interface TableauDeBord {
   cafeine: SuiviCafeine;
   depuisDerniereMinutes: number | null;
   plusLonguePauseMinutes: number;
+  /** Plus longue pause d'éveil aujourd'hui (pause en cours comprise, nuit exclue). */
+  plusLonguePauseJourMinutes: number;
+  /** Nuit terminée par la première cigarette d'aujourd'hui ; `null` avant la première. */
+  derniereNuit: Nuit | null;
+  /** Moyenne des 7 dernières nuits (minutes). */
+  moyenneNuitsMinutes: number | null;
   economieJourCents: number;
   economieTotaleCents: number;
   projection: Projection;
@@ -605,6 +611,7 @@ export function tableauDeBord(etat: EtatJournal, maintenant: Instant, tz: string
   const ouvertes = elementsDuJour(etat.cigarettes, jour).map((c) => c.a);
   const fenetre = fenetreDuJour(jour, horaires, ouvertes.length > 0 ? debutEveil(ouvertes) : null, tz);
 
+  const toutesNuits = nuits(etat.cigarettes);
   const intervallesJour = intervallesEveilles(elementsDuJour(etat.cigarettes, jour), SEUIL_NUIT_MINUTES);
   const sansHeureCigarettes = sansHeureDuJour(etat, jour, 'cigarettes');
   /** Comptées pour le quota : hors cigarettes d'avant le démarrage du plan (RM-13). */
@@ -616,6 +623,15 @@ export function tableauDeBord(etat: EtatJournal, maintenant: Instant, tz: string
     enviesSignalees:
       elementsDuJour(etat.enviesSignalees, jour).length + sansHeureDuJour(etat, jour, 'envies-signalees'),
     intervalleMoyenJourMinutes: moyenne(intervallesJour),
+    plusLonguePauseJourMinutes: Math.round(
+      Math.max(
+        0,
+        ...intervallesJour,
+        ouvertes.length > 0 && (maintenant - Math.max(...ouvertes)) / 60_000 < SEUIL_NUIT_MINUTES ? (maintenant - Math.max(...ouvertes)) / 60_000 : 0,
+      ),
+    ),
+    derniereNuit: toutesNuits.find((n) => n.jour === jour) ?? null,
+    moyenneNuitsMinutes: moyenne(toutesNuits.slice(-7).map((n) => n.minutes)),
     intervallesJourMinutes: intervallesJour,
     derniereDuJourA: ouvertes.length > 0 ? Math.max(...ouvertes) : null,
     intervalleMoyen7jMinutes:
@@ -784,6 +800,8 @@ export interface JourneeHistorique {
   sansHeure: number;
   /** Envies signalées (horodatées et sans heure), distinctes des envies résistées. */
   enviesSignalees: number;
+  /** Nuit qui précède la journée (dernière cigarette de la veille → première du jour). */
+  nuitAvant: Nuit | null;
   /** Patchs portés ce jour-là (avec ou sans patch), avec heure de pose et de renouvellement prévu. */
   patchs: { dosageMg: number; poseA: Instant; renouvellementPrevu: Instant; retireA: Instant | null }[];
   /** Cigarettes horodatées fumées avec un patch porté. */
@@ -809,6 +827,7 @@ export function historiqueJournees(etat: EtatJournal, maintenant: Instant, tz: s
   for (const l of lignesPlan.keys()) jours.add(l);
   const tries = [...jours].filter((j) => daysBetween(j, aujourdhui) >= 0).sort().reverse().slice(0, nbJours);
 
+  const nuitsParJour = new Map(nuits(etat.cigarettes).map((n) => [n.jour, n]));
   return tries.map((jour) => {
     const enPlan = plan !== null && daysBetween(plan.input.dateDebut, jour) >= 0;
     const comptees = [...(enPlan ? fumeesDuJour(etat, jour) : elementsDuJour(etat.cigarettes, jour))].sort((x, y) => x.a - y.a);
@@ -845,6 +864,7 @@ export function historiqueJournees(etat: EtatJournal, maintenant: Instant, tz: s
       sansHeure,
       enviesSignalees: elementsDuJour(etat.enviesSignalees, jour).length + sansHeureDuJour(etat, jour, 'envies-signalees'),
       patchs: patchsDuJour(etat, jour, tz),
+      nuitAvant: nuitsParJour.get(jour) ?? null,
       sousPatch: cigarettes.filter((c) => c.patchMg !== undefined).length,
       quota: enPlan ? quotaEffectif(etat, jour) : null,
       intervalleMinutes: intervalle,

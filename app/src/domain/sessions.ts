@@ -96,3 +96,25 @@ export function moyenneEnDirect(
   const avecPause = moyenne([...intervalles, pause])!;
   return reelle === null ? avecPause : Math.max(reelle, avecPause);
 }
+
+export interface Nuit {
+  /** Dernière cigarette avant de dormir. */
+  debut: number;
+  /** Première cigarette après le réveil. */
+  fin: number;
+  minutes: number;
+  /** Journée qui commence au réveil. */
+  jour: string;
+}
+
+/** Nuits : écart entre la dernière cigarette d'une journée et la première de la suivante. */
+export function nuits(cigarettes: readonly { a: number; jour: string }[]): Nuit[] {
+  const tries = [...cigarettes].sort((x, y) => x.a - y.a);
+  const out: Nuit[] = [];
+  for (let i = 1; i < tries.length; i++) {
+    const p = tries[i - 1]!;
+    const c = tries[i]!;
+    if (c.jour !== p.jour) out.push({ debut: p.a, fin: c.a, minutes: Math.round((c.a - p.a) / 60_000), jour: c.jour });
+  }
+  return out;
+}
