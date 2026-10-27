@@ -12,6 +12,7 @@
 | [0008](0008-journee-definie-par-les-cigarettes.md) | La journée est définie par les cigarettes, pas par l'horloge | Accepté |
 | [0009](0009-relais-coach-cloudflare-prototype.md) | Relais du coach IA sur Cloudflare Workers (prototype personnel) | Accepté (prototype) |
 | [0010](0010-import-historique-migration.md) | Import d'historique : schéma v2, agrégats sans heure, rapprochement manuel | Accepté |
+| [ADR-0011](0011-health-connect.md) | Montre et capteurs via Health Connect, en lecture seule | accepté |
 
 ## Décisions ouvertes
 
@@ -19,4 +20,3 @@
 - Fournisseur LLM définitif après l'AIPD (transfert hors UE).
 - Modèle économique : gratuit, freemium, B2B (entreprises, mutuelles).
 - Connexion et sauvegarde (reporté) : A. verrouillage par empreinte / Face ID (local) ; B. connexion Google facultative pour une sauvegarde **chiffrée** dans le Google Drive de l'utilisateur (pas de serveur Déclic, pas d'HDS ; nécessite le build de développement ; « Se connecter avec Apple » à prévoir sur iOS) ; C. compte avec synchronisation multi-appareils (serveur, hébergement HDS). Orientation : A puis B, C seulement si besoin avéré.
-| [ADR-0011](0011-health-connect.md) | Montre et capteurs via Health Connect, en lecture seule | accepté |
