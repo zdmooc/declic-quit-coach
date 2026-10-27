@@ -12,7 +12,7 @@
 | [0008](0008-journee-definie-par-les-cigarettes.md) | La journée est définie par les cigarettes, pas par l'horloge | Accepté |
 | [0009](0009-relais-coach-cloudflare-prototype.md) | Relais du coach IA sur Cloudflare Workers (prototype personnel) | Accepté (prototype) |
 | [0010](0010-import-historique-migration.md) | Import d'historique : schéma v2, agrégats sans heure, rapprochement manuel | Accepté |
-| [ADR-0011](0011-health-connect.md) | Montre et capteurs via Health Connect, en lecture seule | accepté |
+| [0011](0011-health-connect.md) | Montre et capteurs via Health Connect, en lecture seule | Accepté |
 
 ## Décisions ouvertes
 
