@@ -35,3 +35,13 @@ export interface TourCoach {
 export interface CoachIa {
   repondre(requete: { mode: 'sos' | 'soir' | 'fauxpas'; resume: Record<string, string | number | null>; tours: TourCoach[] }): Promise<string>;
 }
+
+/** Données santé du téléphone (Health Connect sur Android) ; absent en développement. */
+export interface SourceSante {
+  /** Health Connect est-il présent et utilisable sur ce téléphone ? */
+  disponible(): Promise<boolean>;
+  /** Demande l'autorisation de lecture ; renvoie vrai si au moins une donnée est autorisée. */
+  autoriser(): Promise<boolean>;
+  dejaAutorise(): Promise<boolean>;
+  lire(depuis: number, jusqua: number): Promise<import('../domain').DonneesMontre>;
+}

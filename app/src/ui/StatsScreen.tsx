@@ -1,12 +1,14 @@
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import type { PointJour, Statistiques, TableauDeBord } from '../domain';
+import type { AnalyseMontre, PointJour, Statistiques, TableauDeBord } from '../domain';
 import { couleurs, espace } from './theme';
 
 /** Statistiques détaillées (RM-26). Les journées sans aucune saisie sont ignorées. */
 interface Props {
   stats: Statistiques;
   tdb: TableauDeBord;
+  /** Données de la montre (Health Connect), si connectée : délai réveil → 1re cigarette. */
+  montre: AnalyseMontre | null;
   onFermer: () => void;
 }
 
@@ -59,7 +61,9 @@ function Barres({ points, format, sens }: { points: readonly PointJour[]; format
 
 const TENDANCE = { baisse: '↓ en baisse', stable: '→ stable', hausse: '↑ en hausse', inconnue: 'pas encore assez de journées' } as const;
 
-export function StatsScreen({ stats: s, tdb, onFermer }: Props) {
+export function StatsScreen({ stats: s, tdb, montre, onFermer }: Props) {
+  const delais: PointJour[] = (montre?.jours ?? []).map((j) => ({ jour: j.jour, valeur: j.delaiPremiereMinutes }));
+  const moyDelai = moy(delais);
   const maxHeure = Math.max(...s.parHeure, 0.01);
   const moyJour = moy(s.parJour);
   const moyPremiere = moy(s.premiere);
@@ -134,10 +138,14 @@ export function StatsScreen({ stats: s, tdb, onFermer }: Props) {
           </Carte>
 
           <Carte titre="7. Réveil → première cigarette">
-            <Text style={styles.aide}>
-              L’app ne connaît pas encore ton heure de réveil : en attendant, regarde l’heure de la première cigarette (4). Un bouton « Je suis
-              réveillé » pourra mesurer ce délai exactement.
-            </Text>
+            {moyDelai !== null ? (
+              <>
+                <Barres points={delais} format={(v) => duree(v)} sens="haut" />
+                <Text style={styles.texte}>En moyenne {duree(moyDelai)} entre le réveil (montre) et la première cigarette.</Text>
+              </>
+            ) : (
+              <Text style={styles.aide}>Connecte ta montre dans Santé → Montre : l’heure de réveil vient du sommeil mesuré par la montre.</Text>
+            )}
           </Carte>
 
           <Carte titre="8. Plus longue pause d’éveil">

@@ -44,6 +44,7 @@ import {
 } from '../domain';
 import type { Boisson } from '../domain/cafeine';
 import { statistiques, type Statistiques } from '../domain/stats';
+import { analyserMontre, type AnalyseMontre, type DonneesMontre } from '../domain/montre';
 import { classerAliments, objectifsActifs, suiviBiologique, type Bilan, type Objectif, type SuiviParametre } from '../domain/sante';
 import type { Clock, CoachIa, EventStore, IdGenerator, Notifier, TourCoach } from '../ports';
 import { analyserImport, lireFichierDeclic, simulerImport, VERSION_EXPORT, type Apercu, type Choix, type Simulation } from './migration';
@@ -464,6 +465,14 @@ export class Declic {
   }
 
   /** Records, bilan de la semaine, courbe du plan (F5.6, F6.7, F2.4). */
+  /** Croise les données de la montre (Health Connect) avec le journal (RM-27). Rien n'est enregistré. */
+  async analyserMontre(d: DonneesMontre): Promise<AnalyseMontre | null> {
+    const etat = await this.etat();
+    const tdb = await this.tableauDeBord();
+    if (!etat || !tdb) return null;
+    return analyserMontre(etat, d, tdb.jour, this.deps.clock.timeZone());
+  }
+
   /** Statistiques détaillées (RM-26). */
   async statistiques(): Promise<Statistiques | null> {
     const etat = await this.etat();

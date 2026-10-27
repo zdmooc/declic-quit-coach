@@ -18,7 +18,18 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.zdmooc.declic"
+      "package": "com.zdmooc.declic",
+      "permissions": [
+        "android.permission.health.READ_SLEEP",
+        "android.permission.health.READ_HEART_RATE",
+        "android.permission.health.READ_RESTING_HEART_RATE",
+        "android.permission.health.READ_HEART_RATE_VARIABILITY",
+        "android.permission.health.READ_STEPS",
+        "android.permission.health.READ_OXYGEN_SATURATION",
+        "android.permission.health.READ_BLOOD_GLUCOSE",
+        "android.permission.health.READ_BLOOD_PRESSURE",
+        "android.permission.health.READ_WEIGHT"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -32,6 +43,15 @@
           "imageWidth": 180,
           "resizeMode": "contain",
           "backgroundColor": "#F4F1EA"
+        }
+      ],
+      "react-native-health-connect",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26
+          }
         }
       ]
     ],

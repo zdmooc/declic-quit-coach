@@ -4,7 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import type { NouveauProfil, Reglages, Sante } from './src/application/declic';
 import { CoachHttp, normaliserUrlCoach } from './src/adapters/coachHttp';
-import type { JourneeHistorique, MessageCoach, ModeCoach, Progres, Statistiques } from './src/domain';
+import type { JourneeHistorique, MessageCoach, ModeCoach, Progres, Statistiques, AnalyseMontre } from './src/domain';
 import type { Apercu, Choix, Simulation } from './src/application/migration';
 import { effacer, partager, preparerImport, restaurer, sauvegarder } from './src/ui/app/donnees';
 import { ImportScreen } from './src/ui/ImportScreen';
@@ -19,6 +19,7 @@ import { ProgresScreen } from './src/ui/ProgresScreen';
 import { ReglagesScreen } from './src/ui/ReglagesScreen';
 import { SanteScreen } from './src/ui/SanteScreen';
 import { StatsScreen } from './src/ui/StatsScreen';
+import type { EtatMontre } from './src/ui/OngletMontre';
 import { SosEnvie } from './src/ui/SosEnvie';
 import { SubstitutsScreen } from './src/ui/SubstitutsScreen';
 import { couleurs } from './src/ui/theme';
@@ -34,6 +35,8 @@ export default function App() {
   const [resiste, setResiste] = useState(false);
   const [santeVue, setSanteVue] = useState<Sante | null>(null);
   const [statsVue, setStatsVue] = useState<Statistiques | null>(null);
+  const [etatMontre, setEtatMontre] = useState<EtatMontre>('chargement');
+  const [montre, setMontre] = useState<AnalyseMontre | null>(null);
   const [substituts, setSubstituts] = useState(false);
   const [progresVue, setProgresVue] = useState<{ progres: Progres; mot: MessageCoach | null } | null>(null);
   const [coachMode, setCoachMode] = useState<ModeCoach | null>(null);
@@ -86,7 +89,27 @@ export default function App() {
     const [progres, mot] = await Promise.all([app.declic.progres(), app.declic.motDuCoach()]);
     if (progres) setProgresVue({ progres, mot });
   }
-  const ouvrirSante = async () => setSanteVue(await declic.sante());
+  const ouvrirSante = async () => {
+    setSanteVue(await declic.sante());
+    if (etatMontre !== 'connecte') void lireMontre();
+  };
+  /** Health Connect (RM-27) : lecture des 14 derniers jours, à la demande ; `demander` affiche l'autorisation. */
+  const lireMontre = async (demander = false) => {
+    if (!app) return;
+    try {
+      if (!(await app.sante.disponible())) return setEtatMontre('indisponible');
+      if (demander) await app.sante.autoriser();
+      if (!(await app.sante.dejaAutorise())) return setEtatMontre('a-connecter');
+      setEtatMontre('chargement');
+      const maintenant = Date.now();
+      const d = await app.sante.lire(maintenant - 15 * 86_400_000, maintenant);
+      setMontre(await declic.analyserMontre(d));
+      setEtatMontre('connecte');
+    } catch (e) {
+      setEtatMontre('a-connecter');
+      Alert.alert('Health Connect', e instanceof Error ? e.message : String(e));
+    }
+  };
   const ouvrirHistorique = async () => setHistorique(await declic.historique(400));
   const ouvrirReglages = async () => setReglages(await declic.reglages());
 
@@ -316,7 +339,7 @@ export default function App() {
             onStatistiques={() => void declic.statistiques().then(setStatsVue)}
           />
         )}
-        {statsVue && tdb && <StatsScreen stats={statsVue} tdb={tdb} onFermer={() => setStatsVue(null)} />}
+        {statsVue && tdb && <StatsScreen stats={statsVue} tdb={tdb} montre={montre} onFermer={() => setStatsVue(null)} />}
         {santeVue && tdb && (
           <SanteScreen
             sante={santeVue}
@@ -329,6 +352,7 @@ export default function App() {
             onBoire={(b) => depuis(() => declic.boire(b), ouvrirSante)}
             onAnnulerBoisson={(id) => depuis(() => declic.annulerBoisson(id), ouvrirSante)}
             onPalierCafeine={(q) => depuis(() => declic.fixerPalierCafeine(q), ouvrirSante)}
+            montre={{ etat: etatMontre, analyse: montre, tz: app.clock.timeZone(), onConnecter: () => void lireMontre(true), onActualiser: () => void lireMontre() }}
           />
         )}
         {coachMode && <CoachScreen mode={coachMode} onFermer={() => setCoachMode(null)} envoyer={(tours) => declic.parlerAuCoach(coachMode, tours)} />}

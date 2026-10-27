@@ -10,7 +10,7 @@ name: Publier sur les téléphones
 # Linux calcule une autre empreinte pour le même code : on fixe donc la valeur de l'APK.
 # À METTRE À JOUR après chaque nouveau build d'APK (valeur affichée par `eas update` sous Windows).
 env:
-  RUNTIME_APK: 588937ab223897229eb146e351dfae384bbc529c
+  RUNTIME_APK: 588937ab223897229eb146e351dfae384bbc529c  # ⚠️ à remplacer après le build Health Connect
   EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
 on:

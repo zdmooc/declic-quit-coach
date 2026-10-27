@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { Sante } from '../application/declic';
-import { BOISSONS, OBJECTIFS, PARAMETRES, REPERE_CAFEINE_MG, type Boisson, type ClasseAliment, type SuiviCafeine, type Objectif, type Statut, type SuiviParametre } from '../domain';
+import { type AnalyseMontre, BOISSONS, OBJECTIFS, PARAMETRES, REPERE_CAFEINE_MG, type Boisson, type ClasseAliment, type SuiviCafeine, type Objectif, type Statut, type SuiviParametre } from '../domain';
+import { OngletMontre, type EtatMontre } from './OngletMontre';
 import { couleurs, espace } from './theme';
 
 /**
@@ -20,6 +21,7 @@ interface Props {
   onBoire: (b: Boisson) => void;
   onAnnulerBoisson: (id: string) => void;
   onPalierCafeine: (quota: number) => void;
+  montre: { etat: EtatMontre; analyse: AnalyseMontre | null; tz: string; onConnecter: () => void; onActualiser: () => void };
 }
 
 const JOURS_COURTS = ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'];
@@ -265,8 +267,8 @@ function LigneAliment({ c, ton }: { c: ClasseAliment; ton: 'vert' | 'rouge' | 'n
   );
 }
 
-export function SanteScreen({ sante, aujourdhui, onFermer, onSaisirBilan, onSupprimerBilan, onNorme, cafeine, onBoire, onAnnulerBoisson, onPalierCafeine }: Props) {
-  const [onglet, setOnglet] = useState<'bilans' | 'aliments' | 'cafeine'>('bilans');
+export function SanteScreen({ sante, aujourdhui, onFermer, onSaisirBilan, onSupprimerBilan, onNorme, cafeine, onBoire, onAnnulerBoisson, onPalierCafeine, montre }: Props) {
+  const [onglet, setOnglet] = useState<'bilans' | 'aliments' | 'cafeine' | 'montre'>('bilans');
   const [saisie, setSaisie] = useState(false);
   const { privilegier, eliminer, neutres } = sante.aliments;
   return (
@@ -279,14 +281,16 @@ export function SanteScreen({ sante, aujourdhui, onFermer, onSaisirBilan, onSupp
           </Pressable>
         </View>
         <View style={styles.onglets}>
-          {(['bilans', 'aliments', 'cafeine'] as const).map((o) => (
+          {(['bilans', 'aliments', 'cafeine', 'montre'] as const).map((o) => (
             <Pressable key={o} style={[styles.onglet, onglet === o && styles.ongletActif]} onPress={() => setOnglet(o)} accessibilityRole="tab" accessibilityState={{ selected: onglet === o }}>
-              <Text style={[styles.ongletTexte, onglet === o && styles.ongletTexteActif]}>{o === 'bilans' ? 'Bilans' : o === 'aliments' ? 'Aliments' : 'Caféine'}</Text>
+              <Text style={[styles.ongletTexte, onglet === o && styles.ongletTexteActif]}>{o === 'bilans' ? 'Bilans' : o === 'aliments' ? 'Aliments' : o === 'cafeine' ? 'Caféine' : 'Montre'}</Text>
             </Pressable>
           ))}
         </View>
         <ScrollView contentContainerStyle={styles.contenu} keyboardShouldPersistTaps="handled">
-          {onglet === 'cafeine' ? (
+          {onglet === 'montre' ? (
+            <OngletMontre etat={montre.etat} montre={montre.analyse} tz={montre.tz} onConnecter={montre.onConnecter} onActualiser={montre.onActualiser} />
+          ) : onglet === 'cafeine' ? (
             <OngletCafeine c={cafeine} onBoire={onBoire} onAnnulerBoisson={onAnnulerBoisson} onPalierCafeine={onPalierCafeine} />
           ) : onglet === 'bilans' ? (
             <>

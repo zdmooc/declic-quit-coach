@@ -19,3 +19,4 @@
 - Fournisseur LLM définitif après l'AIPD (transfert hors UE).
 - Modèle économique : gratuit, freemium, B2B (entreprises, mutuelles).
 - Connexion et sauvegarde (reporté) : A. verrouillage par empreinte / Face ID (local) ; B. connexion Google facultative pour une sauvegarde **chiffrée** dans le Google Drive de l'utilisateur (pas de serveur Déclic, pas d'HDS ; nécessite le build de développement ; « Se connecter avec Apple » à prévoir sur iOS) ; C. compte avec synchronisation multi-appareils (serveur, hébergement HDS). Orientation : A puis B, C seulement si besoin avéré.
+| [ADR-0011](0011-health-connect.md) | Montre et capteurs via Health Connect, en lecture seule | accepté |
