@@ -81,6 +81,8 @@ export interface EtatJournal {
   envies: { a: Instant; jour: LocalDate; strategie?: string; contexte?: ContexteCigarette }[];
   /** Parade (nouveau réflexe) choisie par contexte. */
   parades: Partial<Record<ContexteCigarette, string>>;
+  /** Date à laquelle la parade actuelle a été choisie (pour mesurer son effet). */
+  paradesDepuis: Partial<Record<ContexteCigarette, LocalDate>>;
   /** Bilans biologiques et normes du laboratoire / objectifs du médecin (RM-23). */
   bilans: Bilan[];
   /** Boissons caféinées et palier de caféine (RM-25). */
@@ -151,6 +153,7 @@ export function rejouer(events: readonly DomainEvent[], tz: string): EtatJournal
     joursObservation: JOURS_OBSERVATION,
     raisons: [],
     parades: {},
+    paradesDepuis: {},
     bilans: [],
     boissons: [],
     quotaCafeine: null,
@@ -303,8 +306,13 @@ export function rejouer(events: readonly DomainEvent[], tz: string): EtatJournal
         };
         break;
       case 'ParadeDefinie':
-        if (e.payload.parade.trim()) etat.parades[e.payload.contexte] = e.payload.parade.trim();
-        else delete etat.parades[e.payload.contexte];
+        if (e.payload.parade.trim()) {
+          if (!etat.parades[e.payload.contexte]) etat.paradesDepuis[e.payload.contexte] = journeeDe(a, etat.cigarettes, tz);
+          etat.parades[e.payload.contexte] = e.payload.parade.trim();
+        } else {
+          delete etat.parades[e.payload.contexte];
+          delete etat.paradesDepuis[e.payload.contexte];
+        }
         break;
       case 'ObservationReglee':
         etat.joursObservation = e.payload.jours;

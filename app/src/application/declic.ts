@@ -43,6 +43,7 @@ import {
   type TypeSubstitutOral,
 } from '../domain';
 import type { Boisson } from '../domain/cafeine';
+import { statistiques, type Statistiques } from '../domain/stats';
 import { classerAliments, objectifsActifs, suiviBiologique, type Bilan, type Objectif, type SuiviParametre } from '../domain/sante';
 import type { Clock, CoachIa, EventStore, IdGenerator, Notifier, TourCoach } from '../ports';
 import { analyserImport, lireFichierDeclic, simulerImport, VERSION_EXPORT, type Apercu, type Choix, type Simulation } from './migration';
@@ -463,6 +464,13 @@ export class Declic {
   }
 
   /** Records, bilan de la semaine, courbe du plan (F5.6, F6.7, F2.4). */
+  /** Statistiques détaillées (RM-26). */
+  async statistiques(): Promise<Statistiques | null> {
+    const etat = await this.etat();
+    if (!etat) return null;
+    return statistiques(etat, this.deps.clock.now(), this.deps.clock.timeZone());
+  }
+
   async progres(): Promise<Progres | null> {
     const etat = await this.etat();
     if (!etat) return null;

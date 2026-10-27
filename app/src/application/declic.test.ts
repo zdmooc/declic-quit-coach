@@ -544,3 +544,37 @@ describe('nuits', () => {
     expect(auj!.nuitAvant!.minutes).toBe(495);
   });
 });
+
+describe('statistiques', () => {
+  it('par jour, tendance, heures, première/dernière, nuits, contextes, effet d’une parade, bilans', async () => {
+    const { app, clock } = monter(zonedInstant('2026-10-20', '07:00', TZ));
+    await app.creerProfil(PROFIL);
+    // 6 journées : 6, 6, 6 puis 4, 4, 3 cigarettes ; café puis parade café le 23.
+    const n = [6, 6, 6, 4, 4, 3];
+    for (const [i, nb] of n.entries()) {
+      const jour = `2026-10-${20 + i}`;
+      if (i === 3) {
+        aller(clock, zonedInstant(jour, '06:00', TZ));
+        await app.definirParade('cafe', 'café sans cigarette');
+      }
+      for (let k = 0; k < nb; k++) {
+        aller(clock, zonedInstant(jour, `${String(7 + k * 2).padStart(2, '0')}:00`, TZ));
+        await app.enregistrerCigarette(k === 0 ? 'cafe' : 'stress');
+      }
+    }
+    await app.saisirBilan('2026-10-26', { ldl: 1.3, crp: 4 });
+    aller(clock, zonedInstant('2026-10-26', '20:00', TZ));
+    const s = (await app.statistiques())!;
+    expect(s.parJour.map((p) => p.valeur)).toEqual([6, 6, 6, 4, 4, 3]);
+    expect(s.tendance).toBe('baisse');
+    expect(s.parHeure[7]).toBe(1);
+    expect(s.premiere.every((p) => p.valeur === 7 * 60)).toBe(true);
+    expect(s.derniere[0]!.valeur).toBe(17 * 60);
+    expect(s.nuit[1]!.valeur).toBe(14 * 60);
+    expect(s.moyenneDuJour[0]!.valeur).toBe(120);
+    expect(s.contextes[0]).toMatchObject({ libelle: 'Stress', nombre: 23 });
+    expect(s.parades[0]).toMatchObject({ libelle: 'Café', depuis: '2026-10-23', avant: 1, apres: 1 });
+    expect(s.bilans[0]).toMatchObject({ date: '2026-10-26', ldl: 1.3 });
+    expect(s.bilans[0]!.cigarettesParJour).toBeCloseTo(29 / 6);
+  });
+});

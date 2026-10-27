@@ -4,7 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import type { NouveauProfil, Reglages, Sante } from './src/application/declic';
 import { CoachHttp, normaliserUrlCoach } from './src/adapters/coachHttp';
-import type { JourneeHistorique, MessageCoach, ModeCoach, Progres } from './src/domain';
+import type { JourneeHistorique, MessageCoach, ModeCoach, Progres, Statistiques } from './src/domain';
 import type { Apercu, Choix, Simulation } from './src/application/migration';
 import { effacer, partager, preparerImport, restaurer, sauvegarder } from './src/ui/app/donnees';
 import { ImportScreen } from './src/ui/ImportScreen';
@@ -18,6 +18,7 @@ import { OnboardingScreen } from './src/ui/OnboardingScreen';
 import { ProgresScreen } from './src/ui/ProgresScreen';
 import { ReglagesScreen } from './src/ui/ReglagesScreen';
 import { SanteScreen } from './src/ui/SanteScreen';
+import { StatsScreen } from './src/ui/StatsScreen';
 import { SosEnvie } from './src/ui/SosEnvie';
 import { SubstitutsScreen } from './src/ui/SubstitutsScreen';
 import { couleurs } from './src/ui/theme';
@@ -32,6 +33,7 @@ export default function App() {
   const [sos, setSos] = useState(false);
   const [resiste, setResiste] = useState(false);
   const [santeVue, setSanteVue] = useState<Sante | null>(null);
+  const [statsVue, setStatsVue] = useState<Statistiques | null>(null);
   const [substituts, setSubstituts] = useState(false);
   const [progresVue, setProgresVue] = useState<{ progres: Progres; mot: MessageCoach | null } | null>(null);
   const [coachMode, setCoachMode] = useState<ModeCoach | null>(null);
@@ -311,8 +313,10 @@ export default function App() {
             onAjouterObjectif={(l, c) => depuis(() => declic.definirObjectif(l, c), ouvrirProgres)}
             onRetirerObjectif={(l) => depuis(() => declic.retirerObjectif(l), ouvrirProgres)}
             onParade={(c, p) => depuis(() => declic.definirParade(c, p), ouvrirProgres)}
+            onStatistiques={() => void declic.statistiques().then(setStatsVue)}
           />
         )}
+        {statsVue && tdb && <StatsScreen stats={statsVue} tdb={tdb} onFermer={() => setStatsVue(null)} />}
         {santeVue && tdb && (
           <SanteScreen
             sante={santeVue}

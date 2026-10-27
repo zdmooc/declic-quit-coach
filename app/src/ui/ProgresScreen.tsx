@@ -18,6 +18,7 @@ interface Props {
   onAjouterObjectif: (libelle: string, montantCents: number) => void;
   onRetirerObjectif: (libelle: string) => void;
   onParade: (contexte: ContexteCigarette, parade: string) => void;
+  onStatistiques: () => void;
 }
 
 const TENDANCES: Record<SuiviContexte['tendance'], { texte: string; couleur: string }> = {
@@ -217,6 +218,9 @@ export function ProgresScreen(props: Props) {
           </Pressable>
         </View>
         <ScrollView contentContainerStyle={styles.contenu} keyboardShouldPersistTaps="handled">
+          <Pressable style={styles.boutonStats} onPress={props.onStatistiques} accessibilityRole="button">
+            <Text style={styles.boutonStatsTexte}>📊 Toutes les statistiques</Text>
+          </Pressable>
           {mot && (
             <View style={[styles.carte, styles.carteCoach]}>
               <Text style={styles.petit}>Le mot du coach</Text>
@@ -379,6 +383,8 @@ const styles = StyleSheet.create({
   chiffre: { width: '31%', flexGrow: 1, borderRadius: 14, borderWidth: 1, borderColor: couleurs.ligne, paddingVertical: espace(2), paddingHorizontal: espace(2), alignItems: 'center' },
   chiffreValeur: { color: couleurs.encre, fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums'] },
   chiffreLibelle: { color: couleurs.doux, fontSize: 14, textAlign: 'center' },
+  boutonStats: { backgroundColor: couleurs.vert, borderRadius: 14, paddingVertical: espace(3), alignItems: 'center' },
+  boutonStatsTexte: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
   lien: { color: couleurs.vert, fontSize: 15, fontWeight: '600' },
   ajout: { flexDirection: 'row', gap: espace(2), marginTop: espace(1) },
   boutonAjout: { backgroundColor: couleurs.vert, borderRadius: 12, paddingHorizontal: espace(4), justifyContent: 'center' },
