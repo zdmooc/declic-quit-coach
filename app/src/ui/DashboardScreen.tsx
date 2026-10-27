@@ -16,6 +16,7 @@ interface Props {
   onSubstituts: () => void;
   onProgres: () => void;
   onSante: () => void;
+  onCafe: () => void;
   onReglages: () => void;
   /** Appelé quand le compte à rebours arrive à zéro (pour rafraîchir l'état). */
   onEcheance: () => void;
@@ -169,7 +170,7 @@ function Pastille({ valeur, libelle, ton = 'neutre' }: InfoPastille) {
 const duree = (m: number | null) => (m === null || m <= 0 ? '—' : formatDuree(m));
 
 export function DashboardScreen(props: Props) {
-  const { tdb, tz, onFume, onResiste, onAnnuler, onPalier, onHistorique, onReglages, onSos, onSubstituts, onProgres, onSante } = props;
+  const { tdb, tz, onFume, onResiste, onAnnuler, onPalier, onHistorique, onReglages, onSos, onSubstituts, onProgres, onSante, onCafe } = props;
   const obs = tdb.observation;
   const top = tdb.analyse.declencheurs[0];
   const heureRisque = tdb.analyse.heuresARisque[0];
@@ -211,7 +212,11 @@ export function DashboardScreen(props: Props) {
     ...(tdb.intervalleMoyen7jMinutes !== null ? [{ valeur: duree(tdb.intervalleMoyen7jMinutes), libelle: 'moyenne 7 jours' }] : []),
     { valeur: duree(tdb.plusLonguePauseMinutes), libelle: 'plus longue pause' },
     { valeur: duree(intervalleRef), libelle: 'recommandé' },
-    { valeur: tdb.analyse.cigarettes > 0 ? String(tdb.analyse.cigarettes) : '—', libelle: 'notées en 14 jours' },
+    {
+      valeur: tdb.cafeine.quota !== null ? `${tdb.cafeine.aujourdhui.boissons} / ${tdb.cafeine.quota}` : String(tdb.cafeine.aujourdhui.boissons),
+      libelle: tdb.cafeine.quota !== null ? 'cafés / palier' : 'cafés aujourd’hui',
+      ton: tdb.cafeine.quota !== null && tdb.cafeine.aujourdhui.boissons > tdb.cafeine.quota ? 'rouge' : 'neutre',
+    },
     { valeur: top ? `${Math.round(top.part * 100)} %` : '—', libelle: top ? top.libelle : 'déclencheur n° 1' },
     { valeur: heureRisque ? `${heureRisque.heure} h` : '—', libelle: 'heure à risque' },
   ];
@@ -268,6 +273,9 @@ export function DashboardScreen(props: Props) {
             <Text style={[styles.boutonTexte, styles.boutonTexteSecondaire]}>J’ai résisté</Text>
           </Pressable>
         </View>
+        <Pressable style={styles.boutonCafe} onPress={onCafe} accessibilityRole="button" accessibilityLabel="J’ai bu un café">
+          <Text style={styles.boutonCafeTexte}>☕ J’ai bu un café</Text>
+        </Pressable>
         <View style={styles.liens}>
           <Pressable onPress={onAnnuler} accessibilityRole="button" hitSlop={8}>
             <Text style={styles.lien}>Annuler</Text>
@@ -354,6 +362,8 @@ const styles = StyleSheet.create({
   boutonSecondaire: { backgroundColor: couleurs.carte, borderWidth: 2, borderColor: couleurs.vert },
   ligneBoutons: { flexDirection: 'row', gap: espace(2), marginTop: espace(2) },
   boutonDemi: { flex: 1 },
+  boutonCafe: { marginTop: espace(2), paddingVertical: espace(2), alignItems: 'center', borderRadius: 14, borderWidth: 1, borderColor: couleurs.ligne, backgroundColor: couleurs.carte },
+  boutonCafeTexte: { color: couleurs.encre, fontSize: 16, fontWeight: '700' },
   boutonTexte: { color: '#FFFFFF', fontSize: 18, fontWeight: '700' },
   boutonTexteSecondaire: { color: couleurs.vert },
   liens: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', columnGap: espace(4), rowGap: espace(2), marginTop: espace(3) },

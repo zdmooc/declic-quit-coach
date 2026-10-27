@@ -42,6 +42,7 @@ import {
   type TableauDeBord,
   type TypeSubstitutOral,
 } from '../domain';
+import type { Boisson } from '../domain/cafeine';
 import { classerAliments, objectifsActifs, suiviBiologique, type Bilan, type Objectif, type SuiviParametre } from '../domain/sante';
 import type { Clock, CoachIa, EventStore, IdGenerator, Notifier, TourCoach } from '../ports';
 import { analyserImport, lireFichierDeclic, simulerImport, VERSION_EXPORT, type Apercu, type Choix, type Simulation } from './migration';
@@ -216,6 +217,25 @@ export class Declic {
     return this.ajouter(
       this.evenement('EnvieResistee', { ...(strategieUtilisee ? { strategieUtilisee } : {}), ...(contexte ? { contexte } : {}) }, source),
     );
+  }
+
+  /** Boisson caféinée bue maintenant (RM-25). */
+  boire(boisson: Boisson = 'cafe'): Promise<void> {
+    return this.ajouter(this.evenement('BoissonPrise', { boisson }));
+  }
+
+  annulerBoisson(id: string): Promise<void> {
+    return this.ajouter(this.evenement('SaisieAnnulee', { evenementId: id }));
+  }
+
+  /** Palier de caféine (boissons par jour) : jamais au-dessus du palier précédent. */
+  async fixerPalierCafeine(quota: number): Promise<void> {
+    const etat = await this.etat();
+    if (!etat) throw new Error('Profil manquant');
+    if (!Number.isInteger(quota) || quota < 0) throw new Error('Palier invalide');
+    if (etat.quotaCafeine !== null && quota > etat.quotaCafeine)
+      throw new Error(`Jamais au-dessus du palier précédent (${etat.quotaCafeine} par jour)`);
+    await this.ajouter(this.evenement('PalierCafeine', { quota }));
   }
 
   /** Bilan biologique (date AAAA-MM-JJ, valeurs par paramètre) ; les champs vides sont ignorés. */

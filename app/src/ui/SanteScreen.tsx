@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { Sante } from '../application/declic';
-import { OBJECTIFS, PARAMETRES, type ClasseAliment, type Objectif, type Statut, type SuiviParametre } from '../domain';
+import { BOISSONS, OBJECTIFS, PARAMETRES, REPERE_CAFEINE_MG, type Boisson, type ClasseAliment, type SuiviCafeine, type Objectif, type Statut, type SuiviParametre } from '../domain';
 import { couleurs, espace } from './theme';
 
 /**
@@ -16,6 +16,103 @@ interface Props {
   onSaisirBilan: (date: string, valeurs: Record<string, number>) => void;
   onSupprimerBilan: (id: string) => void;
   onNorme: (parametre: string, min?: number, max?: number) => void;
+  cafeine: SuiviCafeine;
+  onBoire: (b: Boisson) => void;
+  onAnnulerBoisson: (id: string) => void;
+  onPalierCafeine: (quota: number) => void;
+}
+
+const JOURS_COURTS = ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'];
+
+/** Caféine (RM-25) : même méthode que la cigarette — observer, paliers, jamais au-dessus du précédent. */
+function OngletCafeine({ c, onBoire, onAnnulerBoisson, onPalierCafeine }: { c: SuiviCafeine } & Pick<Props, 'onBoire' | 'onAnnulerBoisson' | 'onPalierCafeine'>) {
+  const max = Math.max(1, ...c.parJour.map((j) => j.boissons), c.quota ?? 0);
+  const propose = c.quota ?? Math.max(0, Math.ceil(c.moyenneParJour ?? c.aujourdhui.boissons));
+  const depasse = c.quota !== null && c.aujourdhui.boissons > c.quota;
+  return (
+    <>
+      <View style={styles.carte}>
+        <Text style={styles.petit}>Aujourd’hui</Text>
+        <Text style={[styles.valeur, depasse && { color: couleurs.rouge }]}>
+          {c.aujourdhui.boissons}
+          {c.quota !== null ? ` / ${c.quota}` : ''} <Text style={styles.unite}>boisson{c.aujourdhui.boissons > 1 ? 's' : ''} caféinée{c.aujourdhui.boissons > 1 ? 's' : ''}</Text>
+        </Text>
+        <Text style={styles.aide}>
+          ≈ {c.aujourdhui.mg} mg de caféine · repère adulte {REPERE_CAFEINE_MG} mg / jour (EFSA)
+        </Text>
+        <View style={styles.grilleBoissons}>
+          {BOISSONS.map((b) => (
+            <Pressable key={b.cle} style={styles.puce} onPress={() => onBoire(b.cle)} accessibilityRole="button" accessibilityLabel={`J’ai bu : ${b.nom}`}>
+              <Text style={styles.puceTexte}>+ {b.nom}</Text>
+            </Pressable>
+          ))}
+        </View>
+        {c.derniere && (
+          <Pressable onPress={() => onAnnulerBoisson(c.derniere!.id)} accessibilityRole="button" hitSlop={6}>
+            <Text style={styles.lien}>Annuler la dernière ({BOISSONS.find((b) => b.cle === c.derniere!.boisson)?.nom})</Text>
+          </Pressable>
+        )}
+      </View>
+
+      <View style={styles.carte}>
+        <Text style={styles.petit}>7 derniers jours</Text>
+        <View style={styles.barres}>
+          {c.parJour.map((j) => (
+            <View key={j.jour} style={styles.colonne}>
+              <Text style={styles.valeurBarre}>{j.boissons}</Text>
+              <View style={styles.zoneBarre}>
+                <View
+                  style={[
+                    styles.barre,
+                    {
+                      height: `${Math.max(4, (j.boissons / max) * 100)}%`,
+                      backgroundColor: c.quota !== null && j.boissons > c.quota ? couleurs.rouge : j.boissons > 0 ? couleurs.vert : couleurs.ligne,
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={styles.dateBarre}>{JOURS_COURTS[new Date(`${j.jour}T12:00:00Z`).getUTCDay()]}</Text>
+            </View>
+          ))}
+        </View>
+        <Text style={styles.aide}>
+          {c.moyenneParJour !== null ? `Moyenne : ${nombre(c.moyenneParJour)} par jour (journées terminées). ` : 'La moyenne arrive après ta première journée complète. '}
+          {c.totalSept > 0 ? `${c.suiviesDeCigarette} sur ${c.totalSept} suivies d’une cigarette dans les 20 min.` : ''}
+        </Text>
+      </View>
+
+      <View style={styles.carte}>
+        <Text style={styles.petit}>Palier</Text>
+        <Text style={styles.texte}>
+          {c.quota === null
+            ? 'Observe quelques jours, puis fixe ton premier palier. Ensuite, tu descends quand tu es prêt, et tu ne remontes jamais au-dessus du palier précédent.'
+            : `Palier actuel : ${c.quota} par jour. Tu peux seulement descendre.`}
+        </Text>
+        <View style={styles.ligneSaisie}>
+          {c.quota === null ? (
+            <Pressable style={[styles.bouton, styles.flex]} onPress={() => onPalierCafeine(propose)} accessibilityRole="button">
+              <Text style={styles.boutonTexte}>Fixer mon palier à {propose}</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              style={[styles.bouton, styles.flex, c.quota === 0 && styles.inactif]}
+              disabled={c.quota === 0}
+              onPress={() =>
+                Alert.alert(`Descendre à ${c.quota! - 1} par jour ?`, 'Tu ne pourras plus remonter au-dessus.', [
+                  { text: 'Annuler', style: 'cancel' },
+                  { text: 'Descendre', onPress: () => onPalierCafeine(c.quota! - 1) },
+                ])
+              }
+              accessibilityRole="button"
+            >
+              <Text style={styles.boutonTexte}>Descendre à {Math.max(0, c.quota - 1)}</Text>
+            </Pressable>
+          )}
+        </View>
+        <Text style={styles.aide}>Le café est souvent associé à la cigarette : passer au déca ou changer de lieu pour le café aide aussi à fumer moins.</Text>
+      </View>
+    </>
+  );
 }
 
 const nombre = (v: number) => String(Math.round(v * 100) / 100).replace('.', ',');
@@ -168,8 +265,8 @@ function LigneAliment({ c, ton }: { c: ClasseAliment; ton: 'vert' | 'rouge' | 'n
   );
 }
 
-export function SanteScreen({ sante, aujourdhui, onFermer, onSaisirBilan, onSupprimerBilan, onNorme }: Props) {
-  const [onglet, setOnglet] = useState<'bilans' | 'aliments'>('bilans');
+export function SanteScreen({ sante, aujourdhui, onFermer, onSaisirBilan, onSupprimerBilan, onNorme, cafeine, onBoire, onAnnulerBoisson, onPalierCafeine }: Props) {
+  const [onglet, setOnglet] = useState<'bilans' | 'aliments' | 'cafeine'>('bilans');
   const [saisie, setSaisie] = useState(false);
   const { privilegier, eliminer, neutres } = sante.aliments;
   return (
@@ -182,14 +279,16 @@ export function SanteScreen({ sante, aujourdhui, onFermer, onSaisirBilan, onSupp
           </Pressable>
         </View>
         <View style={styles.onglets}>
-          {(['bilans', 'aliments'] as const).map((o) => (
+          {(['bilans', 'aliments', 'cafeine'] as const).map((o) => (
             <Pressable key={o} style={[styles.onglet, onglet === o && styles.ongletActif]} onPress={() => setOnglet(o)} accessibilityRole="tab" accessibilityState={{ selected: onglet === o }}>
-              <Text style={[styles.ongletTexte, onglet === o && styles.ongletTexteActif]}>{o === 'bilans' ? 'Bilans' : 'Aliments'}</Text>
+              <Text style={[styles.ongletTexte, onglet === o && styles.ongletTexteActif]}>{o === 'bilans' ? 'Bilans' : o === 'aliments' ? 'Aliments' : 'Caféine'}</Text>
             </Pressable>
           ))}
         </View>
         <ScrollView contentContainerStyle={styles.contenu} keyboardShouldPersistTaps="handled">
-          {onglet === 'bilans' ? (
+          {onglet === 'cafeine' ? (
+            <OngletCafeine c={cafeine} onBoire={onBoire} onAnnulerBoisson={onAnnulerBoisson} onPalierCafeine={onPalierCafeine} />
+          ) : onglet === 'bilans' ? (
             <>
               {saisie ? (
                 <FormulaireBilan
@@ -324,5 +423,9 @@ const styles = StyleSheet.create({
   objectif: { gap: 2, paddingBottom: espace(2), borderBottomWidth: 1, borderBottomColor: couleurs.ligne },
   aliment: { gap: 2, paddingVertical: espace(1) },
   nomAliment: { color: couleurs.encre, fontSize: 16, fontWeight: '600' },
+  grilleBoissons: { flexDirection: 'row', flexWrap: 'wrap', gap: espace(2) },
+  puce: { borderWidth: 1.5, borderColor: couleurs.vert, borderRadius: 999, paddingHorizontal: espace(3), paddingVertical: espace(1) + 2 },
+  puceTexte: { color: couleurs.vert, fontSize: 15, fontWeight: '700' },
+  flex: { flex: 1 },
   mention: { color: couleurs.doux, fontSize: 13, textAlign: 'center' },
 });

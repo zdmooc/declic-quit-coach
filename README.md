@@ -38,7 +38,7 @@
 | Progrès | ✅ bilan d'observation (par jour, dans l'heure du réveil, avant midi, premier palier proposé), contextes et parades sur 7 jours avec tendance, comparaison avec / sans patch (cigarettes, écarts, moyenne par jour), économies projetées (mois, an), objectifs d'épargne avec date estimée, records, bilan de la semaine, courbe du plan jusqu'à zéro |
 | Coach écrit (sans IA) | ✅ bilan du soir, faux pas analysé avec bienveillance, alerte 10 min avant l'heure à risque |
 | Coach IA | ✅ codé : conversation (SOS, soir, faux pas), garde-fous (dosage, symptômes, détresse → 15 / 112 / 3114 / 39 89), consentement · modèle open source gratuit (Mistral Small 3.1 via Cloudflare Workers AI) · ⚙️ relais à déployer ([coach-relay](coach-relay/README.md)) |
-| Santé | ✅ bilans biologiques (courbes, évolution, valeurs hors norme ou à surveiller, norme du labo ou objectif du médecin), aliments classés selon toutes les anomalies à la fois (à privilégier / à éliminer) · données locales, jamais envoyées au coach IA |
+| Santé | ✅ caféine (☕ en un tap, mg du jour, 7 jours, palier qui ne remonte jamais, cafés suivis d'une cigarette) · bilans biologiques (courbes, évolution, valeurs hors norme ou à surveiller, norme du labo ou objectif du médecin), aliments classés selon toutes les anomalies à la fois (à privilégier / à éliminer) · données locales, jamais envoyées au coach IA |
 | Montre | ⏳ V2 |
 
 ## Démarrer

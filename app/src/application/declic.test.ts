@@ -503,3 +503,25 @@ describe('santé', () => {
     await expect(app.saisirBilan('26/10/2026', { ldl: 1 })).rejects.toThrow();
   });
 });
+
+describe('caféine', () => {
+  it('boissons du jour, mg, cigarette après un café, palier jamais au-dessus du précédent', async () => {
+    const { app, clock } = monter(zonedInstant('2026-10-27', '08:00', TZ));
+    await app.creerProfil(PROFIL);
+    await app.boire('cafe');
+    aller(clock, zonedInstant('2026-10-27', '08:10', TZ));
+    await app.enregistrerCigarette('cafe');
+    aller(clock, zonedInstant('2026-10-27', '11:00', TZ));
+    await app.boire('the');
+    await app.boire('deca');
+    const c = (await app.tableauDeBord())!.cafeine;
+    expect(c.aujourdhui).toEqual({ boissons: 2, mg: 123 });
+    expect(c.suiviesDeCigarette).toBe(1);
+    await app.fixerPalierCafeine(4);
+    await expect(app.fixerPalierCafeine(5)).rejects.toThrow(/Jamais au-dessus/);
+    await app.fixerPalierCafeine(3);
+    expect((await app.tableauDeBord())!.cafeine.quota).toBe(3);
+    await app.annulerBoisson(c.derniere!.id);
+    expect((await app.tableauDeBord())!.cafeine.aujourdhui.mg).toBe(120);
+  });
+});

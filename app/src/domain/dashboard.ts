@@ -31,6 +31,7 @@ import {
 import { etiqueterCigarettes, intervallesEveilles, journeeDe, moyenne, SEUIL_NUIT_MINUTES } from './sessions';
 import { bilanTechniques, type BilanTechnique } from './respiration';
 import type { Bilan } from './sante';
+import { suiviCafeine, type Boisson, type SuiviCafeine } from './cafeine';
 import { etatOral, etatPatch, type EtatOral, type EtatPatch, type PatchEnCours, type ReferencePharma } from './substitutes';
 import {
   addDays,
@@ -82,6 +83,9 @@ export interface EtatJournal {
   parades: Partial<Record<ContexteCigarette, string>>;
   /** Bilans biologiques et normes du laboratoire / objectifs du médecin (RM-23). */
   bilans: Bilan[];
+  /** Boissons caféinées et palier de caféine (RM-25). */
+  boissons: { id: string; a: Instant; jour: LocalDate; boisson: Boisson }[];
+  quotaCafeine: number | null;
   normes: Record<string, { min?: number; max?: number }>;
   /** Envies signalées (distinctes des envies résistées), avec leur issue. */
   enviesSignalees: { a: Instant; jour: LocalDate; issue: 'resistee' | 'cigarette' | 'inconnue'; technique?: string }[];
@@ -148,6 +152,8 @@ export function rejouer(events: readonly DomainEvent[], tz: string): EtatJournal
     raisons: [],
     parades: {},
     bilans: [],
+    boissons: [],
+    quotaCafeine: null,
     normes: {},
     coachIa: false,
     derniereSaisieId: null,
@@ -255,6 +261,12 @@ export function rejouer(events: readonly DomainEvent[], tz: string): EtatJournal
         etat.patch = null;
         break;
       }
+      case 'BoissonPrise':
+        etat.boissons.push({ id: e.id, a, jour: journeeDe(a, etat.cigarettes, tz), boisson: e.payload.boisson });
+        break;
+      case 'PalierCafeine':
+        etat.quotaCafeine = e.payload.quota;
+        break;
       case 'SubstitutOralPris':
         etat.oraux.push({ a, jour: journeeDe(a, etat.cigarettes, tz), forme: e.payload.forme, dosageMg: e.payload.dosageMg });
         break;
@@ -556,6 +568,7 @@ export interface TableauDeBord {
   enviesResistees: number;
   /** SOS envie par technique de respiration, la plus efficace d'abord. */
   techniquesSos: BilanTechnique[];
+  cafeine: SuiviCafeine;
   depuisDerniereMinutes: number | null;
   plusLonguePauseMinutes: number;
   economieJourCents: number;
@@ -609,6 +622,7 @@ export function tableauDeBord(etat: EtatJournal, maintenant: Instant, tz: string
       mesurerHabitudes(etat.cigarettes, jour, tz, { sansHeure: cigarettesSansHeureParJour(etat) })?.intervalleMoyenMinutes ?? null,
     enviesResistees: elementsDuJour(etat.envies, jour).length,
     techniquesSos: bilanTechniques(etat.envies, etat.enviesSignalees),
+    cafeine: suiviCafeine(etat, jour),
     depuisDerniereMinutes: derniere === null ? null : Math.max(0, minutesBetween(derniere, maintenant)),
     patch: etatPatch(etat.patch, maintenant),
     oraux: (['pastille', 'gomme'] as const).map((forme) => {

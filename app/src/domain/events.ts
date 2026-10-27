@@ -119,6 +119,10 @@ export type ContexteRenomme = Base<'ContexteRenomme', { cle: `perso:${string}`; 
 export type ContexteArchive = Base<'ContexteArchive', { cle: `perso:${string}` }>;
 /** Intervalle recommandé pendant l'observation (réglage, 60 min par défaut). */
 export type IntervalleRecommandeModifie = Base<'IntervalleRecommandeModifie', { minutes: number }>;
+/** Boisson caféinée bue (RM-25). */
+export type BoissonPrise = Base<'BoissonPrise', { boisson: 'cafe' | 'the' | 'cola' | 'energisant' | 'deca' }>;
+/** Palier de caféine : boissons caféinées par jour, jamais au-dessus du précédent (RM-25). */
+export type PalierCafeine = Base<'PalierCafeine', { quota: number }>;
 /** Bilan biologique saisi (date du prélèvement, valeurs par paramètre ; RM-23). */
 export type BilanSaisi = Base<'BilanSaisi', { date: string; valeurs: Record<string, number> }>;
 /** Norme du laboratoire ou objectif fixé par le médecin pour un paramètre. */
@@ -173,6 +177,8 @@ export type DomainEvent =
   | ObservationReglee
   | ParadeDefinie
   | BilanSaisi
+  | BoissonPrise
+  | PalierCafeine
   | NormeDefinie
   | PatchPose
   | PatchRetire
@@ -235,6 +241,12 @@ export function validateEvent(e: DomainEvent): string[] {
     case 'ContexteRenomme':
       if (e.payload.libelle.trim().length < 1 || e.payload.libelle.trim().length > 30)
         errors.push('libellé de contexte : 1 à 30 caractères');
+      break;
+    case 'BoissonPrise':
+      if (!['cafe', 'the', 'cola', 'energisant', 'deca'].includes(e.payload.boisson)) errors.push('boisson invalide');
+      break;
+    case 'PalierCafeine':
+      if (!isInt(e.payload.quota) || e.payload.quota < 0 || e.payload.quota > 30) errors.push('palier de caféine : 0 à 30');
       break;
     case 'BilanSaisi': {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(e.payload.date)) errors.push('date de bilan invalide');

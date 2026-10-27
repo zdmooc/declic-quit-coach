@@ -191,6 +191,7 @@ export default function App() {
             onReglages={() => void ouvrirReglages()}
             onSubstituts={() => setSubstituts(true)}
             onSante={() => void ouvrirSante()}
+            onCafe={agir(() => declic.boire('cafe'))}
             onProgres={() => void ouvrirProgres()}
             onEcheance={() => void rafraichir()}
             onSos={() => setSos(true)}
@@ -320,6 +321,10 @@ export default function App() {
             onSaisirBilan={(d, v) => depuis(() => declic.saisirBilan(d, v), ouvrirSante)}
             onSupprimerBilan={(id) => depuis(() => declic.supprimerBilan(id), ouvrirSante)}
             onNorme={(p, min, max) => depuis(() => declic.definirNorme(p, min, max), ouvrirSante)}
+            cafeine={tdb.cafeine}
+            onBoire={(b) => depuis(() => declic.boire(b), ouvrirSante)}
+            onAnnulerBoisson={(id) => depuis(() => declic.annulerBoisson(id), ouvrirSante)}
+            onPalierCafeine={(q) => depuis(() => declic.fixerPalierCafeine(q), ouvrirSante)}
           />
         )}
         {coachMode && <CoachScreen mode={coachMode} onFermer={() => setCoachMode(null)} envoyer={(tours) => declic.parlerAuCoach(coachMode, tours)} />}
