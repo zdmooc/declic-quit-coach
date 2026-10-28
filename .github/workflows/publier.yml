@@ -6,11 +6,11 @@ name: Publier sur les téléphones
 #
 # Prérequis : secret EXPO_TOKEN (expo.dev → Account settings → Access tokens).
 #
-# Version d'exécution : celle de l'APK installé (calculée sous Windows, empreinte « fingerprint »).
-# Linux calcule une autre empreinte pour le même code : on fixe donc la valeur de l'APK.
-# À METTRE À JOUR après chaque nouveau build d'APK (valeur affichée par `eas update` sous Windows).
+# Version d'exécution : celle du DERNIER APK construit sur EAS (lue automatiquement avec
+# `eas build:list`). Linux calcule une autre empreinte que Windows pour le même code : on vise donc
+# toujours la valeur de l'APK réellement installé. RUNTIME_APK ne sert qu'en secours.
 env:
-  RUNTIME_APK: 588937ab223897229eb146e351dfae384bbc529c  # ⚠️ à remplacer après le build Health Connect
+  RUNTIME_APK: 588937ab223897229eb146e351dfae384bbc529c
   EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
 on:
@@ -49,8 +49,15 @@ jobs:
       # L'empreinte calculée ici diffère de celle de Windows même sans changement natif : on ne
       # peut pas la comparer. Règle : toute nouvelle dépendance native (expo install …) ou tout
       # changement d'app.json impose un nouvel APK avant de publier, puis la mise à jour de RUNTIME_APK.
-      - name: Fixer la version d'exécution de l'APK
-        run: node -e "const f='app.json',j=require('./'+f);j.expo.runtimeVersion=process.env.RUNTIME_APK;require('fs').writeFileSync(f,JSON.stringify(j,null,2))"
+      - name: Fixer la version d'exécution du dernier APK
+        run: |
+          if [ -n "$EXPO_TOKEN" ]; then
+            npx eas-cli@latest build:list --platform android --channel preview --status finished --limit 1 --json --non-interactive > builds.json || echo '[]' > builds.json
+            DERNIER=$(node -e "const b=JSON.parse(require('fs').readFileSync('builds.json','utf8'));console.log((b[0]&&b[0].runtimeVersion)||'')")
+          fi
+          export RUNTIME="${DERNIER:-$RUNTIME_APK}"
+          echo "Version d'exécution visée : $RUNTIME"
+          node -e "const f='app.json',j=require('./'+f);j.expo.runtimeVersion=process.env.RUNTIME;require('fs').writeFileSync(f,JSON.stringify(j,null,2))"
       - name: Jeton Expo absent
         if: env.EXPO_TOKEN == ''
         run: |
