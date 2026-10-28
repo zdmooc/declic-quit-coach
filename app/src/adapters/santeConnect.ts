@@ -5,7 +5,7 @@
  */
 
 import { Platform } from 'react-native';
-import { MONTRE_VIDE, type DonneesMontre } from '../domain';
+import { addDays, localDateOf, MONTRE_VIDE, zonedInstant, type DonneesMontre } from '../domain';
 import type { SourceSante } from '../ports';
 
 type HC = typeof import('react-native-health-connect');
@@ -96,7 +96,22 @@ export class HealthConnectSource implements SourceSante {
     d.frequence = (await lire('HeartRate')).flatMap((r) => r.samples.map((s) => ({ a: t(s.time), bpm: s.beatsPerMinute })));
     d.repos = (await lire('RestingHeartRate')).map((r) => ({ a: t(r.time), bpm: r.beatsPerMinute }));
     d.hrv = (await lire('HeartRateVariabilityRmssd')).map((r) => ({ a: t(r.time), ms: r.heartRateVariabilityMillis }));
-    d.pas = (await lire('Steps')).map((r) => ({ debut: t(r.startTime), fin: t(r.endTime), n: r.count }));
+    // Pas : total par jour AGRÉGÉ par Health Connect, qui dédoublonne les sources (la montre et le
+    // téléphone comptent souvent les mêmes pas : additionner les enregistrements les compterait deux fois).
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    for (let jour = localDateOf(depuis, tz); jour <= localDateOf(jusqua, tz); jour = addDays(jour, 1)) {
+      const debut = zonedInstant(jour, '00:00', tz);
+      const fin = Math.min(zonedInstant(addDays(jour, 1), '00:00', tz), jusqua);
+      try {
+        const r = await hc.aggregateRecord({
+          recordType: 'Steps',
+          timeRangeFilter: { operator: 'between', startTime: new Date(debut).toISOString(), endTime: new Date(fin).toISOString() },
+        });
+        if (r.COUNT_TOTAL > 0) d.pas.push({ debut, fin, n: r.COUNT_TOTAL });
+      } catch {
+        // pas non autorisés ou indisponibles : ignorés
+      }
+    }
     d.spo2 = (await lire('OxygenSaturation')).map((r) => ({ a: t(r.time), pct: r.percentage }));
     d.glucose = (await lire('BloodGlucose')).map((r) => ({ a: t(r.time), mgdl: r.level.inMilligramsPerDeciliter }));
     d.tension = (await lire('BloodPressure')).map((r) => ({ a: t(r.time), sys: r.systolic.inMillimetersOfMercury, dia: r.diastolic.inMillimetersOfMercury }));
