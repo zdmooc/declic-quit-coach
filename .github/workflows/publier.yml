@@ -54,11 +54,11 @@ jobs:
           if [ -n "$EXPO_TOKEN" ]; then
             npx eas-cli@latest build:list --platform android --channel preview --status finished --limit 1 --json --non-interactive > builds.json 2> builds.err || echo '[]' > builds.json
             echo "::notice title=build:list::$(head -c 300 builds.err | tr '\n' ' ')"
-            DERNIER=$(node -e "const b=(t=>{try{return JSON.parse(t.slice(t.indexOf('[')))}catch{return []}})(require('fs').readFileSync('builds.json','utf8'));console.log((b[0]&&b[0].runtimeVersion)||'')")
+            DERNIER=$(node -e "const b=(t=>{try{return JSON.parse(t.slice(t.indexOf('[')))}catch{return []}})(require('fs').readFileSync('builds.json','utf8'));const x=b[0]||{};console.log((x.runtime&&x.runtime.version)||x.runtimeVersion||'')")
           fi
           export RUNTIME="${DERNIER:-$RUNTIME_APK}"
           echo "::notice title=Version visée::$RUNTIME (dernier APK : ${DERNIER:-introuvable, secours utilisé})"
-          node -e "const b=(t=>{try{return JSON.parse(t.slice(t.indexOf('[')))}catch{return []}})(require('fs').readFileSync('builds.json','utf8'));const x=b[0]||{};console.log('::notice title=Dernier build::'+JSON.stringify(x).replace(/[\\r\\n]/g,' ').slice(0,3000))" || true
+          node -e "const b=(t=>{try{return JSON.parse(t.slice(t.indexOf('[')))}catch{return []}})(require('fs').readFileSync('builds.json','utf8'));const x=b[0]||{};console.log('::notice title=Dernier build::'+[x.id,x.createdAt,x.runtime&&x.runtime.version].join(' | '))" || true
           node -e "const f='app.json',j=require('./'+f);j.expo.runtimeVersion=process.env.RUNTIME;require('fs').writeFileSync(f,JSON.stringify(j,null,2))"
       - name: Jeton Expo absent
         if: env.EXPO_TOKEN == ''
