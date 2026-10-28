@@ -1,6 +1,6 @@
 # 06 — Résilience et continuité
 
-> Statut : **v0.1 — brouillon de cadrage** · Dernière mise à jour : 2026-10-23
+> Statut : **v0.2 — aligné sur le code** · Dernière mise à jour : 2026-10-28 (D18 à D21 : Health Connect, publication, relais)
 
 ## 1. Philosophie
 
@@ -9,8 +9,8 @@ La résilience de Déclic repose d'abord sur le **local-first** : la fonction vi
 | Niveau de service | Fonctions | Dépendance |
 |---|---|---|
 | **Vital** | Enregistrer une cigarette ou une envie, SOS scripté, tableau de bord, rappels de substituts | Téléphone seul |
-| **Important** | Notifications programmées, montre | Téléphone + OS (+ montre) |
-| **Confort** | Coach IA conversationnel, bilan du soir IA | Réseau + BFF + LLM |
+| **Important** | Notifications programmées, montre et capteurs (Health Connect) | Téléphone + OS (+ applications santé) |
+| **Confort** | Coach IA conversationnel, bilan du soir IA, mises à jour | Réseau + relais Cloudflare + Workers AI |
 
 ## 2. Objectifs
 
@@ -20,7 +20,7 @@ La résilience de Déclic repose d'abord sur le **local-first** : la fonction vi
 | Disponibilité du coach IA | 99,5 % mensuel | Repli automatique vers le SOS scripté |
 | **RPO** (perte de données maximale) sur le journal | 0 en fonctionnement normal (écriture transactionnelle) ; dernière sauvegarde OS ou dernier export en cas de perte du téléphone | — |
 | **RTO** (temps de reprise) après réinstallation | moins de 5 min (restauration de la sauvegarde ou import de l'export) | — |
-| RTO du BFF | moins de 1 h (redéploiement depuis la CI) | Sans état, rien à restaurer |
+| RTO du relais | moins de 1 h (`wrangler deploy`) | Sans état, rien à restaurer |
 
 ## 3. Analyse des modes de défaillance
 
@@ -31,7 +31,7 @@ La résilience de Déclic repose d'abord sur le **local-first** : la fonction vi
 | D3 | API LLM en panne / limite de débit | Idem D1 | Erreur 429 / 5xx du fournisseur | Nouvelle tentative côté BFF (1 fois), puis repli ; option : second modèle de secours |
 | D4 | Budget LLM dépassé | Coach coupé | Compteur de coût côté BFF | Coupure progressive (quota par utilisateur réduit) puis mode scripté ; alerte |
 | D5 | Crash pendant une écriture | Événement perdu ou base corrompue | — | Transactions SQLite, mode WAL, contrôle d'intégrité au démarrage |
-| D6 | Corruption d'une projection | Tableau de bord faux | Somme de contrôle / numéro du dernier événement appliqué | **Reconstruction** en rejouant le journal |
+| D6 | Projection fausse | Tableau de bord faux | — | Sans objet : aucune projection n'est stockée, tout est recalculé à chaque lecture |
 | D7 | Bug de calcul livré | Quota ou économies faux | Tests par propriétés en CI ; signalement utilisateur | Correctif via EAS Update, puis reconstruction des projections ; les événements, eux, restent justes |
 | D8 | Migration de schéma ratée | App inutilisable | Test de migration en CI sur une base de référence | Migrations versionnées, sauvegarde automatique de la base avant migration, retour arrière |
 | D9 | Perte ou changement de téléphone | Historique perdu | — | Sauvegarde OS chiffrée et/ou export chiffré manuel (F9.1), import (F9.5) |
@@ -43,7 +43,11 @@ La résilience de Déclic repose d'abord sur le **local-first** : la fonction vi
 | D14 | Horloge du téléphone modifiée | Horodatages incohérents | Événement plus ancien que le précédent | Accepté mais signalé ; jamais de rejet silencieux |
 | D15 | Mise à jour OTA défectueuse | App cassée | Crash au démarrage (Sentry) | Retour automatique au bundle précédent d'EAS Update ; déploiement progressif (10 % → 100 %) |
 | D16 | Compromission de la clé LLM | Abus, facture | Anomalie de consommation | Rotation de la clé dans le Secret Manager, limite de dépenses chez le fournisseur |
-| D17 | Abus du BFF (bots) | Coût, indisponibilité | Taux de requêtes anormal | App Attest / Play Integrity, limite de débit, blocage par jeton |
+| D17 | Abus du relais | Quota gratuit épuisé | 429 | Code d'accès (rotation : `wrangler secret put APP_TOKEN`) ; repli sur le SOS scripté |
+| D18 | Module natif Health Connect absent (ancien APK, développement) | Onglet Montre vide | `getSdkStatus` / chargement paresseux | « Indisponible » affiché ; le reste de l'app fonctionne |
+| D19 | Données Health Connect manquantes ou en double (montre + téléphone) | Chiffres faux (pas doublés) | Comparaison avec la montre | Pas agrégés par Health Connect (dédoublonnage) ; sommeil : session avec phases prioritaire ; types absents ignorés un par un |
+| D20 | Publication visant le mauvais APK (empreinte Windows ≠ Linux) | Mise à jour jamais reçue | Bandeau « Redémarrer » absent ; annotation « Version visée » dans GitHub Actions | La publication lit la version du dernier build EAS (`runtime.version`) ; secours `RUNTIME_APK` |
+| D21 | Action qui échoue (heure invalide, palier refusé…) | Saisie perdue en silence | Exception | Message « Non enregistré » à l'écran pour toute action |
 
 ## 4. Mécanismes clés
 

@@ -1,7 +1,19 @@
 # 07 — Estimation des coûts
 
-> Statut : **v0.1 — estimation de cadrage** · Tarifs relevés le **2026-10-23**, hors taxes, à revérifier avant tout engagement.
+> Statut : **v0.2** · Coût réel du prototype ajouté le 2026-10-28 · Tarifs de diffusion relevés le **2026-10-23**, hors taxes, à revérifier avant tout engagement.
 > Les tarifs en dollars sont laissés en dollars (pas de conversion figée).
+
+## 0. Coût réel du prototype (2026-10-28)
+
+| Poste | Choix actuel | Coût |
+|---|---|---|
+| Build et mises à jour | Expo EAS **Free** (APK `preview`, EAS Update) | 0 € |
+| Coach IA | Cloudflare Worker + **Workers AI**, Mistral Small 3.1 (open source), palier gratuit de 10 000 neurones / jour (ADR-0009) | 0 € |
+| CI / publication | GitHub Actions (dépôt public) | 0 € |
+| Stores | Aucun (APK installé directement) | 0 € |
+| **Total** | | **0 € / mois** |
+
+Les sections suivantes chiffrent une **diffusion publique** avec le BFF de l'ADR-0005 (Scaleway + Claude Haiku). Pour un usage au-delà du palier gratuit de Workers AI, les tarifs Cloudflare sont à relever avant toute décision.
 
 ## 1. Tarifs de référence
 

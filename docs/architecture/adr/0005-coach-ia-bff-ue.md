@@ -1,6 +1,6 @@
 # ADR-0005 — Coach IA derrière un BFF hébergé en UE
 
-- **Statut** : accepté (pour la V2)
+- **Statut** : accepté (pour la V2) — **remplacé en partie par l’[ADR-0009](0009-relais-coach-cloudflare-prototype.md)** pour le prototype : relais Cloudflare Workers et modèle open source gratuit (Mistral Small 3.1) au lieu du BFF Scaleway et de Claude Haiku. Les principes (minimisation, garde-fous, repli scripté) restent valables.
 - **Date** : 2026-10-23
 
 ## Contexte

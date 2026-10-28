@@ -1,6 +1,6 @@
 # ADR-0006 — Montre : notifications d'abord, puis apps natives minimales
 
-- **Statut** : accepté
+- **Statut** : accepté — **en attente** : la montre de l’utilisateur (Amazfit, Zepp OS) est aujourd’hui lue via Health Connect ([ADR-0011](0011-health-connect.md)) ; une mini-app Zepp OS remplacerait les apps watchOS / Wear OS.
 - **Date** : 2026-10-23
 
 ## Contexte

@@ -1,6 +1,6 @@
 # 01 — Architecture métier
 
-> Statut : **v0.1 — brouillon de cadrage** · Dernière mise à jour : 2026-10-23
+> Statut : **v0.2 — aligné sur le code** · Dernière mise à jour : 2026-10-28 (RM-19 à RM-29)
 
 ## 1. Vision
 

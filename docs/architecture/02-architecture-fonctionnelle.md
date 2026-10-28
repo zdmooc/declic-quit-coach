@@ -1,6 +1,6 @@
 # 02 — Architecture fonctionnelle
 
-> Statut : **v0.1 — brouillon de cadrage** · Dernière mise à jour : 2026-10-23
+> Statut : **v0.2 — aligné sur le code** · Dernière mise à jour : 2026-10-28 (F10 à F14 ajoutés, F5, F7, F8 mis à jour)
 
 ## 1. Domaines fonctionnels
 
@@ -16,8 +16,13 @@ flowchart LR
     SANTE[Bénéfices santé]
     NOTIF[Notifications]
     COACH[Coach IA]
-    PARAM[Réglages, confidentialité, export]
+    PARAM[Réglages, confidentialité, export, import]
+    METH[Méthode - observation, paliers, parades]
+    CAFE[Caféine]
+    BIO[Santé - bilans, aliments]
+    STATS[Statistiques & Ma santé]
   end
+  HC[Health Connect - montre Zepp, Dexcom, RENPHO]
   WATCH[Montre connectée]
   PRO[Professionnels - 39 89, médecin]
 
@@ -33,6 +38,13 @@ flowchart LR
   COACH --> PRO
   WATCH <--> JOUR
   WATCH <--> DASH
+  JOUR --> METH
+  METH --> PLAN
+  CAFE --> STATS
+  JOUR --> STATS
+  BIO --> STATS
+  HC -->|lecture seule| STATS
+  CAFE -.café → cigarette.-> JOUR
 ```
 
 ## 2. Catalogue des fonctions
@@ -86,13 +98,14 @@ Priorités : **MVP** = première version publiable ; **V2** = coach IA et montre
 
 | ID | Fonction | Priorité |
 |---|---|---|
-| F5.1 | Compte à rebours (mm:ss, à la seconde) en haut de l'écran vers la prochaine cigarette conseillée ; pendant l'observation, compte à rebours **indicatif** sur une recommandation de 60 min, sans notification | MVP |
-| F5.7 | Écran principal sur **une seule page** sans défilement : compte à rebours, pastilles d'information non cliquables (fumées / quota, intervalle tenu en vert, trop tôt en rouge (RM-18), envies résistées, intervalle recommandé, économies, intervalles, plus longue pause, déclencheur n° 1, heure à risque), puis les actions | MVP |
+| F5.1 | **Compteur unique** en haut de l'écran : « −mm:ss » (orange) jusqu'à la prochaine cigarette conseillée, puis « +mm:ss » (vert) au-delà de l'objectif, remis à zéro par « J'ai fumé » ; dessous, **moyenne du jour en direct** (hors nuit, ne baisse jamais pendant qu'on tient). Pendant l'observation, objectif **indicatif** (60 min par défaut), sans notification | MVP |
+| F5.7 | Écran principal : compteur, **6 chiffres essentiels** (fumées / quota, intervalle tenu, trop tôt — neutre pendant l'observation —, envies résistées, depuis la dernière ou économies, cafés ; patch quand il est porté), « Plus de chiffres » (plus longue pause d'éveil, nuit sans fumer, moyenne 7 jours, recommandé, déclencheur, heure à risque), actions (J'ai fumé, SOS envie, J'ai résisté, ☕) et **barre d'onglets** (Accueil, Historique, Progrès, Santé, Réglages) | MVP |
 | F5.2 | Quota du jour ; intervalle cible ; intervalle moyen réel aujourd'hui et sur 7 jours (nuits exclues) ; plus longue pause | MVP |
 | F5.3 | Économies du jour, cumulées, projetées sur 1 mois et 1 an (RM-06, RM-07) | MVP |
 | F5.4 | Objectifs d'épargne (« mon vélo à 400 € ») avec date estimée | MVP |
 | F5.5 | Bénéfices santé débloqués dans le temps (contenus sourcés) | MVP |
 | F5.6 | Records : plus long intervalle, jours sans tabac | MVP |
+| F5.8 | Historique : graphe jour / semaine / mois, écart entre deux cigarettes en dégradé (rouge = le plus court du jour, vert = le plus long), moyenne du jour et nuit précédente, cigarettes avec ou sans patch, correction de l'heure et du contexte | MVP |
 
 ### F6 — Notifications
 
@@ -114,7 +127,7 @@ Règles transverses : plafond de 4 notifications non critiques par jour, heures 
 
 | ID | Fonction | Priorité |
 |---|---|---|
-| F7.1 | SOS envie **scripté** (hors ligne) : respiration guidée (cohérence cardiaque 5 s / 5 s, 3 min), rappel des raisons d'arrêter (saisies par l'utilisateur) et des économies annuelles, « L'envie est passée » = envie résistée | MVP |
+| F7.1 | SOS envie **scripté** (hors ligne) : 4 respirations guidées au choix (cohérence cardiaque, soupir cyclique, expiration longue, carrée), rappel des raisons d'arrêter et des économies, « L'envie est passée » = envie résistée, fermeture = envie signalée ; bilan « ce qui marche pour toi » par technique | MVP |
 | F7.2 | SOS envie **conversationnel** (IA) | V2 |
 | F7.3 | Bilan du soir et ajustement proposé | V2 |
 | F7.4 | Analyse bienveillante d'un faux pas | V2 |
@@ -128,7 +141,7 @@ Règles transverses : plafond de 4 notifications non critiques par jour, heures 
 | F8.1 | Notifications actionnables relayées par le téléphone | MVP |
 | F8.2 | Mini-app : boutons « J'ai fumé » et « SOS », respiration par vibrations | V2 |
 | F8.3 | Complication du cadran : prochaine cigarette, quota restant | V2 |
-| F8.4 | Lecture du stress (fréquence cardiaque, variabilité) via HealthKit / Health Connect | V3 |
+| F8.4 | Lecture du stress (fréquence cardiaque, variabilité) via HealthKit / Health Connect | ✅ fait via F12 (Android) |
 | F8.5 | Détection du geste de fumer (ML, accéléromètre) | V3 (R&D) |
 
 ### F9 — Réglages et confidentialité
@@ -140,6 +153,47 @@ Règles transverses : plafond de 4 notifications non critiques par jour, heures 
 | F9.3 | Verrouillage de l'app (Face ID, empreinte) | MVP |
 | F9.4 | Gestion des consentements | MVP |
 | F9.5 | Restauration depuis un export | MVP |
+| F9.6 | Sauvegarde vers un fichier (Drive, Téléchargements) et restauration vérifiée avant effacement | MVP |
+| F9.7 | Import d'un historique tenu à part (aperçu, simulation, rapprochement manuel, idempotent ; ADR-0010) | MVP |
+
+### F10 — Santé : bilans et aliments
+
+| ID | Fonction | Priorité |
+|---|---|---|
+| F10.1 | Saisie ou import de bilans biologiques ; courbe et évolution par paramètre ; non-HDL calculé (RM-23) | MVP |
+| F10.2 | Statut : dans la norme, à surveiller, trop haut, trop bas ; norme du labo ou objectif du médecin modifiable | MVP |
+| F10.3 | Aliments classés selon **toutes** les anomalies actives : à privilégier, à éliminer (avec la raison), neutres (RM-24) | MVP |
+
+### F11 — Caféine
+
+| ID | Fonction | Priorité |
+|---|---|---|
+| F11.1 | ☕ en un tap ; boissons et mg du jour face au repère de 400 mg (RM-25) | MVP |
+| F11.2 | Palier de boissons caféinées qui ne remonte jamais ; cafés suivis d'une cigarette dans les 20 min | MVP |
+
+### F12 — Montre et capteurs (Health Connect, lecture seule)
+
+| ID | Fonction | Priorité |
+|---|---|---|
+| F12.1 | Lecture à la demande (4 semaines) : sommeil et phases, fréquence cardiaque, repos, HRV, pas (dédoublonnés), SpO2, glycémie, tension, poids (RM-27, ADR-0011) | MVP |
+| F12.2 | Délai réveil → première cigarette ; cœur 30 min avant / après une cigarette | MVP |
+| F12.3 | Sommeil réparateur par semaine (vert / orange / rouge) et pistes tirées des nuits (RM-28) | MVP |
+
+### F13 — Statistiques et Ma santé
+
+| ID | Fonction | Priorité |
+|---|---|---|
+| F13.1 | Statistiques en 14 rubriques sur les journées notées (RM-26) | MVP |
+| F13.2 | Ma santé : une case par axe, semaine comparée à la précédente, verdict vert / orange / rouge, tap = détail (RM-29) | MVP |
+
+### F14 — Méthode
+
+| ID | Fonction | Priorité |
+|---|---|---|
+| F14.1 | Observation réglable de 1 à 7 journées (RM-21), bilan d'observation (par jour, première heure, avant midi, palier proposé) | MVP |
+| F14.2 | Paliers libres, jamais au-dessus du palier précédent (RM-19), puis rythmes −1 | MVP |
+| F14.3 | Contextes et parades : tendance par contexte sur 7 jours, effet mesuré d'une parade (RM-22) | MVP |
+| F14.4 | Parcours guidé « Où j'en suis » (étape actuelle, prochaine action) | à faire |
 
 ## 3. Cas d'utilisation
 
