@@ -19,3 +19,4 @@ export * from './sante';
 export * from './cafeine';
 export * from './stats';
 export * from './montre';
+export * from './masante';

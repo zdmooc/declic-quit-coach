@@ -4,7 +4,8 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import type { NouveauProfil, Reglages, Sante } from './src/application/declic';
 import { CoachHttp, normaliserUrlCoach } from './src/adapters/coachHttp';
-import type { JourneeHistorique, MessageCoach, ModeCoach, Progres, Statistiques, AnalyseMontre } from './src/domain';
+import type { JourneeHistorique, MessageCoach, ModeCoach, Progres, Statistiques, AnalyseMontre, Axe, Destination } from './src/domain';
+import { maSante } from './src/domain';
 import type { Apercu, Choix, Simulation } from './src/application/migration';
 import { effacer, partager, preparerImport, restaurer, sauvegarder } from './src/ui/app/donnees';
 import { ImportScreen } from './src/ui/ImportScreen';
@@ -19,6 +20,7 @@ import { ProgresScreen } from './src/ui/ProgresScreen';
 import { ReglagesScreen } from './src/ui/ReglagesScreen';
 import { SanteScreen } from './src/ui/SanteScreen';
 import { StatsScreen } from './src/ui/StatsScreen';
+import { MaSanteScreen } from './src/ui/MaSanteScreen';
 import type { EtatMontre } from './src/ui/OngletMontre';
 import { SosEnvie } from './src/ui/SosEnvie';
 import { SubstitutsScreen } from './src/ui/SubstitutsScreen';
@@ -36,6 +38,8 @@ export default function App() {
   const [santeVue, setSanteVue] = useState<Sante | null>(null);
   const [statsVue, setStatsVue] = useState<Statistiques | null>(null);
   const [etatMontre, setEtatMontre] = useState<EtatMontre>('chargement');
+  const [axesSante, setAxesSante] = useState<Axe[] | null>(null);
+  const [ongletSante, setOngletSante] = useState<'bilans' | 'aliments' | 'cafeine' | 'montre'>('bilans');
   const [montre, setMontre] = useState<AnalyseMontre | null>(null);
   const [substituts, setSubstituts] = useState(false);
   const [progresVue, setProgresVue] = useState<{ progres: Progres; mot: MessageCoach | null } | null>(null);
@@ -93,21 +97,42 @@ export default function App() {
     setSanteVue(await declic.sante());
     if (etatMontre !== 'connecte') void lireMontre();
   };
+  /** « Ma santé » : tous les axes d'un coup d'œil (RM-29). */
+  const ouvrirMaSante = async (m: AnalyseMontre | null = montre) => {
+    const [stats, sante, t] = await Promise.all([declic.statistiques(), declic.sante(), declic.tableauDeBord()]);
+    if (!stats || !sante || !t) return;
+    const anomalies = sante.suivi.filter((s) => s.derniere && s.derniere.statut !== 'normal').map((s) => s.parametre.nom.replace(/ \(.*\)$/, ''));
+    setAxesSante(maSante({ aujourdhui: t.jour, tdb: t, stats, montre: m, anomalies }));
+  };
+  const ouvrirDetailSante = (d: Destination) => {
+    if (d === 'stats') return void declic.statistiques().then(setStatsVue);
+    setOngletSante(d === 'cafeine' ? 'cafeine' : d === 'montre' ? 'montre' : 'bilans');
+    void ouvrirSante();
+  };
   /** Health Connect (RM-27) : lecture des 14 derniers jours, à la demande ; `demander` affiche l'autorisation. */
-  const lireMontre = async (demander = false) => {
-    if (!app) return;
+  const lireMontre = async (demander = false): Promise<AnalyseMontre | null> => {
+    if (!app) return null;
     try {
-      if (!(await app.sante.disponible())) return setEtatMontre('indisponible');
+      if (!(await app.sante.disponible())) {
+        setEtatMontre('indisponible');
+        return null;
+      }
       if (demander) await app.sante.autoriser();
-      if (!(await app.sante.dejaAutorise())) return setEtatMontre('a-connecter');
+      if (!(await app.sante.dejaAutorise())) {
+        setEtatMontre('a-connecter');
+        return null;
+      }
       setEtatMontre('chargement');
       const maintenant = Date.now();
       const d = await app.sante.lire(maintenant - 29 * 86_400_000, maintenant);
-      setMontre(await declic.analyserMontre(d));
+      const analyse = await declic.analyserMontre(d);
+      setMontre(analyse);
       setEtatMontre('connecte');
+      return analyse;
     } catch (e) {
       setEtatMontre('a-connecter');
       Alert.alert('Health Connect', e instanceof Error ? e.message : String(e));
+      return null;
     }
   };
   const ouvrirHistorique = async () => setHistorique(await declic.historique(400));
@@ -215,7 +240,16 @@ export default function App() {
             onHistorique={() => void ouvrirHistorique()}
             onReglages={() => void ouvrirReglages()}
             onSubstituts={() => setSubstituts(true)}
-            onSante={() => void ouvrirSante()}
+            onSante={() =>
+              void (async () => {
+                await ouvrirMaSante();
+                // La montre se lit en quelques secondes : la page se complète ensuite.
+                if (etatMontre !== 'connecte') {
+                  const m = await lireMontre();
+                  if (m) await ouvrirMaSante(m);
+                }
+              })()
+            }
             onCafe={agir(() => declic.boire('cafe'))}
             onProgres={() => void ouvrirProgres()}
             onEcheance={() => void rafraichir()}
@@ -339,9 +373,14 @@ export default function App() {
             onStatistiques={() => void declic.statistiques().then(setStatsVue)}
           />
         )}
+        {axesSante && (
+          <MaSanteScreen axes={axesSante} montreConnectee={etatMontre === 'connecte'} onFermer={() => setAxesSante(null)} onOuvrir={ouvrirDetailSante} />
+        )}
         {statsVue && tdb && <StatsScreen stats={statsVue} tdb={tdb} montre={montre} onFermer={() => setStatsVue(null)} />}
         {santeVue && tdb && (
           <SanteScreen
+            key={ongletSante}
+            ongletInitial={ongletSante}
             sante={santeVue}
             aujourdhui={tdb.jour}
             onFermer={() => setSanteVue(null)}

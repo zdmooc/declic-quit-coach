@@ -21,6 +21,8 @@ interface Props {
   onBoire: (b: Boisson) => void;
   onAnnulerBoisson: (id: string) => void;
   onPalierCafeine: (quota: number) => void;
+  /** Onglet ouvert au départ. */
+  ongletInitial?: 'bilans' | 'aliments' | 'cafeine' | 'montre';
   montre: { etat: EtatMontre; analyse: AnalyseMontre | null; tz: string; onConnecter: () => void; onActualiser: () => void };
 }
 
@@ -267,8 +269,8 @@ function LigneAliment({ c, ton }: { c: ClasseAliment; ton: 'vert' | 'rouge' | 'n
   );
 }
 
-export function SanteScreen({ sante, aujourdhui, onFermer, onSaisirBilan, onSupprimerBilan, onNorme, cafeine, onBoire, onAnnulerBoisson, onPalierCafeine, montre }: Props) {
-  const [onglet, setOnglet] = useState<'bilans' | 'aliments' | 'cafeine' | 'montre'>('bilans');
+export function SanteScreen({ sante, aujourdhui, onFermer, onSaisirBilan, onSupprimerBilan, onNorme, cafeine, onBoire, onAnnulerBoisson, onPalierCafeine, montre, ongletInitial = 'bilans' }: Props) {
+  const [onglet, setOnglet] = useState<'bilans' | 'aliments' | 'cafeine' | 'montre'>(ongletInitial);
   const [saisie, setSaisie] = useState(false);
   const { privilegier, eliminer, neutres } = sante.aliments;
   return (
