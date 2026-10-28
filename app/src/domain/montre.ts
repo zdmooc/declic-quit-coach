@@ -40,6 +40,10 @@ export interface JourMontre {
   sommeilMinutes: number | null;
   /** Réveil → première cigarette de la journée (minutes) ; `null` si inconnu. */
   delaiPremiereMinutes: number | null;
+  /** Première cigarette notée avant la fin du sommeil mesuré par la montre (réveil non détecté). */
+  premiereAvantReveil: boolean;
+  /** Première cigarette de la journée, si elle existe. */
+  premiere: Instant | null;
   frequenceRepos: number | null;
   hrvMs: number | null;
   pas: number | null;
@@ -74,6 +78,8 @@ export function analyserMontre(etat: EtatJournal, d: DonneesMontre, aujourdhui: 
       reveil: s?.fin ?? null,
       sommeilMinutes: s ? Math.round((s.fin - s.debut) / 60_000) : null,
       delaiPremiereMinutes: s && premiere && premiere.a >= s.fin ? Math.round((premiere.a - s.fin) / 60_000) : null,
+      premiereAvantReveil: Boolean(s && premiere && premiere.a < s.fin),
+      premiere: premiere?.a ?? null,
       frequenceRepos: repos.length ? Math.min(...repos) : null,
       hrvMs: moy(duJour(d.hrv, jour).map((x) => x.ms)),
       pas: pas > 0 ? pas : null,
