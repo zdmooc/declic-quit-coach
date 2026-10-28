@@ -46,7 +46,7 @@ import type { Boisson } from '../domain/cafeine';
 import { statistiques, type Statistiques } from '../domain/stats';
 import { analyserMontre, type AnalyseMontre, type DonneesMontre } from '../domain/montre';
 import { classerAliments, objectifsActifs, suiviBiologique, type Bilan, type Objectif, type SuiviParametre } from '../domain/sante';
-import type { Clock, CoachIa, EventStore, IdGenerator, Notifier, TourCoach } from '../ports';
+import type { Clock, CoachIa, EventStore, IdGenerator, Notifier, SourceSante, TourCoach } from '../ports';
 import { analyserImport, lireFichierDeclic, simulerImport, VERSION_EXPORT, type Apercu, type Choix, type Simulation } from './migration';
 
 export interface DeclicDeps {
@@ -59,7 +59,13 @@ export interface DeclicDeps {
   preferencesNotif?: PreferencesNotif;
   /** Coach IA ; absent tant qu'il n'est pas configuré (l'app reste complète sans lui). */
   coachIa?: CoachIa;
+  /** Données santé du téléphone (Health Connect) ; absentes en développement ou sur un ancien APK. */
+  sante?: SourceSante;
 }
+
+export type LectureMontre =
+  | { etat: 'indisponible' | 'a-connecter'; analyse: null }
+  | { etat: 'connecte'; analyse: AnalyseMontre };
 
 export interface Reglages {
   prixPaquetCents: number;
@@ -471,6 +477,20 @@ export class Declic {
     const tdb = await this.tableauDeBord();
     if (!etat || !tdb) return null;
     return analyserMontre(etat, d, tdb.jour, this.deps.clock.timeZone(), 28);
+  }
+
+  /**
+   * Lit la montre et les capteurs (RM-27) sur 4 semaines via le port `SourceSante`, puis les croise
+   * avec le journal. `demander` affiche d'abord l'autorisation Health Connect. Rien n'est enregistré.
+   */
+  async lireMontre(demander = false): Promise<LectureMontre> {
+    const source = this.deps.sante;
+    if (!source || !(await source.disponible())) return { etat: 'indisponible', analyse: null };
+    if (demander) await source.autoriser();
+    if (!(await source.dejaAutorise())) return { etat: 'a-connecter', analyse: null };
+    const maintenant = this.deps.clock.now();
+    const analyse = await this.analyserMontre(await source.lire(maintenant - 29 * 86_400_000, maintenant));
+    return analyse ? { etat: 'connecte', analyse } : { etat: 'a-connecter', analyse: null };
   }
 
   /** Statistiques détaillées (RM-26). */

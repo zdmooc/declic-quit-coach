@@ -13,7 +13,7 @@ import { ReglagesLocaux } from '../../adapters/reglagesLocaux';
 import { HealthConnectSource } from '../../adapters/santeConnect';
 import { SqliteEventStore } from '../../adapters/sqlite';
 import type { ContenuSante, ReferencePharma } from '../../domain';
-import type { Notifier, SourceSante } from '../../ports';
+import type { Notifier } from '../../ports';
 import pharma from '../../../config/pharma-reference.json';
 import sante from '../../../config/health-milestones.json';
 
@@ -27,8 +27,6 @@ export interface Application {
   locaux: ReglagesLocaux;
   /** Adresse du relais du coach IA, si configuré. */
   urlCoach: string | null;
-  /** Health Connect (montre, capteur de glucose, balance) ; lecture seule, à la demande. */
-  sante: SourceSante;
 }
 
 /** Charge expo-notifications seulement si ses modules natifs sont présents (sinon l'app planterait). */
@@ -69,7 +67,8 @@ export async function creerApplication(): Promise<Application> {
     referencePharma: pharma as ReferencePharma,
     contenuSante: sante as ContenuSante,
     ...(configCoach ? { coachIa: new CoachHttp(configCoach.url, configCoach.jeton) } : {}),
+    sante: new HealthConnectSource(),
   });
   await declic.replanifierNotifications();
-  return { declic, clock, notifications, locaux, urlCoach: configCoach?.url ?? null, sante: new HealthConnectSource() };
+  return { declic, clock, notifications, locaux, urlCoach: configCoach?.url ?? null };
 }

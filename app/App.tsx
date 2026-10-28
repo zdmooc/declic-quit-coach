@@ -111,24 +111,12 @@ export default function App() {
   };
   /** Health Connect (RM-27) : lecture des 14 derniers jours, à la demande ; `demander` affiche l'autorisation. */
   const lireMontre = async (demander = false): Promise<AnalyseMontre | null> => {
-    if (!app) return null;
     try {
-      if (!(await app.sante.disponible())) {
-        setEtatMontre('indisponible');
-        return null;
-      }
-      if (demander) await app.sante.autoriser();
-      if (!(await app.sante.dejaAutorise())) {
-        setEtatMontre('a-connecter');
-        return null;
-      }
       setEtatMontre('chargement');
-      const maintenant = Date.now();
-      const d = await app.sante.lire(maintenant - 29 * 86_400_000, maintenant);
-      const analyse = await declic.analyserMontre(d);
-      setMontre(analyse);
-      setEtatMontre('connecte');
-      return analyse;
+      const r = await declic.lireMontre(demander);
+      setEtatMontre(r.etat);
+      if (r.analyse) setMontre(r.analyse);
+      return r.analyse;
     } catch (e) {
       setEtatMontre('a-connecter');
       Alert.alert('Health Connect', e instanceof Error ? e.message : String(e));

@@ -3,18 +3,20 @@ import { randomFillSync } from 'node:crypto';
 import { zonedInstant, type ContenuSante, type ReferencePharma } from '../domain';
 import { FakeClock, InMemoryEventStore, MemoryNotifier, UuidV7Generator } from '../adapters/memory';
 import { Declic } from './declic';
+import type { SourceSante } from '../ports';
+import { MONTRE_VIDE } from '../domain';
 
 const TZ = 'Europe/Paris';
 const REF: ReferencePharma = { version: 't', validePar: null, valideLe: null, oraux: [] };
 const SANTE: ContenuSante = { version: 't', validePar: null, jalons: [] };
 const PROFIL = { cigarettesParJour: 20, prixPaquetCents: 1300, cigarettesParPaquet: 20, dejaFumeAujourdhui: false };
 
-function monter(debut = zonedInstant('2026-11-02', '06:30', TZ)) {
+function monter(debut = zonedInstant('2026-11-02', '06:30', TZ), sante?: SourceSante) {
   const clock = new FakeClock(debut, TZ);
   const store = new InMemoryEventStore();
   const notifier = new MemoryNotifier();
   const ids = new UuidV7Generator((b) => randomFillSync(b), () => clock.now());
-  const app = new Declic({ store, clock, ids, notifier, referencePharma: REF, contenuSante: SANTE });
+  const app = new Declic({ store, clock, ids, notifier, referencePharma: REF, contenuSante: SANTE, ...(sante ? { sante } : {}) });
   return { app, clock, store, notifier };
 }
 
@@ -576,5 +578,28 @@ describe('statistiques', () => {
     expect(s.parades[0]).toMatchObject({ libelle: 'Café', depuis: '2026-10-23', avant: 1, apres: 1 });
     expect(s.bilans[0]).toMatchObject({ date: '2026-10-26', ldl: 1.3 });
     expect(s.bilans[0]!.cigarettesParJour).toBeCloseTo(29 / 6);
+  });
+});
+
+describe('montre via le port SourceSante', () => {
+  it('indisponible sans source, à connecter sans autorisation, puis lecture croisée avec le journal', async () => {
+    const sans = monter(zonedInstant('2026-10-28', '09:00', TZ));
+    await sans.app.creerProfil(PROFIL);
+    expect(await sans.app.lireMontre()).toEqual({ etat: 'indisponible', analyse: null });
+
+    let autorise = false;
+    const source: SourceSante = {
+      disponible: async () => true,
+      autoriser: async () => (autorise = true),
+      dejaAutorise: async () => autorise,
+      lire: async (_d, f) => ({ ...MONTRE_VIDE(f), sommeils: [{ debut: zonedInstant('2026-10-27', '23:30', TZ), fin: zonedInstant('2026-10-28', '07:30', TZ) }] }),
+    };
+    const { app } = monter(zonedInstant('2026-10-28', '08:00', TZ), source);
+    await app.creerProfil(PROFIL);
+    await app.enregistrerCigarette();
+    expect((await app.lireMontre()).etat).toBe('a-connecter');
+    const r = await app.lireMontre(true);
+    expect(r.etat).toBe('connecte');
+    expect(r.analyse!.jours.at(-1)).toMatchObject({ sommeilMinutes: 480, delaiPremiereMinutes: 30 });
   });
 });
