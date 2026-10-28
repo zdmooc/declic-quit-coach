@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import type { AnalyseMontre, JourMontre } from '../domain';
+import { pistesSommeil, type AnalyseMontre, type JourMontre, type PhasesSommeil } from '../domain';
 import { couleurs, espace } from './theme';
 
 /**
@@ -84,6 +84,54 @@ function Serie({
   );
 }
 
+const PHASES: { cle: keyof PhasesSommeil; nom: string; couleur: string }[] = [
+  { cle: 'profond', nom: 'profond', couleur: '#1F4D38' },
+  { cle: 'paradoxal', nom: 'paradoxal', couleur: '#4E9A72' },
+  { cle: 'leger', nom: 'léger', couleur: '#A9D3BC' },
+  { cle: 'eveil', nom: 'éveillé', couleur: '#D9A441' },
+];
+
+/** Dernière nuit : répartition des phases, part réparatrice, puis pistes tirées de tes nuits. */
+function CarteSommeil({ jours, tz }: { jours: JourMontre[]; tz: string }) {
+  const nuit = [...jours].reverse().find((x) => x.phases);
+  const pistes = pistesSommeil(jours, tz);
+  if (!nuit && pistes.length === 0) return null;
+  const ph = nuit?.phases;
+  const total = ph ? ph.profond + ph.paradoxal + ph.leger + ph.eveil : 0;
+  return (
+    <View style={styles.carte}>
+      <Text style={styles.petit}>Sommeil réparateur</Text>
+      {ph && nuit ? (
+        <>
+          <Text style={styles.texte}>
+            Nuit du {nuit.jour.slice(8, 10)}/{nuit.jour.slice(5, 7)} : <Text style={styles.bravo}>{duree(nuit.reparateurMinutes ?? 0)} réparateur</Text> (
+            {Math.round(nuit.reparateurPct ?? 0)} % du sommeil){nuit.coucher ? ` · couché à ${hhmm(nuit.coucher, tz)}` : ''}
+          </Text>
+          <View style={styles.phases}>
+            {PHASES.map((p) => (ph[p.cle] > 0 ? <View key={p.cle} style={{ flex: ph[p.cle] / total, backgroundColor: p.couleur }} /> : null))}
+          </View>
+          <Text style={styles.aide}>{PHASES.map((p) => `${p.nom} ${duree(ph[p.cle])}`).join(' · ')}</Text>
+          <Text style={styles.aide}>
+            {nuit.cigaretteAvantCoucher !== null ? `Dernière cigarette ${duree(nuit.cigaretteAvantCoucher)} avant le coucher. ` : ''}
+            {nuit.cafeAvantCoucher !== null ? `Dernière caféine ${duree(nuit.cafeAvantCoucher)} avant.` : ''}
+          </Text>
+          <Text style={styles.aide}>Repère : chez l’adulte, profond + paradoxal font souvent 35 à 45 % de la nuit (indicatif, selon la montre).</Text>
+        </>
+      ) : (
+        <Text style={styles.aide}>La montre n’a pas encore transmis le détail des phases de sommeil.</Text>
+      )}
+      {pistes.length > 0 && <Text style={[styles.petit, styles.espaceHaut]}>Pistes pour mieux dormir</Text>}
+      {pistes.map((p) => (
+        <View key={p.titre} style={styles.piste}>
+          <Text style={styles.titrePiste}>{p.titre}</Text>
+          <Text style={styles.aide}>{p.detail}</Text>
+          {p.mesure && <Text style={styles.mesure}>{p.mesure}</Text>}
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export function OngletMontre({ etat, montre, tz, onConnecter, onActualiser }: Props) {
   // Instant de l'affichage (l'onglet est relu à chaque « Actualiser »).
   const [maintenant] = useState(() => Date.now());
@@ -148,6 +196,8 @@ export function OngletMontre({ etat, montre, tz, onConnecter, onActualiser }: Pr
         <Text style={styles.aide}>Sources lues : {montre.sources.length ? montre.sources.join(', ') : 'aucune donnée pour l’instant'}</Text>
       </View>
 
+      <CarteSommeil jours={j} tz={tz} />
+
       {montre.effetCigarette && (
         <View style={styles.carte}>
           <Text style={styles.petit}>Une cigarette et ton cœur</Text>
@@ -163,6 +213,7 @@ export function OngletMontre({ etat, montre, tz, onConnecter, onActualiser }: Pr
 
       <Serie titre="Délai réveil → 1re cigarette" jours={j} valeur={(x) => x.delaiPremiereMinutes} format={duree} sens="haut" />
       <Serie titre="Sommeil" jours={j} valeur={(x) => x.sommeilMinutes} format={duree} sens="haut" />
+      <Serie titre="Sommeil réparateur (profond + paradoxal)" jours={j} valeur={(x) => x.reparateurMinutes} format={duree} sens="haut" />
       <Serie titre="Fréquence cardiaque au repos" jours={j} valeur={(x) => x.frequenceRepos} format={(n) => `${Math.round(n)} bpm`} sens="bas" />
       <Serie titre="HRV (variabilité, stress)" jours={j} valeur={(x) => x.hrvMs} format={(n) => `${Math.round(n)} ms`} sens="haut" />
       <Serie titre="Pas" jours={j} valeur={(x) => x.pas} format={(n) => String(Math.round(n))} sens="haut" />
@@ -195,6 +246,11 @@ const styles = StyleSheet.create({
   aide: { color: couleurs.doux, fontSize: 14, lineHeight: 19 },
   lien: { color: couleurs.vert, fontSize: 15, fontWeight: '700' },
   valeur: { color: couleurs.encre, fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  phases: { flexDirection: 'row', height: 14, borderRadius: 7, overflow: 'hidden', backgroundColor: couleurs.ligne },
+  espaceHaut: { marginTop: espace(2) },
+  piste: { gap: 2, paddingTop: espace(1), borderTopWidth: 1, borderTopColor: couleurs.ligne },
+  titrePiste: { color: couleurs.encre, fontSize: 16, fontWeight: '700' },
+  mesure: { color: couleurs.vert, fontSize: 14, fontWeight: '700' },
   bravo: { color: couleurs.vert, fontWeight: '800' },
   ligneEntre: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: espace(2) },
   bouton: { backgroundColor: couleurs.vert, borderRadius: 16, paddingVertical: espace(3), alignItems: 'center' },

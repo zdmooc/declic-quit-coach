@@ -5,11 +5,11 @@
  */
 
 import type { EtatJournal } from './dashboard';
-import { addDays, localDateOf, type Instant, type LocalDate } from './time';
+import { addDays, localDateOf, minutesOfDay, type Instant, type LocalDate } from './time';
 
 export interface DonneesMontre {
   luLe: Instant;
-  sommeils: { debut: Instant; fin: Instant }[];
+  sommeils: { debut: Instant; fin: Instant; phases?: PhasesSommeil }[];
   frequence: { a: Instant; bpm: number }[];
   repos: { a: Instant; bpm: number }[];
   hrv: { a: Instant; ms: number }[];
@@ -18,6 +18,14 @@ export interface DonneesMontre {
   glucose: { a: Instant; mgdl: number }[];
   tension: { a: Instant; sys: number; dia: number }[];
   poids: { a: Instant; kg: number }[];
+}
+
+/** Minutes par phase (Health Connect : profond, paradoxal/REM, léger, éveillé). */
+export interface PhasesSommeil {
+  profond: number;
+  paradoxal: number;
+  leger: number;
+  eveil: number;
 }
 
 export const MONTRE_VIDE = (luLe: Instant): DonneesMontre => ({
@@ -38,6 +46,15 @@ export interface JourMontre {
   /** Fin du sommeil principal terminé ce jour-là. */
   reveil: Instant | null;
   sommeilMinutes: number | null;
+  /** Début du sommeil principal (coucher). */
+  coucher: Instant | null;
+  phases: PhasesSommeil | null;
+  /** Sommeil réparateur = profond + paradoxal (minutes, et part du temps endormi). */
+  reparateurMinutes: number | null;
+  reparateurPct: number | null;
+  /** Dernière cigarette / dernière boisson caféinée → coucher (minutes ; 12 h avant au plus). */
+  cigaretteAvantCoucher: number | null;
+  cafeAvantCoucher: number | null;
   /** Réveil → première cigarette de la journée (minutes) ; `null` si inconnu. */
   delaiPremiereMinutes: number | null;
   /** Première cigarette notée avant la fin du sommeil mesuré par la montre (réveil non détecté). */
@@ -68,7 +85,17 @@ export function analyserMontre(etat: EtatJournal, d: DonneesMontre, aujourdhui: 
   const duJour = <T extends { a: Instant }>(xs: readonly T[], j: LocalDate) => xs.filter((x) => localDateOf(x.a, tz) === j);
   const jours = dates.map((jour): JourMontre => {
     // Sommeil principal : la plus longue session qui se termine ce jour-là.
-    const s = d.sommeils.filter((x) => localDateOf(x.fin, tz) === jour).sort((a, b) => b.fin - b.debut - (a.fin - a.debut))[0];
+    // (une session avec phases — la montre — passe avant une session sans détail, le téléphone par exemple).
+    const s = d.sommeils
+      .filter((x) => localDateOf(x.fin, tz) === jour)
+      .sort((a, b) => Number(Boolean(b.phases)) - Number(Boolean(a.phases)) || b.fin - b.debut - (a.fin - a.debut))[0];
+    const ph = s?.phases ?? null;
+    const endormi = ph ? ph.profond + ph.paradoxal + ph.leger : null;
+    const avant = (instants: number[]) => {
+      if (!s) return null;
+      const a = instants.filter((x) => x <= s.debut && s.debut - x <= 12 * 3_600_000);
+      return a.length ? Math.round((s.debut - Math.max(...a)) / 60_000) : null;
+    };
     const premiere = etat.cigarettes.filter((c) => c.jour === jour).sort((a, b) => a.a - b.a)[0];
     const glu = duJour(d.glucose, jour).map((x) => x.mgdl);
     const pas = d.pas.filter((p) => localDateOf(p.debut, tz) === jour).reduce((t, p) => t + p.n, 0);
@@ -77,6 +104,12 @@ export function analyserMontre(etat: EtatJournal, d: DonneesMontre, aujourdhui: 
       jour,
       reveil: s?.fin ?? null,
       sommeilMinutes: s ? Math.round((s.fin - s.debut) / 60_000) : null,
+      coucher: s?.debut ?? null,
+      phases: ph,
+      reparateurMinutes: ph ? ph.profond + ph.paradoxal : null,
+      reparateurPct: ph && endormi ? ((ph.profond + ph.paradoxal) / endormi) * 100 : null,
+      cigaretteAvantCoucher: avant(etat.cigarettes.map((c) => c.a)),
+      cafeAvantCoucher: avant((etat.boissons ?? []).filter((b) => b.boisson !== 'deca').map((b) => b.a)),
       delaiPremiereMinutes: s && premiere && premiere.a >= s.fin ? Math.round((premiere.a - s.fin) / 60_000) : null,
       premiereAvantReveil: Boolean(s && premiere && premiere.a < s.fin),
       premiere: premiere?.a ?? null,
@@ -121,4 +154,85 @@ export function analyserMontre(etat: EtatJournal, d: DonneesMontre, aujourdhui: 
     dernierPoids: dernier(d.poids),
     sources,
   };
+}
+
+export interface PisteSommeil {
+  titre: string;
+  detail: string;
+  /** Comparaison mesurée sur tes nuits, si assez de données. */
+  mesure?: string;
+}
+
+const moyenne = (xs: readonly number[]) => xs.reduce((s, x) => s + x, 0) / xs.length;
+const fmt = (m: number) => (m < 60 ? `${Math.round(m)} min` : `${Math.floor(m / 60)} h ${String(Math.round(m % 60)).padStart(2, '0')}`);
+
+/** Compare le sommeil réparateur des nuits qui respectent un seuil et des autres (2 nuits au moins de chaque côté). */
+function comparer(jours: readonly JourMontre[], valeur: (j: JourMontre) => number | null, seuil: number, libelle: [string, string]): string | undefined {
+  const avec = jours.filter((j) => j.reparateurPct !== null && valeur(j) !== null);
+  const ok = avec.filter((j) => valeur(j)! >= seuil).map((j) => j.reparateurPct!);
+  const ko = avec.filter((j) => valeur(j)! < seuil).map((j) => j.reparateurPct!);
+  if (ok.length < 2 || ko.length < 2) return undefined;
+  return `Sommeil réparateur : ${Math.round(moyenne(ok))} % ${libelle[0]} (${ok.length} nuits), ${Math.round(moyenne(ko))} % ${libelle[1]} (${ko.length} nuits).`;
+}
+
+/**
+ * Pistes pour un sommeil plus réparateur, tirées de TES nuits (tabac, caféine, régularité, éveils).
+ * Repères généraux : la nicotine et la caféine sont des stimulants ; la caféine agit plusieurs heures.
+ */
+export function pistesSommeil(jours: readonly JourMontre[], tz: string): PisteSommeil[] {
+  const nuits = jours.filter((j) => j.sommeilMinutes !== null);
+  if (nuits.length === 0) return [];
+  const pistes: PisteSommeil[] = [];
+
+  const cig = nuits.map((j) => j.cigaretteAvantCoucher).filter((x): x is number => x !== null);
+  if (cig.length > 0 && moyenne(cig) < 90) {
+    const mesure = comparer(nuits, (j) => j.cigaretteAvantCoucher, 90, ['quand la dernière cigarette est à 1 h 30 ou plus du coucher', 'sinon']);
+    pistes.push({
+      titre: 'Dernière cigarette au moins 1 h 30 avant de dormir',
+      detail: `Ta dernière cigarette arrive en moyenne ${fmt(moyenne(cig))} avant le coucher. La nicotine est un stimulant : elle retarde l’endormissement et allège le sommeil. Avance-la, et mets une parade à la place (tisane, douche, lecture).`,
+      ...(mesure ? { mesure } : {}),
+    });
+  }
+
+  const cafe = nuits.map((j) => j.cafeAvantCoucher).filter((x): x is number => x !== null);
+  if (cafe.some((x) => x < 8 * 60)) {
+    const mesure = comparer(nuits, (j) => j.cafeAvantCoucher ?? 24 * 60, 8 * 60, ['sans caféine dans les 8 h avant le coucher', 'avec']);
+    pistes.push({
+      titre: 'Pas de caféine dans les 8 h avant le coucher',
+      detail: 'La caféine agit plusieurs heures. Passe au déca ou à une infusion l’après-midi.',
+      ...(mesure ? { mesure } : {}),
+    });
+  }
+
+  const couchers = nuits.map((j) => j.coucher).filter((x): x is number => x !== null);
+  if (couchers.length >= 3) {
+    // Minutes depuis midi, pour qu'un coucher à 23 h 30 et un à 0 h 30 soient proches.
+    const m = couchers.map((c) => (minutesOfDay(c, tz) + 12 * 60) % (24 * 60));
+    const moy = moyenne(m);
+    const ecart = Math.sqrt(moyenne(m.map((x) => (x - moy) ** 2)));
+    if (ecart > 45)
+      pistes.push({
+        titre: 'Se coucher à heure fixe',
+        detail: `Ton heure de coucher varie de ± ${fmt(ecart)}. Un horaire régulier, même le week-end, rend le sommeil plus profond.`,
+      });
+  }
+
+  const eveils = nuits.map((j) => j.phases?.eveil).filter((x): x is number => x !== undefined);
+  if (eveils.length > 0 && moyenne(eveils) > 30)
+    pistes.push({
+      titre: 'Moins d’éveils dans la nuit',
+      detail: `Tu passes en moyenne ${fmt(moyenne(eveils))} éveillé par nuit. Chambre fraîche et sombre, pas d’écran au lit, pas d’alcool le soir. Si tu te réveilles avec une envie de fumer, c’est aussi un signe de manque : à noter.`,
+    });
+
+  const duree = moyenne(nuits.map((j) => j.sommeilMinutes!));
+  if (duree < 7 * 60)
+    pistes.push({ titre: 'Dormir plus longtemps', detail: `Tu dors en moyenne ${fmt(duree)} : la plupart des adultes ont besoin de 7 à 9 h.` });
+
+  const rep = nuits.map((j) => j.reparateurPct).filter((x): x is number => x !== null);
+  if (rep.length > 0 && moyenne(rep) < 35)
+    pistes.push({
+      titre: 'Activité physique dans la journée',
+      detail: 'Marcher ou bouger en journée (pas le soir tard) augmente le sommeil profond. Ton sommeil réparateur est sous les repères habituels.',
+    });
+  return pistes;
 }

@@ -30,3 +30,33 @@ describe('montre (Health Connect)', () => {
     expect(m.sources).toEqual(['sommeil', 'fréquence cardiaque', 'fréquence au repos', 'glycémie']);
   });
 });
+
+describe('sommeil réparateur et pistes', () => {
+  it('profond + paradoxal, cigarette et café avant le coucher, pistes tirées des nuits', async () => {
+    const { pistesSommeil } = await import('./montre');
+    const jours = ['2026-10-25', '2026-10-26', '2026-10-27'];
+    const cigarettes = jours.map((j, i) => ({ id: `c${i}`, a: h(addJ(j, -1), '22:50'), jour: addJ(j, -1) }));
+    const boissons = jours.map((j, i) => ({ id: `b${i}`, a: h(addJ(j, -1), '18:00'), jour: addJ(j, -1), boisson: 'cafe' }));
+    const etat = { cigarettes, boissons } as unknown as EtatJournal;
+    const d = {
+      ...MONTRE_VIDE(h('2026-10-27', '12:00')),
+      sommeils: jours.map((j) => ({
+        debut: h(addJ(j, -1), '23:20'),
+        fin: h(j, '07:20'),
+        phases: { profond: 90, paradoxal: 100, leger: 250, eveil: 40 },
+      })),
+    };
+    const m = analyserMontre(etat, d, '2026-10-27', TZ, 3);
+    const j = m.jours.at(-1)!;
+    expect(j).toMatchObject({ reparateurMinutes: 190, cigaretteAvantCoucher: 30, cafeAvantCoucher: 320 });
+    expect(j.reparateurPct).toBeCloseTo((190 / 440) * 100);
+    const titres = pistesSommeil(m.jours, TZ).map((p) => p.titre);
+    expect(titres).toEqual(['Dernière cigarette au moins 1 h 30 avant de dormir', 'Pas de caféine dans les 8 h avant le coucher', 'Moins d’éveils dans la nuit']);
+  });
+});
+
+function addJ(j: string, n: number): string {
+  const d = new Date(`${j}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
