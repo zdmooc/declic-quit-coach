@@ -470,7 +470,7 @@ export class Declic {
     const etat = await this.etat();
     const tdb = await this.tableauDeBord();
     if (!etat || !tdb) return null;
-    return analyserMontre(etat, d, tdb.jour, this.deps.clock.timeZone());
+    return analyserMontre(etat, d, tdb.jour, this.deps.clock.timeZone(), 28);
   }
 
   /** Statistiques détaillées (RM-26). */

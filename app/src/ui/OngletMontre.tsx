@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { pistesSommeil, type AnalyseMontre, type JourMontre, type PhasesSommeil } from '../domain';
+import { pistesSommeil, semainesReparateur, type AnalyseMontre, type JourMontre } from '../domain';
 import { couleurs, espace } from './theme';
 
 /**
@@ -78,56 +78,65 @@ function Serie({
         })}
       </View>
       <Text style={styles.aide}>
-        Moyenne 14 j : {format(moyenne)} · {seuils ? 'couleurs : seuils usuels' : 'vert = dans ta moyenne ou mieux'}
+        moy. 14 j : {format(moyenne)}
       </Text>
     </View>
   );
 }
 
-const PHASES: { cle: keyof PhasesSommeil; nom: string; couleur: string }[] = [
-  { cle: 'profond', nom: 'profond', couleur: '#1F4D38' },
-  { cle: 'paradoxal', nom: 'paradoxal', couleur: '#4E9A72' },
-  { cle: 'leger', nom: 'léger', couleur: '#A9D3BC' },
-  { cle: 'eveil', nom: 'éveillé', couleur: '#D9A441' },
-];
 
-/** Dernière nuit : répartition des phases, part réparatrice, puis pistes tirées de tes nuits. */
+const VERDICTS = {
+  bien: { mot: 'Bien', couleur: couleurs.vert, fond: couleurs.vertClair },
+  limite: { mot: 'Limite', couleur: couleurs.ambre, fond: couleurs.ambreClair },
+  ameliorer: { mot: 'À améliorer', couleur: couleurs.rouge, fond: couleurs.rougeClair },
+} as const;
+
+/** Sommeil réparateur d'un coup d'œil : la semaine en vert / orange / rouge, puis les pistes si besoin. */
 function CarteSommeil({ jours, tz }: { jours: JourMontre[]; tz: string }) {
-  const nuit = [...jours].reverse().find((x) => x.phases);
-  const pistes = pistesSommeil(jours, tz);
-  if (!nuit && pistes.length === 0) return null;
-  const ph = nuit?.phases;
-  const total = ph ? ph.profond + ph.paradoxal + ph.leger + ph.eveil : 0;
+  const [ouvert, setOuvert] = useState(false);
+  const semaines = semainesReparateur(jours).slice(-4);
+  const pistes = pistesSommeil(jours.slice(-14), tz);
+  const cette = semaines.at(-1);
+  if (!cette) return null;
+  const v = VERDICTS[cette.verdict];
   return (
     <View style={styles.carte}>
-      <Text style={styles.petit}>Sommeil réparateur</Text>
-      {ph && nuit ? (
-        <>
-          <Text style={styles.texte}>
-            Nuit du {nuit.jour.slice(8, 10)}/{nuit.jour.slice(5, 7)} : <Text style={styles.bravo}>{duree(nuit.reparateurMinutes ?? 0)} réparateur</Text> (
-            {Math.round(nuit.reparateurPct ?? 0)} % du sommeil){nuit.coucher ? ` · couché à ${hhmm(nuit.coucher, tz)}` : ''}
-          </Text>
-          <View style={styles.phases}>
-            {PHASES.map((p) => (ph[p.cle] > 0 ? <View key={p.cle} style={{ flex: ph[p.cle] / total, backgroundColor: p.couleur }} /> : null))}
-          </View>
-          <Text style={styles.aide}>{PHASES.map((p) => `${p.nom} ${duree(ph[p.cle])}`).join(' · ')}</Text>
-          <Text style={styles.aide}>
-            {nuit.cigaretteAvantCoucher !== null ? `Dernière cigarette ${duree(nuit.cigaretteAvantCoucher)} avant le coucher. ` : ''}
-            {nuit.cafeAvantCoucher !== null ? `Dernière caféine ${duree(nuit.cafeAvantCoucher)} avant.` : ''}
-          </Text>
-          <Text style={styles.aide}>Repère : chez l’adulte, profond + paradoxal font souvent 35 à 45 % de la nuit (indicatif, selon la montre).</Text>
-        </>
-      ) : (
-        <Text style={styles.aide}>La montre n’a pas encore transmis le détail des phases de sommeil.</Text>
-      )}
-      {pistes.length > 0 && <Text style={[styles.petit, styles.espaceHaut]}>Pistes pour mieux dormir</Text>}
-      {pistes.map((p) => (
-        <View key={p.titre} style={styles.piste}>
-          <Text style={styles.titrePiste}>{p.titre}</Text>
-          <Text style={styles.aide}>{p.detail}</Text>
-          {p.mesure && <Text style={styles.mesure}>{p.mesure}</Text>}
+      <Text style={styles.petit}>Sommeil réparateur · cette semaine</Text>
+      <View style={[styles.verdict, { backgroundColor: v.fond }]}>
+        <Text style={[styles.verdictValeur, { color: v.couleur }]}>{Math.round(cette.pct)} %</Text>
+        <View style={styles.flex}>
+          <Text style={[styles.verdictMot, { color: v.couleur }]}>{v.mot}</Text>
+          <Text style={styles.aide}>{duree(cette.minutes)} par nuit · repère ≥ 35 %</Text>
         </View>
-      ))}
+      </View>
+      {semaines.length > 1 && (
+        <View style={styles.semaines}>
+          {semaines.map((w) => (
+            <View key={w.lundi} style={[styles.semaine, { backgroundColor: VERDICTS[w.verdict].fond }]}>
+              <Text style={[styles.semaineValeur, { color: VERDICTS[w.verdict].couleur }]}>{Math.round(w.pct)} %</Text>
+              <Text style={styles.jour}>
+                sem. {w.lundi.slice(8, 10)}/{w.lundi.slice(5, 7)}
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
+      {cette.verdict === 'bien' ? (
+        <Text style={styles.mesure}>Rien à changer : continue comme ça.</Text>
+      ) : pistes.length > 0 ? (
+        <Pressable onPress={() => setOuvert(!ouvert)} accessibilityRole="button" hitSlop={6}>
+          <Text style={styles.lien}>
+            {ouvert ? '▾' : '▸'} {pistes.length} piste{pistes.length > 1 ? 's' : ''} pour l’améliorer
+          </Text>
+        </Pressable>
+      ) : null}
+      {ouvert &&
+        pistes.map((p) => (
+          <View key={p.titre} style={styles.piste}>
+            <Text style={styles.titrePiste}>{p.titre}</Text>
+            {p.mesure ? <Text style={styles.mesure}>{p.mesure}</Text> : <Text style={styles.aide}>{p.detail}</Text>}
+          </View>
+        ))}
     </View>
   );
 }
@@ -160,7 +169,7 @@ export function OngletMontre({ etat, montre, tz, onConnecter, onActualiser }: Pr
       </View>
     );
 
-  const j = montre.jours;
+  const j = montre.jours.slice(-14);
   const aujourdhui = j.at(-1)!;
   const delais = j.map((x) => x.delaiPremiereMinutes).filter((x): x is number => x !== null);
   const glu = aujourdhui.glucose ?? [...j].reverse().find((x) => x.glucose)?.glucose ?? null;
@@ -196,7 +205,7 @@ export function OngletMontre({ etat, montre, tz, onConnecter, onActualiser }: Pr
         <Text style={styles.aide}>Sources lues : {montre.sources.length ? montre.sources.join(', ') : 'aucune donnée pour l’instant'}</Text>
       </View>
 
-      <CarteSommeil jours={j} tz={tz} />
+      <CarteSommeil jours={montre.jours} tz={tz} />
 
       {montre.effetCigarette && (
         <View style={styles.carte}>
@@ -246,8 +255,13 @@ const styles = StyleSheet.create({
   aide: { color: couleurs.doux, fontSize: 14, lineHeight: 19 },
   lien: { color: couleurs.vert, fontSize: 15, fontWeight: '700' },
   valeur: { color: couleurs.encre, fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums'] },
-  phases: { flexDirection: 'row', height: 14, borderRadius: 7, overflow: 'hidden', backgroundColor: couleurs.ligne },
-  espaceHaut: { marginTop: espace(2) },
+  flex: { flex: 1 },
+  verdict: { flexDirection: 'row', alignItems: 'center', gap: espace(3), borderRadius: 14, padding: espace(3) },
+  verdictValeur: { fontSize: 34, fontWeight: '900', fontVariant: ['tabular-nums'] },
+  verdictMot: { fontSize: 20, fontWeight: '800' },
+  semaines: { flexDirection: 'row', gap: espace(2) },
+  semaine: { flex: 1, borderRadius: 10, paddingVertical: espace(2), alignItems: 'center' },
+  semaineValeur: { fontSize: 17, fontWeight: '800' },
   piste: { gap: 2, paddingTop: espace(1), borderTopWidth: 1, borderTopColor: couleurs.ligne },
   titrePiste: { color: couleurs.encre, fontSize: 16, fontWeight: '700' },
   mesure: { color: couleurs.vert, fontSize: 14, fontWeight: '700' },

@@ -102,7 +102,7 @@ export default function App() {
       if (!(await app.sante.dejaAutorise())) return setEtatMontre('a-connecter');
       setEtatMontre('chargement');
       const maintenant = Date.now();
-      const d = await app.sante.lire(maintenant - 15 * 86_400_000, maintenant);
+      const d = await app.sante.lire(maintenant - 29 * 86_400_000, maintenant);
       setMontre(await declic.analyserMontre(d));
       setEtatMontre('connecte');
     } catch (e) {

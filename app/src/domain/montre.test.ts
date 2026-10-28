@@ -60,3 +60,15 @@ function addJ(j: string, n: number): string {
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
 }
+
+describe('sommeil réparateur par semaine', () => {
+  it('moyenne par semaine (lundi) et verdict vert / orange / rouge', async () => {
+    const { semainesReparateur } = await import('./montre');
+    const j = (jour: string, pct: number) => ({ jour, reparateurPct: pct, reparateurMinutes: pct * 4 }) as never;
+    const s = semainesReparateur([j('2026-10-19', 28), j('2026-10-21', 30), j('2026-10-26', 40), j('2026-10-27', 38)]);
+    expect(s.map((w) => [w.lundi, Math.round(w.pct), w.verdict])).toEqual([
+      ['2026-10-19', 29, 'ameliorer'],
+      ['2026-10-26', 39, 'bien'],
+    ]);
+  });
+});

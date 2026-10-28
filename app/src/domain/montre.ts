@@ -236,3 +236,29 @@ export function pistesSommeil(jours: readonly JourMontre[], tz: string): PisteSo
     });
   return pistes;
 }
+
+export type VerdictSommeil = 'bien' | 'limite' | 'ameliorer';
+
+/** Repère indicatif : profond + paradoxal ≈ 35 à 45 % de la nuit chez l'adulte. */
+export const verdictReparateur = (pct: number): VerdictSommeil => (pct >= 35 ? 'bien' : pct >= 30 ? 'limite' : 'ameliorer');
+
+export interface SemaineSommeil {
+  lundi: LocalDate;
+  nuits: number;
+  pct: number;
+  minutes: number;
+  verdict: VerdictSommeil;
+}
+
+/** Moyenne du sommeil réparateur par semaine (lundi), des plus anciennes à la semaine en cours. */
+export function semainesReparateur(jours: readonly JourMontre[]): SemaineSommeil[] {
+  const lundi = (j: LocalDate) => addDays(j, -((new Date(`${j}T12:00:00Z`).getUTCDay() + 6) % 7));
+  const m = new Map<LocalDate, JourMontre[]>();
+  for (const j of jours) if (j.reparateurPct !== null) m.set(lundi(j.jour), [...(m.get(lundi(j.jour)) ?? []), j]);
+  return [...m.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([l, js]) => {
+      const pct = moyenne(js.map((x) => x.reparateurPct!));
+      return { lundi: l, nuits: js.length, pct, minutes: moyenne(js.map((x) => x.reparateurMinutes!)), verdict: verdictReparateur(pct) };
+    });
+}
