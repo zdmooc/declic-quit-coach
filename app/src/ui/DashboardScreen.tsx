@@ -169,7 +169,37 @@ function Pastille({ valeur, libelle, ton = 'neutre' }: InfoPastille) {
 
 const duree = (m: number | null) => (m === null || m <= 0 ? '—' : formatDuree(m));
 
+/** Barre d'onglets en bas : l'accueil est l'écran courant, les autres s'ouvrent par-dessus. */
+function BarreOnglets(p: Pick<Props, 'onHistorique' | 'onProgres' | 'onSante' | 'onReglages'>) {
+  const onglets = [
+    { icone: '⌂', nom: 'Accueil', action: undefined },
+    { icone: '🕘', nom: 'Historique', action: p.onHistorique },
+    { icone: '📈', nom: 'Progrès', action: p.onProgres },
+    { icone: '❤', nom: 'Santé', action: p.onSante },
+    { icone: '⚙', nom: 'Réglages', action: p.onReglages },
+  ];
+  return (
+    <View style={styles.barre} accessibilityRole="tablist">
+      {onglets.map((o) => (
+        <Pressable
+          key={o.nom}
+          style={styles.onglet}
+          onPress={o.action}
+          disabled={!o.action}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: !o.action }}
+          hitSlop={4}
+        >
+          <Text style={[styles.ongletIcone, !o.action && styles.ongletActif]}>{o.icone}</Text>
+          <Text style={[styles.ongletNom, !o.action && styles.ongletActif]}>{o.nom}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
 export function DashboardScreen(props: Props) {
+  const [plus, setPlus] = useState(false);
   const { tdb, tz, onFume, onResiste, onAnnuler, onPalier, onHistorique, onReglages, onSos, onSubstituts, onProgres, onSante, onCafe } = props;
   const obs = tdb.observation;
   const top = tdb.analyse.declencheurs[0];
@@ -203,6 +233,14 @@ export function DashboardScreen(props: Props) {
     tdb.phase === 'observation'
       ? { valeur: duree(tdb.depuisDerniereMinutes), libelle: 'depuis la dernière' }
       : { valeur: formatEuros(tdb.economieTotaleCents), libelle: 'économisés' },
+    {
+      valeur: tdb.cafeine.quota !== null ? `${tdb.cafeine.aujourdhui.boissons} / ${tdb.cafeine.quota}` : String(tdb.cafeine.aujourdhui.boissons),
+      libelle: tdb.cafeine.quota !== null ? 'cafés / palier' : 'cafés aujourd’hui',
+      ton: tdb.cafeine.quota !== null && tdb.cafeine.aujourdhui.boissons > tdb.cafeine.quota ? 'rouge' : 'neutre',
+    },
+  ];
+  // Le reste, derrière « Plus de chiffres » (le patch reste visible quand il est porté).
+  const autres: InfoPastille[] = [
     tdb.patch.statut === 'aucun'
       ? { valeur: '—', libelle: 'sans patch' }
       : tdb.patch.statut === 'a-retirer'
@@ -216,11 +254,6 @@ export function DashboardScreen(props: Props) {
       libelle: tdb.moyenneNuitsMinutes !== null ? `nuit · moy. ${duree(tdb.moyenneNuitsMinutes)}` : 'nuit sans fumer',
     },
     { valeur: duree(intervalleRef), libelle: 'recommandé' },
-    {
-      valeur: tdb.cafeine.quota !== null ? `${tdb.cafeine.aujourdhui.boissons} / ${tdb.cafeine.quota}` : String(tdb.cafeine.aujourdhui.boissons),
-      libelle: tdb.cafeine.quota !== null ? 'cafés / palier' : 'cafés aujourd’hui',
-      ton: tdb.cafeine.quota !== null && tdb.cafeine.aujourdhui.boissons > tdb.cafeine.quota ? 'rouge' : 'neutre',
-    },
     { valeur: top ? `${Math.round(top.part * 100)} %` : '—', libelle: top ? top.libelle : 'déclencheur n° 1' },
     { valeur: heureRisque ? `${heureRisque.heure} h` : '—', libelle: 'heure à risque' },
   ];
@@ -260,10 +293,13 @@ export function DashboardScreen(props: Props) {
       )}
 
       <View style={styles.grille}>
-        {pastilles.map((p) => (
+        {[...pastilles, ...(tdb.patch.statut !== 'aucun' ? [autres[0]!] : []), ...(plus ? autres.slice(tdb.patch.statut !== 'aucun' ? 1 : 0) : [])].map((p) => (
           <Pastille key={p.libelle} {...p} />
         ))}
       </View>
+      <Pressable onPress={() => setPlus(!plus)} accessibilityRole="button" hitSlop={8} style={styles.plus}>
+        <Text style={styles.lien}>{plus ? 'Moins de chiffres ▴' : 'Plus de chiffres ▾'}</Text>
+      </Pressable>
 
       <View style={styles.actions}>
         <Pressable style={styles.bouton} onPress={onFume} accessibilityRole="button">
@@ -282,22 +318,10 @@ export function DashboardScreen(props: Props) {
         </Pressable>
         <View style={styles.liens}>
           <Pressable onPress={onAnnuler} accessibilityRole="button" hitSlop={8}>
-            <Text style={styles.lien}>Annuler</Text>
-          </Pressable>
-          <Pressable onPress={onHistorique} accessibilityRole="button" hitSlop={8}>
-            <Text style={styles.lien}>Historique</Text>
-          </Pressable>
-          <Pressable onPress={onProgres} accessibilityRole="button" hitSlop={8}>
-            <Text style={styles.lien}>Progrès</Text>
+            <Text style={styles.lien}>Annuler la dernière saisie</Text>
           </Pressable>
           <Pressable onPress={onSubstituts} accessibilityRole="button" hitSlop={8}>
             <Text style={styles.lien}>{tdb.patch.statut === 'porte' ? 'Patch ●' : 'Substituts'}</Text>
-          </Pressable>
-          <Pressable onPress={onSante} accessibilityRole="button" hitSlop={8}>
-            <Text style={styles.lien}>Santé</Text>
-          </Pressable>
-          <Pressable onPress={onReglages} accessibilityRole="button" hitSlop={8}>
-            <Text style={styles.lien}>Réglages</Text>
           </Pressable>
         </View>
         <Text style={styles.mention}>
@@ -307,12 +331,19 @@ export function DashboardScreen(props: Props) {
         </Text>
       </View>
       </ScrollView>
+      <BarreOnglets onHistorique={onHistorique} onProgres={onProgres} onSante={onSante} onReglages={onReglages} />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: couleurs.fond },
+  plus: { alignSelf: 'center', paddingVertical: espace(1) },
+  barre: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: couleurs.ligne, backgroundColor: couleurs.carte, paddingTop: espace(1) },
+  onglet: { flex: 1, alignItems: 'center', paddingVertical: espace(1) },
+  ongletIcone: { fontSize: 20, color: couleurs.doux },
+  ongletNom: { fontSize: 12, color: couleurs.doux, fontWeight: '600' },
+  ongletActif: { color: couleurs.vert, fontWeight: '800' },
   defilement: { flexGrow: 1, paddingHorizontal: espace(4), justifyContent: 'space-between' },
   entete: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingTop: espace(2), paddingRight: espace(14) },
   marque: { color: couleurs.vert, fontSize: 15, fontWeight: '800', letterSpacing: 2, textTransform: 'uppercase' },
