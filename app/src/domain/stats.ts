@@ -40,6 +40,8 @@ export interface Statistiques {
   /** 12. Effet des parades : cigarettes par jour dans le contexte, avant et depuis la parade. */
   parades: { libelle: string; parade: string; depuis: LocalDate; avant: number | null; apres: number | null }[];
   /** 15. Cigarettes par jour dans les 7 jours avant chaque bilan. */
+  /** Maximum par jour (RM-30) : journées terminées du plan, 7 dernières, tenues ou non. */
+  maximum: { tenus: number; jours: number } | null;
   bilans: { date: LocalDate; ldl?: number; hdl?: number; crp?: number; leucocytes?: number; cigarettesParJour: number | null }[];
 }
 
@@ -141,6 +143,10 @@ export function statistiques(etat: EtatJournal, maintenant: Instant, tz: string)
       .sort((a, b) => b.nombre - a.nombre),
     envies: recentes.map((j) => ({ jour: j.jour, resistees: j.envies, total: j.envies + j.enviesSignalees })),
     parades,
+    maximum: (() => {
+      const plan = terminees.filter((j) => j.quota !== null).slice(-7);
+      return plan.length === 0 ? null : { tenus: plan.filter((j) => j.fumees <= j.quota!).length, jours: plan.length };
+    })(),
     bilans,
   };
 }

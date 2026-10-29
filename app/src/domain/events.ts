@@ -76,6 +76,11 @@ export type PlanDemarre = Base<
     debutHabituel: TimeOfDay;
     finHabituelle: TimeOfDay;
     origine: 'observation' | 'declaration';
+    /**
+     * Maximum imposé en cours de journée (RM-30) : la journée de démarrage compte en entier
+     * (cigarettes déjà fumées comprises), sans quota réduit au prorata.
+     */
+    journeeEntiere?: true;
   }
 >;
 export type RythmeModifie = Base<'RythmeModifie', { aPartirDu: LocalDate; strategie: ReductionStrategy }>;

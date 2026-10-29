@@ -178,7 +178,10 @@ export function rejouer(events: readonly DomainEvent[], tz: string): EtatJournal
           input: { initial: e.payload.quotaDepart, dateDebut: e.payload.dateDebut, rythmes, paliers, fixes },
           reference: e.payload.referenceParJour,
           horaires: { wake: e.payload.debutHabituel, bed: e.payload.finHabituelle },
-          demarreLe: a,
+          // Maximum imposé : la journée compte en entier, comme si le plan avait commencé avec elle.
+          demarreLe: e.payload.journeeEntiere
+            ? Math.min(a, ...etat.cigarettes.filter((c) => c.jour === e.payload.dateDebut).map((c) => c.a))
+            : a,
           origine: e.payload.origine,
         };
         break;

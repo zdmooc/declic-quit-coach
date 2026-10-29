@@ -299,6 +299,7 @@ export default function App() {
             }
             onRenommerContexte={(cle, l) => depuis(() => declic.renommerContexte(cle, l), ouvrirReglages)}
             onArchiverContexte={(cle) => depuis(() => declic.archiverContexte(cle), ouvrirReglages)}
+            onMaximum={(q) => depuis(() => declic.imposerMaximum(q), ouvrirReglages)}
             onDemarrerPlan={() => depuis(() => declic.demarrerPlan(), ouvrirReglages)}
             onExporter={() => void partager(declic)}
             onSauvegarder={() => void sauvegarder(declic, clock.now())}

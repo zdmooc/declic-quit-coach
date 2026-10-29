@@ -192,6 +192,7 @@ Règles transverses : plafond de 4 notifications non critiques par jour, heures 
 |---|---|---|
 | F14.1 | Observation réglable de 1 à 7 journées (RM-21), bilan d'observation (par jour, première heure, avant midi, palier proposé) | MVP |
 | F14.2 | Paliers libres, jamais au-dessus du palier précédent (RM-19), puis rythmes −1 | MVP |
+| F14.5 | Maximum par jour imposé dès aujourd'hui (15 proposé), « il t'en reste N », jours tenus (RM-30) | MVP |
 | F14.3 | Contextes et parades : tendance par contexte sur 7 jours, effet mesuré d'une parade (RM-22) | MVP |
 | F14.4 | Parcours guidé « Où j'en suis » (étape actuelle, prochaine action) | à faire |
 

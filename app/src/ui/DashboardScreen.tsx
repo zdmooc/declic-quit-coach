@@ -94,9 +94,11 @@ function Rebours({ tdb, tz, onEcheance, onDemarrerPlan }: Pick<Props, 'tdb' | 't
     grand = tdb.depuisDerniereMinutes === null ? '0' : formatDuree(tdb.depuisDerniereMinutes);
     sous = 'sans fumer';
   } else if (p.statut === 'quota-atteint') {
-    petit = 'Quota du jour atteint';
-    grand = '0 restante';
-    sous = 'Une envie ? « J’ai résisté » est là.';
+    // Maximum atteint ou dépassé (RM-30) : rien n'est bloqué, mais on le voit.
+    const depasse = tdb.quota !== null && tdb.fumees > tdb.quota;
+    petit = depasse ? 'Maximum dépassé' : 'Maximum du jour atteint';
+    grand = depasse ? `${tdb.fumees} / ${tdb.quota}` : '0 restante';
+    sous = depasse ? 'Un faux pas n’efface rien : demain, on repart au même maximum.' : 'Une envie ? SOS envie ou « J’ai résisté ».';
   } else if (p.statut === 'attendre' && reste !== null && reste > 0) {
     petit = 'Objectif dans';
     grand = `−${formatRebours(reste)}`;
@@ -117,6 +119,9 @@ function Rebours({ tdb, tz, onEcheance, onDemarrerPlan }: Pick<Props, 'tdb' | 't
     sous = indicatif ? 'Fume normalement, et note-la.' : 'Ou tiens 10 minutes de plus : chaque minute compte.';
   }
 
+  // « Il t'en reste N » sous le compteur, une fois un maximum imposé.
+  const restantes = tdb.quota !== null && !indicatif && tdb.phase === 'reduction' ? tdb.quota - tdb.fumees : null;
+  if (restantes !== null && restantes > 0) sous = `${sous}\nIl t’en reste ${restantes} aujourd’hui (max ${tdb.quota}).`;
   // Moyenne des écarts du jour, pause en cours comprise : elle monte tant que tu tiens.
   const enDirect = signe !== null && tdb.derniereDuJourA !== null ? moyenneEnDirect(tdb.intervallesJourMinutes, tdb.derniereDuJourA, maintenant) : null;
 
@@ -217,7 +222,8 @@ export function DashboardScreen(props: Props) {
     {
       valeur: tdb.quota === null || tdb.phase === 'avant-debut' ? String(tdb.fumees) : `${tdb.fumees} / ${tdb.quota}`,
       // Le total réel inclut les cigarettes d'avant le démarrage du plan et celles sans heure (RM-13, import).
-      libelle: tdb.quota === null ? 'fumées' : tdb.fumeesJournee > tdb.fumees ? `quota · ${tdb.fumeesJournee} au total` : 'fumées / quota',
+      libelle: tdb.quota === null ? 'fumées' : tdb.fumeesJournee > tdb.fumees ? `max · ${tdb.fumeesJournee} au total` : 'fumées / maximum',
+      ...(tdb.quota !== null && tdb.phase !== 'avant-debut' ? { ton: tdb.fumees > tdb.quota ? ('rouge' as const) : ('vert' as const) } : {}),
     },
     // RM-18 : en vert les cigarettes qui ont respecté l'intervalle, en rouge les autres.
     // En observation, l'intervalle n'est qu'indicatif : pas de rouge pendant qu'on mesure.

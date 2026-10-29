@@ -603,3 +603,32 @@ describe('montre via le port SourceSante', () => {
     expect(r.analyse!.jours.at(-1)).toMatchObject({ sommeilMinutes: 480, delaiPremiereMinutes: 30 });
   });
 });
+
+describe('maximum par jour imposé (RM-30)', () => {
+  it('en cours de journée : la journée compte en entier, 15 chaque jour, ne remonte jamais', async () => {
+    const { app, clock } = monter(zonedInstant('2026-10-29', '07:00', TZ));
+    await app.creerProfil(PROFIL);
+    for (let i = 0; i < 10; i++) {
+      await app.enregistrerCigarette();
+      clock.avancerMinutes(60);
+    }
+    await app.imposerMaximum(15);
+    let tdb = (await app.tableauDeBord())!;
+    expect(tdb.phase).toBe('reduction');
+    expect(tdb.quota).toBe(15);
+    expect(tdb.fumees).toBe(10);
+    // Lendemain : toujours 15 (paliers libres), puis descente choisie ; jamais au-dessus.
+    aller(clock, zonedInstant('2026-10-30', '08:00', TZ));
+    await app.enregistrerCigarette();
+    tdb = (await app.tableauDeBord())!;
+    expect(tdb.quota).toBe(15);
+    await expect(app.imposerMaximum(16)).rejects.toThrow();
+    await app.imposerMaximum(14);
+    expect((await app.tableauDeBord())!.quota).toBe(14);
+    await expect(app.imposerMaximum(0)).rejects.toThrow(/invalide/);
+    // Jours tenus (statistiques et Ma santé) : 29/10 (10 ≤ 15) et 30/10 (1 ≤ 14).
+    aller(clock, zonedInstant('2026-10-31', '08:00', TZ));
+    await app.enregistrerCigarette();
+    expect((await app.statistiques())!.maximum).toEqual({ tenus: 2, jours: 2 });
+  });
+});

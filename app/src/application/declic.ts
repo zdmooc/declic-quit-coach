@@ -41,6 +41,7 @@ import {
   type ReferencePharma,
   type TableauDeBord,
   type TypeSubstitutOral,
+  journeeCourante,
 } from '../domain';
 import type { Boisson } from '../domain/cafeine';
 import { statistiques, type Statistiques } from '../domain/stats';
@@ -189,6 +190,31 @@ export class Declic {
     if (!etat || etat.plan) return;
     const { proposition } = proposerPlan(etat, this.deps.clock.now(), this.deps.clock.timeZone());
     await this.ajouter(this.evenement('PlanDemarre', { ...proposition, strategie }));
+  }
+
+  /**
+   * Impose un maximum de cigarettes par jour (RM-30) : premier palier de la méthode, dès la journée
+   * en cours (les cigarettes déjà fumées comptent). Sans plan, démarre le plan en paliers libres et
+   * clôt l'observation ; avec un plan, c'est un nouveau palier, qui ne peut que descendre.
+   */
+  async imposerMaximum(quota: number): Promise<void> {
+    if (!Number.isInteger(quota) || quota < 1 || quota > 100) throw new Error('Maximum invalide (1 à 100)');
+    const etat = await this.etat();
+    if (!etat) throw new Error('Profil manquant');
+    if (etat.plan) return this.fixerPalier(quota);
+    const tz = this.deps.clock.timeZone();
+    const { proposition, habitudes } = proposerPlan(etat, this.deps.clock.now(), tz);
+    const mesure = habitudes ? Math.round(habitudes.cigarettesParJour) : etat.declare;
+    await this.ajouter(
+      this.evenement('PlanDemarre', {
+        ...proposition,
+        dateDebut: journeeCourante(etat, this.deps.clock.now(), tz),
+        strategie: PALIERS_LIBRES,
+        referenceParJour: Math.max(quota, mesure),
+        quotaDepart: quota,
+        journeeEntiere: true,
+      }),
+    );
   }
 
   /** Enregistre une cigarette maintenant et renvoie son identifiant (pour préciser le contexte ensuite). */

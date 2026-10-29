@@ -63,6 +63,18 @@ export function maSante(p: {
     axes.push({ cle: 'cigarettes', titre: '🚬 Cigarettes / jour', valeur: un(cig.cette), couleur: e.progres === null ? 'ambre' : e.progres ? 'vert' : 'rouge', ...e, aller: 'stats' });
   }
 
+  // Maximum par jour (RM-30) : jours tenus sur les 7 derniers jours terminés du plan.
+  if (stats.maximum)
+    axes.push({
+      cle: 'maximum',
+      titre: '🎯 Jours sous le maximum',
+      valeur: `${stats.maximum.tenus} / ${stats.maximum.jours}`,
+      couleur: stats.maximum.tenus / stats.maximum.jours >= 0.85 ? 'vert' : stats.maximum.tenus / stats.maximum.jours >= 0.6 ? 'ambre' : 'rouge',
+      evolution: tdb.quota !== null ? `max ${tdb.quota} / jour` : null,
+      progres: null,
+      aller: 'stats',
+    });
+
   const jm: JourMontre[] = montre?.jours ?? [];
   // Réveil → 1re cigarette : > 60 min faible dépendance, 31–60 modérée, ≤ 30 forte (Fagerström).
   const delai = deuxSemaines(jm, (j) => j.delaiPremiereMinutes, aujourdhui);

@@ -14,6 +14,8 @@ interface Props {
   onObservation: (jours: number) => void;
   onRythme: (s: ReductionStrategy) => void;
   onPalier: (quota: number) => void;
+  /** Impose un maximum de cigarettes par jour dès aujourd'hui (RM-30). */
+  onMaximum: (quota: number) => void;
   onRenommerContexte: (cle: `perso:${string}`, libelle: string) => void;
   onArchiverContexte: (cle: `perso:${string}`) => void;
   onDemarrerPlan: () => void;
@@ -45,6 +47,46 @@ function Choix({ libelle, actif, onPress }: { libelle: string; actif: boolean; o
 }
 
 /** Descente par paliers libres : un nouveau palier, toujours plus bas, appliqué dès aujourd'hui. */
+/** Maximum par jour (RM-30), avant le plan : 15 par défaut, imposé dès la journée en cours. */
+function Maximum({ onMaximum }: { onMaximum: (quota: number) => void }) {
+  const [saisie, setSaisie] = useState('15');
+  const n = Number(saisie);
+  const valide = Number.isInteger(n) && n >= 1 && n <= 100;
+  return (
+    <View style={styles.carte}>
+      <Text style={styles.petit}>Mon maximum par jour</Text>
+      <View style={styles.ligne}>
+        <TextInput
+          style={[styles.champ, styles.flex]}
+          value={saisie}
+          onChangeText={setSaisie}
+          keyboardType="number-pad"
+          maxLength={3}
+          accessibilityLabel="Maximum de cigarettes par jour"
+        />
+        <Pressable
+          style={[styles.petitBouton, !valide && styles.inactif]}
+          disabled={!valide}
+          onPress={() =>
+            Alert.alert(
+              `Imposer ${n} par jour ?`,
+              'Dès aujourd’hui : les cigarettes déjà fumées comptent. L’observation s’arrête (elle reste dans l’historique). Le maximum ne pourra que descendre.',
+              [
+                { text: 'Annuler', style: 'cancel' },
+                { text: 'Imposer', onPress: () => onMaximum(n) },
+              ],
+            )
+          }
+          accessibilityRole="button"
+        >
+          <Text style={styles.petitBoutonTexte}>Imposer</Text>
+        </Pressable>
+      </View>
+      <Text style={styles.aide}>C’est ton premier palier : l’intervalle conseillé étale ce maximum sur ta journée d’éveil. Rien n’est bloqué si tu le dépasses.</Text>
+    </View>
+  );
+}
+
 function Palier({ actuel, onPalier }: { actuel: number | null; onPalier: (quota: number) => void }) {
   const [saisie, setSaisie] = useState('');
   if (actuel === null) return null;
@@ -52,7 +94,7 @@ function Palier({ actuel, onPalier }: { actuel: number | null; onPalier: (quota:
   const valide = saisie.trim() !== '' && Number.isInteger(n) && n >= 0 && n < actuel;
   return (
     <View style={styles.palier}>
-      <Text style={styles.libelle}>Palier actuel : {actuel} par jour</Text>
+      <Text style={styles.libelle}>Maximum actuel : {actuel} par jour</Text>
       <View style={styles.ligne}>
         <TextInput
           style={[styles.champ, styles.flex]}
@@ -172,6 +214,7 @@ export function ReglagesScreen(props: Props) {
             <Text style={styles.aide}>Le nouveau prix s’applique à partir d’aujourd’hui ; les économies passées ne changent pas.</Text>
           </View>
 
+          {!r.planDemarre && <Maximum onMaximum={props.onMaximum} />}
           {!r.planDemarre ? (
             <View style={styles.carte}>
               <Text style={styles.petit}>Observation</Text>

@@ -118,7 +118,7 @@ Un **seul journal** et un **seul rejeu** (`etat.ts`) alimentent plusieurs contex
 | Événement | Charge utile principale |
 |---|---|
 | `ProfilCree` | consommation déclarée, prix, cigarettes par paquet, « déjà fumé aujourd'hui » |
-| `PlanDemarre` | date, stratégie, référence, quota de départ, horaires, origine |
+| `PlanDemarre` | date, stratégie, référence, quota de départ, horaires, origine, `journeeEntiere ?` (maximum imposé en cours de journée, RM-30) |
 | `RythmeModifie` | date d'effet, stratégie |
 | `PalierDemande` | jour (garder le quota) |
 | `PalierFixe` | date d'effet, quota (jamais au-dessus du quota courant, RM-19) |
