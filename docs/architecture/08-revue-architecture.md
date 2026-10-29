@@ -45,7 +45,7 @@
 |---|---|---|---|---|
 | R1 | Données de santé (bilans) **non chiffrées** sur le téléphone et dans la sauvegarde | Moyenne | Fort | Lot sécurité : SQLCipher + clé dans le Keystore, verrou biométrique, sauvegarde chiffrée |
 | R2 | Évolution des événements sans stratégie écrite (tous en `schemaVersion: 1`) | Faible | Moyen | Règle : champs optionnels seulement ; sinon nouvelle version + fonction de montée de version au rejeu |
-| R3 | Rejeu complet à chaque lecture | Faible aujourd'hui | Moyen au-delà de ~10 000 événements | Cache de l'état invalidé à chaque ajout, puis instantanés si besoin |
+| R3 | Rejeu complet à chaque lecture | — | — | ✅ traité le 2026-10-29 : journal et état rejoué mis en cache dans `Declic` (invalidés à chaque ajout, effacement, restauration) ; `journeeDe` en recherche dichotomique ; `analyserMontre` regroupé par jour et fenêtres par dichotomie. Voir § 7 |
 | R4 | Aucun test d'écran | Moyenne | Moyen | Maestro sur 4 parcours (onboarding, J'ai fumé, SOS, Ma santé) |
 | R5 | Coach : code d'accès partagé, pas de jeton par installation | Faible (usage personnel) | Moyen si diffusion | Jeton par installation + Play Integrity avant diffusion |
 | R6 | Seuils santé (Fagerström, caféine, pas, sommeil) indicatifs | — | Moyen | Sources citées dans RM-24 à RM-29 ; validation par un professionnel avant diffusion |
@@ -58,8 +58,25 @@
 | 2 | Règle d'évolution des événements dans un ADR (R2) | Applicative |
 | 3 | Tests d'écran Maestro (R4) | Qualité |
 | 4 | Parcours guidé « Où j'en suis » (F14.4) | Fonctionnelle |
-| 5 | Cache de l'état rejoué (R3), seulement si la lenteur apparaît | Applicative |
+| 5 | ~~Cache de l'état rejoué (R3)~~ fait | Applicative |
 
 ## 6. Règle de tenue
 
 Toute fonction livrée met à jour, **dans le même commit** : la règle métier (01), la fonction (02), les événements et modules touchés (03), et un ADR si une décision technique change. Cette revue est à refaire à chaque nouveau lot.
+
+## 7. Mesures de performance (2026-10-29)
+
+Journal synthétique : 15 cigarettes, 4 cafés et 3 envies par jour ; mesures Health Connect : 21 000 relevés de fréquence cardiaque sur 29 jours. Temps moyens sur Node (un téléphone est environ 3 à 10 fois plus lent).
+
+| Opération | 1 an (8 032 événements) avant | Après |
+|---|---|---|
+| Rejeu du journal | 92 ms | 13 ms (une seule fois, puis cache) |
+| Tableau de bord | 102 ms | 7 ms |
+| Historique (400 jours) | 119 ms | 21 ms |
+| Statistiques | 114 ms | 9 ms |
+| Progrès | 118 ms | 9 ms |
+| Santé | 99 ms | < 1 ms |
+| Montre (21 000 mesures) | 250 ms | 8 à 20 ms |
+| Enregistrer une cigarette | 105 ms | 22 ms |
+
+Causes trouvées : `journeeDe` parcourait toutes les cigarettes pour chaque envie, café ou prise (coût quadratique) ; chaque écran rejouait le journal, parfois deux fois ; l'analyse de la montre reparcourait toutes les mesures pour chaque jour et chaque cigarette, et appelait `Intl` à chaque mesure.

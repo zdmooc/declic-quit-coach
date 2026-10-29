@@ -159,7 +159,7 @@ Un événement n'est **jamais modifié** : une correction s'exprime par un `Sais
 | Ma santé | `maSante` | Ma santé |
 | Contexte du coach | `resumeCoach` | Coach IA |
 
-Les projections sont **jetables** : elles sont recalculées à chaque lecture en rejouant le journal (instantané à l'échelle actuelle ; un cache sera utile au-delà de ~10 000 événements).
+Les projections sont **jetables** et recalculées à chaque lecture. Le journal et l'**état rejoué** sont gardés en mémoire par `Declic` (seul écrivain) et invalidés à chaque ajout, effacement ou restauration : un an d'historique se rejoue une fois (≈ 13 ms sur Node), puis chaque écran ne calcule que sa projection (voir 08 § 7).
 
 ## 6. Flux principaux
 

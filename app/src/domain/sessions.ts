@@ -36,16 +36,35 @@ export interface CigaretteEtiquetee {
  * Journée d'un instant quelconque (envie, substitut, maintenant) : celle de la dernière
  * cigarette si elle date de moins que le seuil, sinon la date locale de l'instant.
  */
+/** Copie triée par instant, mémorisée par tableau (les tableaux de l'état rejoué ne changent plus). */
+const TRIES = new WeakMap<readonly CigaretteEtiquetee[], { taille: number; triees: CigaretteEtiquetee[] }>();
+function triees(cigarettes: readonly CigaretteEtiquetee[]): CigaretteEtiquetee[] {
+  const c = TRIES.get(cigarettes);
+  if (c && c.taille === cigarettes.length) return c.triees;
+  const t = [...cigarettes].sort((x, y) => x.a - y.a);
+  TRIES.set(cigarettes, { taille: cigarettes.length, triees: t });
+  return t;
+}
+
 export function journeeDe(
   instant: Instant,
   cigarettes: readonly CigaretteEtiquetee[],
   tz: string,
   seuilMinutes = SEUIL_NUIT_MINUTES,
 ): LocalDate {
-  let derniere: CigaretteEtiquetee | null = null;
-  for (const c of cigarettes) {
-    if (c.a <= instant && (derniere === null || c.a > derniere.a)) derniere = c;
+  // Dernière cigarette à ou avant l'instant : recherche dichotomique (O(log n) au lieu de O(n)).
+  const t = triees(cigarettes);
+  let bas = 0;
+  let haut = t.length - 1;
+  let i = -1;
+  while (bas <= haut) {
+    const m = (bas + haut) >> 1;
+    if (t[m]!.a <= instant) {
+      i = m;
+      bas = m + 1;
+    } else haut = m - 1;
   }
+  const derniere = i >= 0 ? t[i]! : null;
   if (derniere && minutesBetween(derniere.a, instant) < seuilMinutes) return derniere.jour;
   return localDateOf(instant, tz);
 }

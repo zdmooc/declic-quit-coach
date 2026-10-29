@@ -129,17 +129,45 @@ export class Declic {
       const erreurs = validateEvent(e);
       if (erreurs.length > 0) throw new Error(`Événement ${e.type} invalide : ${erreurs.join(', ')}`);
     }
-    for (const e of events) await this.deps.store.append(e);
+    for (const e of events) {
+      await this.deps.store.append(e);
+      this.journal?.push(e);
+    }
+    this.etatMemo = null;
     await this.replanifierNotifications();
   }
 
+  /**
+   * Journal en mémoire (Declic est le seul à écrire) : lu une fois dans le stockage, complété à
+   * chaque ajout, relu après un effacement ou une restauration.
+   */
+  private journal: DomainEvent[] | null = null;
+  /** État rejoué, réutilisé tant que le journal et le fuseau ne changent pas (les projections ne le modifient pas). */
+  private etatMemo: { tz: string; taille: number; etat: EtatJournal | null } | null = null;
+
+  private async evenements(): Promise<DomainEvent[]> {
+    this.journal ??= await this.deps.store.all();
+    return this.journal;
+  }
+
+  private oublierCache(): void {
+    this.journal = null;
+    this.etatMemo = null;
+  }
+
   private async etat(): Promise<EtatJournal | null> {
-    return rejouer(await this.deps.store.all(), this.deps.clock.timeZone());
+    const events = await this.evenements();
+    const tz = this.deps.clock.timeZone();
+    if (this.etatMemo && this.etatMemo.tz === tz && this.etatMemo.taille === events.length) return this.etatMemo.etat;
+    const etat = rejouer(events, tz);
+    this.etatMemo = { tz, taille: events.length, etat };
+    return etat;
   }
 
   /** Supprime toutes les données (F9.2) et les notifications programmées. */
   async effacerToutesLesDonnees(): Promise<void> {
     await this.deps.store.effacer();
+    this.oublierCache();
     await this.deps.notifier.remplacer([]);
   }
 
@@ -341,7 +369,7 @@ export class Declic {
 
   /** Export complet du journal (JSON), pour sauvegarde ou portabilité (F9.1, RGPD). */
   async exporterDonnees(): Promise<string> {
-    const events = await this.deps.store.all();
+    const events = await this.evenements();
     // Compact (sans indentation) : un an d'historique tient en moins d'1 Mo.
     return JSON.stringify({ format: 'declic-export', version: VERSION_EXPORT, exporteLe: new Date(this.deps.clock.now()).toISOString(), events });
   }
@@ -355,19 +383,21 @@ export class Declic {
     const etat = rejouer(events, this.deps.clock.timeZone());
     if (!etat) throw new Error('Sauvegarde sans profil');
     await this.deps.store.effacer();
+    this.oublierCache();
     for (const e of events) await this.deps.store.append(e);
+    this.oublierCache();
     await this.replanifierNotifications();
     return { evenements: events.length, journees: new Set(etat.cigarettes.map((c) => c.jour)).size };
   }
 
   /** Import d'historique, étape 1 : analyse du fichier SANS RIEN ÉCRIRE. */
   async apercuImport(texte: string): Promise<Apercu> {
-    return analyserImport(await this.deps.store.all(), lireFichierDeclic(texte), this.deps.clock.timeZone());
+    return analyserImport(await this.evenements(), lireFichierDeclic(texte), this.deps.clock.timeZone());
   }
 
   /** Étape 2 : totaux, anomalies et événements selon les choix de rapprochement (sans rien écrire). */
   async simulerImport(apercu: Apercu, choix: Choix): Promise<Simulation> {
-    return simulerImport(await this.deps.store.all(), apercu, choix, this.deps.clock.timeZone());
+    return simulerImport(await this.evenements(), apercu, choix, this.deps.clock.timeZone());
   }
 
   /**
@@ -376,7 +406,7 @@ export class Declic {
    */
   async confirmerImport(apercu: Apercu, choix: Choix): Promise<number> {
     if (apercu.bloquant) throw new Error(apercu.bloquant);
-    const actuels = await this.deps.store.all();
+    const actuels = await this.evenements();
     if (actuels.length !== apercu.empreinte) throw new Error('Des saisies ont changé depuis l’aperçu : relance l’aperçu avant d’importer');
     const sim = simulerImport(actuels, apercu, choix, this.deps.clock.timeZone());
     if (sim.restantes > 0) throw new Error(`${sim.restantes} rapprochement(s) à décider avant l’import`);

@@ -80,26 +80,67 @@ export interface AnalyseMontre {
 const moy = (xs: readonly number[]) => (xs.length === 0 ? null : xs.reduce((s, x) => s + x, 0) / xs.length);
 const DEMI_HEURE = 30 * 60_000;
 
+/** Premier indice dont l'instant est ≥ `t` (tableau trié croissant). */
+function borneInf(xs: readonly number[], t: number): number {
+  let bas = 0;
+  let haut = xs.length;
+  while (bas < haut) {
+    const m = (bas + haut) >> 1;
+    if (xs[m]! < t) bas = m + 1;
+    else haut = m;
+  }
+  return bas;
+}
+
 export function analyserMontre(etat: EtatJournal, d: DonneesMontre, aujourdhui: LocalDate, tz: string, nbJours = 14): AnalyseMontre {
   const dates = Array.from({ length: nbJours }, (_, i) => addDays(aujourdhui, i - nbJours + 1));
-  const duJour = <T extends { a: Instant }>(xs: readonly T[], j: LocalDate) => xs.filter((x) => localDateOf(x.a, tz) === j);
+  // Jour local mémorisé par heure : des dizaines de milliers de mesures, mais quelques centaines d'heures.
+  const parHeure = new Map<number, LocalDate>();
+  const jourDe = (a: Instant) => {
+    const h = Math.floor(a / 3_600_000);
+    let j = parHeure.get(h);
+    if (j === undefined) parHeure.set(h, (j = localDateOf(a, tz)));
+    return j;
+  };
+  const grouper = <T,>(xs: readonly T[], instant: (x: T) => Instant) => {
+    const m = new Map<LocalDate, T[]>();
+    for (const x of xs) {
+      const k = jourDe(instant(x));
+      const l = m.get(k);
+      if (l) l.push(x);
+      else m.set(k, [x]);
+    }
+    return (j: LocalDate) => m.get(j) ?? [];
+  };
+  const sommeilsDu = grouper(d.sommeils, (x) => x.fin);
+  const glucoseDu = grouper(d.glucose, (x) => x.a);
+  const reposDu = grouper(d.repos, (x) => x.a);
+  const hrvDu = grouper(d.hrv, (x) => x.a);
+  const spo2Du = grouper(d.spo2, (x) => x.a);
+  const pasDu = grouper(d.pas, (x) => x.debut);
+  const premiereDu = new Map<LocalDate, Instant>();
+  for (const c of etat.cigarettes) if (!premiereDu.has(c.jour) || c.a < premiereDu.get(c.jour)!) premiereDu.set(c.jour, c.a);
+  const instantsCigarettes = etat.cigarettes.map((c) => c.a).sort((a, b) => a - b);
+  const instantsCafe = (etat.boissons ?? []).filter((b) => b.boisson !== 'deca').map((b) => b.a).sort((a, b) => a - b);
+
   const jours = dates.map((jour): JourMontre => {
     // Sommeil principal : la plus longue session qui se termine ce jour-là.
     // (une session avec phases — la montre — passe avant une session sans détail, le téléphone par exemple).
-    const s = d.sommeils
-      .filter((x) => localDateOf(x.fin, tz) === jour)
-      .sort((a, b) => Number(Boolean(b.phases)) - Number(Boolean(a.phases)) || b.fin - b.debut - (a.fin - a.debut))[0];
+    const s = [...sommeilsDu(jour)].sort((a, b) => Number(Boolean(b.phases)) - Number(Boolean(a.phases)) || b.fin - b.debut - (a.fin - a.debut))[0];
     const ph = s?.phases ?? null;
     const endormi = ph ? ph.profond + ph.paradoxal + ph.leger : null;
-    const avant = (instants: number[]) => {
+    // Dernier instant ≤ coucher, dans les 12 h qui précèdent.
+    const avant = (instants: readonly number[]) => {
       if (!s) return null;
-      const a = instants.filter((x) => x <= s.debut && s.debut - x <= 12 * 3_600_000);
-      return a.length ? Math.round((s.debut - Math.max(...a)) / 60_000) : null;
+      const i = borneInf(instants, s.debut + 1) - 1;
+      if (i < 0 || s.debut - instants[i]! > 12 * 3_600_000) return null;
+      return Math.round((s.debut - instants[i]!) / 60_000);
     };
-    const premiere = etat.cigarettes.filter((c) => c.jour === jour).sort((a, b) => a.a - b.a)[0];
-    const glu = duJour(d.glucose, jour).map((x) => x.mgdl);
-    const pas = d.pas.filter((p) => localDateOf(p.debut, tz) === jour).reduce((t, p) => t + p.n, 0);
-    const repos = duJour(d.repos, jour).map((x) => x.bpm);
+    const p = premiereDu.get(jour);
+    const premiere = p === undefined ? undefined : { a: p };
+    const glu = glucoseDu(jour).map((x) => x.mgdl);
+    const pas = pasDu(jour).reduce((t, x) => t + x.n, 0);
+    const repos = reposDu(jour).map((x) => x.bpm);
     return {
       jour,
       reveil: s?.fin ?? null,
@@ -108,30 +149,43 @@ export function analyserMontre(etat: EtatJournal, d: DonneesMontre, aujourdhui: 
       phases: ph,
       reparateurMinutes: ph ? ph.profond + ph.paradoxal : null,
       reparateurPct: ph && endormi ? ((ph.profond + ph.paradoxal) / endormi) * 100 : null,
-      cigaretteAvantCoucher: avant(etat.cigarettes.map((c) => c.a)),
-      cafeAvantCoucher: avant((etat.boissons ?? []).filter((b) => b.boisson !== 'deca').map((b) => b.a)),
+      cigaretteAvantCoucher: avant(instantsCigarettes),
+      cafeAvantCoucher: avant(instantsCafe),
       delaiPremiereMinutes: s && premiere && premiere.a >= s.fin ? Math.round((premiere.a - s.fin) / 60_000) : null,
       premiereAvantReveil: Boolean(s && premiere && premiere.a < s.fin),
       premiere: premiere?.a ?? null,
       frequenceRepos: repos.length ? Math.min(...repos) : null,
-      hrvMs: moy(duJour(d.hrv, jour).map((x) => x.ms)),
+      hrvMs: moy(hrvDu(jour).map((x) => x.ms)),
       pas: pas > 0 ? pas : null,
-      spo2: moy(duJour(d.spo2, jour).map((x) => x.pct)),
+      spo2: moy(spo2Du(jour).map((x) => x.pct)),
       glucose: glu.length ? { moyenne: moy(glu)!, min: Math.min(...glu), max: Math.max(...glu) } : null,
     };
   });
 
   // Effet d'une cigarette sur le cœur : seulement si des mesures existent avant ET après.
+  // Mesures triées une fois, puis fenêtres trouvées par dichotomie (et non en reparcourant tout).
   const debut = Math.min(...dates.map((j) => Date.parse(`${j}T00:00:00Z`))) - 86_400_000;
+  const freq = [...d.frequence].sort((a, b) => a.a - b.a);
+  const tFreq = freq.map((f) => f.a);
+  const moyenneEntre = (de: number, a: number) => {
+    let somme = 0;
+    let nb = 0;
+    for (let i = borneInf(tFreq, de); i < freq.length && tFreq[i]! < a; i++) {
+      somme += freq[i]!.bpm;
+      nb++;
+    }
+    return nb ? somme / nb : null;
+  };
   const avant: number[] = [];
   const apres: number[] = [];
   let n = 0;
-  for (const c of etat.cigarettes.filter((x) => x.a >= debut)) {
-    const av = d.frequence.filter((f) => f.a >= c.a - DEMI_HEURE && f.a < c.a).map((f) => f.bpm);
-    const ap = d.frequence.filter((f) => f.a >= c.a && f.a < c.a + DEMI_HEURE).map((f) => f.bpm);
-    if (av.length && ap.length) {
-      avant.push(moy(av)!);
-      apres.push(moy(ap)!);
+  for (const c of etat.cigarettes) {
+    if (c.a < debut) continue;
+    const av = moyenneEntre(c.a - DEMI_HEURE, c.a);
+    const ap = moyenneEntre(c.a, c.a + DEMI_HEURE);
+    if (av !== null && ap !== null) {
+      avant.push(av);
+      apres.push(ap);
       n++;
     }
   }
