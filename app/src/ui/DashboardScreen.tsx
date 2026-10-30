@@ -95,10 +95,26 @@ function Rebours({ tdb, tz, onEcheance, onDemarrerPlan }: Pick<Props, 'tdb' | 't
     sous = 'sans fumer';
   } else if (p.statut === 'quota-atteint') {
     // Maximum atteint ou dépassé (RM-30) : rien n'est bloqué, mais on le voit.
+    // Le compteur − / + continue : il aide à espacer (et à ne pas enchaîner sans s'en rendre compte).
     const depasse = tdb.quota !== null && tdb.fumees > tdb.quota;
-    petit = depasse ? 'Maximum dépassé' : 'Maximum du jour atteint';
-    grand = depasse ? `${tdb.fumees} / ${tdb.quota}` : '0 restante';
-    sous = depasse ? 'Un faux pas n’efface rien : demain, on repart au même maximum.' : 'Une envie ? SOS envie ou « J’ai résisté ».';
+    const intervalle = tdb.respect.intervalleMinutes;
+    const cible = tdb.derniereDuJourA !== null && intervalle !== null ? tdb.derniereDuJourA + intervalle * 60_000 : null;
+    const compte = `${tdb.fumees} / ${tdb.quota}`;
+    if (cible !== null && maintenant < cible) {
+      petit = depasse ? `Maximum dépassé · ${compte} · objectif dans` : `Maximum atteint · ${compte} · objectif dans`;
+      grand = `−${formatRebours(cible - maintenant)}`;
+      signe = 'moins';
+      sous = `pas avant ${heure(cible, tz)} · ${depasse ? 'un faux pas n’efface rien' : 'une envie ? SOS envie ou « J’ai résisté »'}`;
+    } else if (cible !== null) {
+      petit = depasse ? `Maximum dépassé · ${compte} · tenu depuis` : `Maximum atteint · ${compte} · au-delà de l’objectif`;
+      grand = `+${formatRebours(maintenant - cible)}`;
+      signe = 'plus';
+      sous = 'chaque minute de plus compte · demain, on repart au même maximum';
+    } else {
+      petit = depasse ? 'Maximum dépassé' : 'Maximum du jour atteint';
+      grand = depasse ? compte : '0 restante';
+      sous = depasse ? 'Un faux pas n’efface rien : demain, on repart au même maximum.' : 'Une envie ? SOS envie ou « J’ai résisté ».';
+    }
   } else if (p.statut === 'attendre' && reste !== null && reste > 0) {
     petit = 'Objectif dans';
     grand = `−${formatRebours(reste)}`;
