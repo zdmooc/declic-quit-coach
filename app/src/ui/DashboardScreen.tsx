@@ -70,8 +70,8 @@ function Rebours({ tdb, tz, onEcheance, onDemarrerPlan }: Pick<Props, 'tdb' | 't
         <Text style={styles.heroPetit}>Ton bilan d’observation</Text>
         <Text style={styles.heroTitre}>≈ {pluriel(Math.round(obs.habitudes.cigarettesParJour), 'cigarette')} / jour</Text>
         <Text style={styles.heroSous}>
-          de {obs.habitudes.debutHabituel} à {obs.habitudes.finHabituelle} · plan : {obs.proposition.quotaDepart} le{' '}
-          {dateCourte(obs.proposition.dateDebut)}, puis −1 par jour
+          de {obs.habitudes.debutHabituel} à {obs.habitudes.finHabituelle} · maximum : {obs.proposition.quotaDepart} par jour dès le{' '}
+          {dateCourte(obs.proposition.dateDebut)}, puis tu descends quand tu le décides
         </Text>
         <Pressable style={styles.heroBouton} onPress={onDemarrerPlan} accessibilityRole="button">
           <Text style={styles.heroBoutonTexte}>Démarrer mon plan</Text>

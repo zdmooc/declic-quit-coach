@@ -5,7 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import type { NouveauProfil, Reglages, Sante } from './src/application/declic';
 import { CoachHttp, normaliserUrlCoach } from './src/adapters/coachHttp';
 import type { JourneeHistorique, MessageCoach, ModeCoach, Progres, Statistiques, AnalyseMontre, Axe, Destination } from './src/domain';
-import { maSante } from './src/domain';
+import { maSante, PALIERS_LIBRES } from './src/domain';
 import type { Apercu, Choix, Simulation } from './src/application/migration';
 import { effacer, partager, preparerImport, restaurer, sauvegarder } from './src/ui/app/donnees';
 import { ImportScreen } from './src/ui/ImportScreen';
@@ -224,7 +224,7 @@ export default function App() {
             onResiste={() => setResiste(true)}
             onAnnuler={agir(() => declic.annulerDerniereSaisie())}
             onPalier={agir(() => declic.demanderPalier())}
-            onDemarrerPlan={agir(() => declic.demarrerPlan())}
+            onDemarrerPlan={agir(() => declic.demarrerPlan(PALIERS_LIBRES))}
             onHistorique={() => void ouvrirHistorique()}
             onReglages={() => void ouvrirReglages()}
             onSubstituts={() => setSubstituts(true)}
@@ -300,7 +300,7 @@ export default function App() {
             onRenommerContexte={(cle, l) => depuis(() => declic.renommerContexte(cle, l), ouvrirReglages)}
             onArchiverContexte={(cle) => depuis(() => declic.archiverContexte(cle), ouvrirReglages)}
             onMaximum={(q) => depuis(() => declic.imposerMaximum(q), ouvrirReglages)}
-            onDemarrerPlan={() => depuis(() => declic.demarrerPlan(), ouvrirReglages)}
+            onDemarrerPlan={() => depuis(() => declic.demarrerPlan(PALIERS_LIBRES), ouvrirReglages)}
             onExporter={() => void partager(declic)}
             onSauvegarder={() => void sauvegarder(declic, clock.now())}
             onRestaurer={onRestaurer}
