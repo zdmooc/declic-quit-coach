@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { Sante } from '../application/declic';
 import { type AnalyseMontre, BOISSONS, OBJECTIFS, PARAMETRES, REPERE_CAFEINE_MG, type Boisson, type ClasseAliment, type SuiviCafeine, type Objectif, type Statut, type SuiviParametre } from '../domain';
 import { OngletMontre, type EtatMontre } from './OngletMontre';
+import { OngletSommeil } from './OngletSommeil';
 import { couleurs, espace } from './theme';
 
 /**
@@ -22,7 +23,7 @@ interface Props {
   onAnnulerBoisson: (id: string) => void;
   onPalierCafeine: (quota: number) => void;
   /** Onglet ouvert au départ. */
-  ongletInitial?: 'bilans' | 'aliments' | 'cafeine' | 'montre';
+  ongletInitial?: 'bilans' | 'aliments' | 'cafeine' | 'montre' | 'sommeil';
   montre: { etat: EtatMontre; analyse: AnalyseMontre | null; tz: string; onConnecter: () => void; onActualiser: () => void };
 }
 
@@ -270,7 +271,7 @@ function LigneAliment({ c, ton }: { c: ClasseAliment; ton: 'vert' | 'rouge' | 'n
 }
 
 export function SanteScreen({ sante, aujourdhui, onFermer, onSaisirBilan, onSupprimerBilan, onNorme, cafeine, onBoire, onAnnulerBoisson, onPalierCafeine, montre, ongletInitial = 'bilans' }: Props) {
-  const [onglet, setOnglet] = useState<'bilans' | 'aliments' | 'cafeine' | 'montre'>(ongletInitial);
+  const [onglet, setOnglet] = useState<'bilans' | 'aliments' | 'cafeine' | 'montre' | 'sommeil'>(ongletInitial);
   const [saisie, setSaisie] = useState(false);
   const { privilegier, eliminer, neutres } = sante.aliments;
   return (
@@ -283,14 +284,16 @@ export function SanteScreen({ sante, aujourdhui, onFermer, onSaisirBilan, onSupp
           </Pressable>
         </View>
         <View style={styles.onglets}>
-          {(['bilans', 'aliments', 'cafeine', 'montre'] as const).map((o) => (
+          {(['bilans', 'aliments', 'cafeine', 'montre', 'sommeil'] as const).map((o) => (
             <Pressable key={o} style={[styles.onglet, onglet === o && styles.ongletActif]} onPress={() => setOnglet(o)} accessibilityRole="tab" accessibilityState={{ selected: onglet === o }}>
-              <Text style={[styles.ongletTexte, onglet === o && styles.ongletTexteActif]}>{o === 'bilans' ? 'Bilans' : o === 'aliments' ? 'Aliments' : o === 'cafeine' ? 'Caféine' : 'Montre'}</Text>
+              <Text style={[styles.ongletTexte, onglet === o && styles.ongletTexteActif]}>{o === 'bilans' ? 'Bilans' : o === 'aliments' ? 'Aliments' : o === 'cafeine' ? 'Caféine' : o === 'montre' ? 'Montre' : 'Sommeil'}</Text>
             </Pressable>
           ))}
         </View>
         <ScrollView contentContainerStyle={styles.contenu} keyboardShouldPersistTaps="handled">
-          {onglet === 'montre' ? (
+          {onglet === 'sommeil' ? (
+            <OngletSommeil etat={montre.etat} montre={montre.analyse} tz={montre.tz} onConnecter={montre.onConnecter} onActualiser={montre.onActualiser} />
+          ) : onglet === 'montre' ? (
             <OngletMontre etat={montre.etat} montre={montre.analyse} tz={montre.tz} onConnecter={montre.onConnecter} onActualiser={montre.onActualiser} />
           ) : onglet === 'cafeine' ? (
             <OngletCafeine c={cafeine} onBoire={onBoire} onAnnulerBoisson={onAnnulerBoisson} onPalierCafeine={onPalierCafeine} />
@@ -394,9 +397,9 @@ const styles = StyleSheet.create({
   titre: { color: couleurs.encre, fontSize: 26, fontWeight: '800' },
   fermer: { color: couleurs.vert, fontSize: 16, fontWeight: '700' },
   onglets: { flexDirection: 'row', backgroundColor: couleurs.ligne, borderRadius: 12, padding: 3, marginHorizontal: espace(4), marginBottom: espace(2) },
-  onglet: { flex: 1, paddingVertical: espace(2), borderRadius: 10, alignItems: 'center' },
+  onglet: { flex: 1, paddingVertical: espace(2), borderRadius: 10, alignItems: 'center', paddingHorizontal: 2 },
   ongletActif: { backgroundColor: couleurs.carte },
-  ongletTexte: { color: couleurs.doux, fontSize: 15, fontWeight: '600' },
+  ongletTexte: { color: couleurs.doux, fontSize: 13, fontWeight: '600' },
   ongletTexteActif: { color: couleurs.vert, fontWeight: '800' },
   contenu: { paddingHorizontal: espace(4), paddingBottom: espace(8), gap: espace(3) },
   carte: { backgroundColor: couleurs.carte, borderRadius: 18, borderWidth: 1, borderColor: couleurs.ligne, padding: espace(4), gap: espace(2) },

@@ -17,8 +17,8 @@ interface Props {
   onActualiser: () => void;
 }
 
-const hhmm = (t: number, tz: string) => new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: tz }).format(t);
-const duree = (m: number) => (m < 60 ? `${Math.round(m)} min` : `${Math.floor(m / 60)} h ${String(Math.round(m % 60)).padStart(2, '0')}`);
+export const hhmm = (t: number, tz: string) => new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: tz }).format(t);
+export const duree = (m: number) => (m < 60 ? `${Math.round(m)} min` : `${Math.floor(m / 60)} h ${String(Math.round(m % 60)).padStart(2, '0')}`);
 const un = (n: number) => String(Math.round(n * 10) / 10).replace('.', ',');
 
 /**
@@ -31,7 +31,7 @@ function couleurBarre(v: number, moyenne: number, sens: 'bas' | 'haut', seuils?:
   return ecart >= -0.05 ? couleurs.vert : ecart >= -0.15 ? couleurs.ambre : couleurs.rouge;
 }
 
-function Serie({
+export function Serie({
   titre,
   jours,
   valeur,
@@ -85,14 +85,14 @@ function Serie({
 }
 
 
-const VERDICTS = {
+export const VERDICTS = {
   bien: { mot: 'Bien', couleur: couleurs.vert, fond: couleurs.vertClair },
   limite: { mot: 'Limite', couleur: couleurs.ambre, fond: couleurs.ambreClair },
   ameliorer: { mot: 'À améliorer', couleur: couleurs.rouge, fond: couleurs.rougeClair },
 } as const;
 
 /** Sommeil réparateur d'un coup d'œil : la semaine en vert / orange / rouge, puis les pistes si besoin. */
-function CarteSommeil({ jours, tz }: { jours: JourMontre[]; tz: string }) {
+export function CarteSommeil({ jours, tz }: { jours: JourMontre[]; tz: string }) {
   const [ouvert, setOuvert] = useState(false);
   const semaines = semainesReparateur(jours).slice(-4);
   const pistes = pistesSommeil(jours.slice(-14), tz);
@@ -205,8 +205,6 @@ export function OngletMontre({ etat, montre, tz, onConnecter, onActualiser }: Pr
         <Text style={styles.aide}>Sources lues : {montre.sources.length ? montre.sources.join(', ') : 'aucune donnée pour l’instant'}</Text>
       </View>
 
-      <CarteSommeil jours={montre.jours} tz={tz} />
-
       {montre.effetCigarette && (
         <View style={styles.carte}>
           <Text style={styles.petit}>Une cigarette et ton cœur</Text>
@@ -221,8 +219,6 @@ export function OngletMontre({ etat, montre, tz, onConnecter, onActualiser }: Pr
       )}
 
       <Serie titre="Délai réveil → 1re cigarette" jours={j} valeur={(x) => x.delaiPremiereMinutes} format={duree} sens="haut" />
-      <Serie titre="Sommeil" jours={j} valeur={(x) => x.sommeilMinutes} format={duree} sens="haut" />
-      <Serie titre="Sommeil réparateur (profond + paradoxal)" jours={j} valeur={(x) => x.reparateurMinutes} format={duree} sens="haut" />
       <Serie titre="Fréquence cardiaque au repos" jours={j} valeur={(x) => x.frequenceRepos} format={(n) => `${Math.round(n)} bpm`} sens="bas" />
       <Serie titre="HRV (variabilité, stress)" jours={j} valeur={(x) => x.hrvMs} format={(n) => `${Math.round(n)} ms`} sens="haut" />
       <Serie titre="Pas" jours={j} valeur={(x) => x.pas} format={(n) => String(Math.round(n))} sens="haut" />
@@ -248,7 +244,7 @@ export function OngletMontre({ etat, montre, tz, onConnecter, onActualiser }: Pr
   );
 }
 
-const styles = StyleSheet.create({
+export const styles = StyleSheet.create({
   carte: { backgroundColor: couleurs.carte, borderRadius: 18, borderWidth: 1, borderColor: couleurs.ligne, padding: espace(4), gap: espace(2) },
   petit: { color: couleurs.doux, fontSize: 15, fontWeight: '700', textTransform: 'uppercase', flexShrink: 1 },
   texte: { color: couleurs.encre, fontSize: 15, lineHeight: 21 },

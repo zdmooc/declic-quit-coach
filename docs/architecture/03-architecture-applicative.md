@@ -155,7 +155,8 @@ Un événement n'est **jamais modifié** : une correction s'exprime par un `Sais
 | Progrès | `progres` (records, semaine, courbe, observation, contextes, patch) | Progrès |
 | Santé | `suiviBiologique`, `objectifsActifs`, `classerAliments` | Santé → Bilans, Aliments |
 | Caféine | `suiviCafeine` | Santé → Caféine |
-| Montre | `analyserMontre`, `semainesReparateur`, `pistesSommeil` | Santé → Montre |
+| Montre | `analyserMontre` | Santé → Montre |
+| Sommeil | `semainesReveils`, `heuresReveils`, `reveilsSelonCigarette`, `semainesReparateur`, `pistesSommeil` | Santé → Sommeil |
 | Ma santé | `maSante` | Ma santé |
 | Contexte du coach | `resumeCoach` | Coach IA |
 

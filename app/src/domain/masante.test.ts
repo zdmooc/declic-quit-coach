@@ -5,7 +5,7 @@ import type { Statistiques } from './stats';
 import type { TableauDeBord } from './dashboard';
 
 const jour = (j: string, x: Partial<AnalyseMontre['jours'][number]>) =>
-  ({ jour: j, reveil: null, sommeilMinutes: null, coucher: null, phases: null, reparateurMinutes: null, reparateurPct: null, cigaretteAvantCoucher: null, cafeAvantCoucher: null, delaiPremiereMinutes: null, premiereAvantReveil: false, premiere: null, frequenceRepos: null, hrvMs: null, pas: null, spo2: null, glucose: null, ...x });
+  ({ jour: j, reveil: null, sommeilMinutes: null, coucher: null, phases: null, reparateurMinutes: null, reparateurPct: null, cigaretteAvantCoucher: null, cafeAvantCoucher: null, delaiPremiereMinutes: null, premiereAvantReveil: false, premiere: null, reveils: null, eveilMinutes: null, cigarettesNuit: 0, segments: null, frequenceRepos: null, hrvMs: null, pas: null, spo2: null, glucose: null, ...x });
 
 describe('Ma santé', () => {
   it('verdicts par axe : cigarettes en baisse, réveil → cigarette (Fagerström), café → cigarette, bilans', () => {

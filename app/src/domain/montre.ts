@@ -9,7 +9,7 @@ import { addDays, localDateOf, minutesOfDay, type Instant, type LocalDate } from
 
 export interface DonneesMontre {
   luLe: Instant;
-  sommeils: { debut: Instant; fin: Instant; phases?: PhasesSommeil }[];
+  sommeils: { debut: Instant; fin: Instant; phases?: PhasesSommeil; segments?: SegmentSommeil[] }[];
   frequence: { a: Instant; bpm: number }[];
   repos: { a: Instant; bpm: number }[];
   hrv: { a: Instant; ms: number }[];
@@ -21,6 +21,14 @@ export interface DonneesMontre {
 }
 
 /** Minutes par phase (Health Connect : profond, paradoxal/REM, léger, éveillé). */
+export type PhaseSommeil = 'profond' | 'paradoxal' | 'leger' | 'eveil';
+/** Une phase continue de la nuit (Health Connect : étapes de la session de sommeil). */
+export interface SegmentSommeil {
+  debut: Instant;
+  fin: Instant;
+  phase: PhaseSommeil;
+}
+
 export interface PhasesSommeil {
   profond: number;
   paradoxal: number;
@@ -49,6 +57,14 @@ export interface JourMontre {
   /** Début du sommeil principal (coucher). */
   coucher: Instant | null;
   phases: PhasesSommeil | null;
+  /** Réveils nocturnes (RM-31) : passages en « éveillé » d'au moins 5 min entre l'endormissement et le réveil final ; `null` sans détail des phases. */
+  reveils: { debut: Instant; fin: Instant }[] | null;
+  /** Temps éveillé dans la nuit (minutes), entre l'endormissement et le réveil final. */
+  eveilMinutes: number | null;
+  /** Cigarettes notées entre le coucher et le réveil. */
+  cigarettesNuit: number;
+  /** Phases de la nuit, pour le bandeau. */
+  segments: SegmentSommeil[] | null;
   /** Sommeil réparateur = profond + paradoxal (minutes, et part du temps endormi). */
   reparateurMinutes: number | null;
   reparateurPct: number | null;
@@ -79,6 +95,32 @@ export interface AnalyseMontre {
 
 const moy = (xs: readonly number[]) => (xs.length === 0 ? null : xs.reduce((s, x) => s + x, 0) / xs.length);
 const DEMI_HEURE = 30 * 60_000;
+
+/** Seuil des réveils comptés : les micro-réveils plus courts sont normaux. */
+export const REVEIL_MINUTES = 5;
+
+/** Réveils, temps éveillé et cigarettes de la nuit, à partir des phases (RM-31). */
+function nuitDetaillee(
+  s: DonneesMontre['sommeils'][number] | undefined,
+  cigarettes: readonly number[],
+): Pick<JourMontre, 'reveils' | 'eveilMinutes' | 'cigarettesNuit' | 'segments'> {
+  if (!s) return { reveils: null, eveilMinutes: null, cigarettesNuit: 0, segments: null };
+  const cigarettesNuit = borneInf(cigarettes, s.fin) - borneInf(cigarettes, s.debut);
+  const seg = [...(s.segments ?? [])].sort((a, b) => a.debut - b.debut);
+  if (seg.length === 0) return { reveils: null, eveilMinutes: s.phases ? s.phases.eveil : null, cigarettesNuit, segments: null };
+  // Endormissement = première phase de sommeil ; réveil final = fin de la dernière.
+  const dormi = seg.filter((x) => x.phase !== 'eveil');
+  if (dormi.length === 0) return { reveils: [], eveilMinutes: 0, cigarettesNuit, segments: seg };
+  const debut = dormi[0]!.debut;
+  const fin = dormi.at(-1)!.fin;
+  const eveils = seg.filter((x) => x.phase === 'eveil' && x.debut >= debut && x.fin <= fin);
+  return {
+    reveils: eveils.filter((x) => x.fin - x.debut >= REVEIL_MINUTES * 60_000).map(({ debut: d, fin: f }) => ({ debut: d, fin: f })),
+    eveilMinutes: Math.round(eveils.reduce((t, x) => t + (x.fin - x.debut), 0) / 60_000),
+    cigarettesNuit,
+    segments: seg,
+  };
+}
 
 /** Premier indice dont l'instant est ≥ `t` (tableau trié croissant). */
 function borneInf(xs: readonly number[], t: number): number {
@@ -147,6 +189,7 @@ export function analyserMontre(etat: EtatJournal, d: DonneesMontre, aujourdhui: 
       sommeilMinutes: s ? Math.round((s.fin - s.debut) / 60_000) : null,
       coucher: s?.debut ?? null,
       phases: ph,
+      ...nuitDetaillee(s, instantsCigarettes),
       reparateurMinutes: ph ? ph.profond + ph.paradoxal : null,
       reparateurPct: ph && endormi ? ((ph.profond + ph.paradoxal) / endormi) * 100 : null,
       cigaretteAvantCoucher: avant(instantsCigarettes),
@@ -315,4 +358,49 @@ export function semainesReparateur(jours: readonly JourMontre[]): SemaineSommeil
       const pct = moyenne(js.map((x) => x.reparateurPct!));
       return { lundi: l, nuits: js.length, pct, minutes: moyenne(js.map((x) => x.reparateurMinutes!)), verdict: verdictReparateur(pct) };
     });
+}
+
+export interface SemaineReveils {
+  lundi: LocalDate;
+  nuits: number;
+  reveils: number | null;
+  eveilMinutes: number;
+  verdict: VerdictSommeil;
+}
+
+/** Repère indicatif du temps éveillé dans la nuit : < 30 min bien, 30 à 60 limite, > 60 à améliorer. */
+export const verdictEveil = (minutes: number): VerdictSommeil => (minutes < 30 ? 'bien' : minutes <= 60 ? 'limite' : 'ameliorer');
+
+/** Réveils nocturnes par semaine (lundi), des plus anciennes à la semaine en cours. */
+export function semainesReveils(jours: readonly JourMontre[]): SemaineReveils[] {
+  const lundi = (j: LocalDate) => addDays(j, -((new Date(`${j}T12:00:00Z`).getUTCDay() + 6) % 7));
+  const m = new Map<LocalDate, JourMontre[]>();
+  for (const j of jours) if (j.eveilMinutes != null) m.set(lundi(j.jour), [...(m.get(lundi(j.jour)) ?? []), j]);
+  return [...m.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([l, js]) => {
+      const avec = js.filter((x) => x.reveils != null);
+      const eveil = moyenne(js.map((x) => x.eveilMinutes!));
+      return { lundi: l, nuits: js.length, reveils: avec.length ? moyenne(avec.map((x) => x.reveils!.length)) : null, eveilMinutes: eveil, verdict: verdictEveil(eveil) };
+    });
+}
+
+/** Réveils par heure de la nuit (22 h à 7 h, 10 cases), toutes nuits confondues. */
+export function heuresReveils(jours: readonly JourMontre[], tz: string): { heure: number; nombre: number }[] {
+  const heures = [22, 23, 0, 1, 2, 3, 4, 5, 6, 7];
+  const c = new Map(heures.map((h) => [h, 0]));
+  for (const j of jours) for (const r of j.reveils ?? []) {
+    const h = Math.floor(minutesOfDay(r.debut, tz) / 60);
+    if (c.has(h)) c.set(h, c.get(h)! + 1);
+  }
+  return heures.map((heure) => ({ heure, nombre: c.get(heure)! }));
+}
+
+/** Réveils par nuit selon que la dernière cigarette est à 1 h 30 ou plus du coucher, ou non (2 nuits de chaque côté au moins). */
+export function reveilsSelonCigarette(jours: readonly JourMontre[]): { loin: number; pres: number; nuitsLoin: number; nuitsPres: number } | null {
+  const ok = jours.filter((j) => j.reveils !== null && j.cigaretteAvantCoucher !== null);
+  const loin = ok.filter((j) => j.cigaretteAvantCoucher! >= 90).map((j) => j.reveils!.length);
+  const pres = ok.filter((j) => j.cigaretteAvantCoucher! < 90).map((j) => j.reveils!.length);
+  if (loin.length < 2 || pres.length < 2) return null;
+  return { loin: moyenne(loin), pres: moyenne(pres), nuitsLoin: loin.length, nuitsPres: pres.length };
 }

@@ -72,3 +72,32 @@ describe('sommeil réparateur par semaine', () => {
     ]);
   });
 });
+
+describe('réveils nocturnes (RM-31)', () => {
+  it('réveils ≥ 5 min entre endormissement et réveil final, temps éveillé, cigarette de nuit, heures, semaines', async () => {
+    const { semainesReveils, heuresReveils } = await import('./montre');
+    const S = (debut: string, fin: string, phase: 'profond' | 'paradoxal' | 'leger' | 'eveil', j1 = '2026-10-29', j2 = j1) => ({ debut: h(j1, debut), fin: h(j2, fin), phase });
+    const segments = [
+      S('23:00', '23:20', 'eveil', '2026-10-29'), // avant l'endormissement : non compté
+      S('23:20', '23:59', 'leger', '2026-10-29'),
+      { debut: h('2026-10-29', '23:59'), fin: h('2026-10-30', '03:00'), phase: 'profond' as const },
+      S('03:00', '03:12', 'eveil', '2026-10-30'), // réveil de 12 min
+      S('03:12', '05:00', 'paradoxal', '2026-10-30'),
+      S('05:00', '05:03', 'eveil', '2026-10-30'), // micro-réveil : temps éveillé, pas un réveil
+      S('05:03', '07:00', 'leger', '2026-10-30'),
+      S('07:00', '07:30', 'eveil', '2026-10-30'), // après le réveil final : non compté
+    ];
+    const etat = { cigarettes: [{ id: 'n', a: h('2026-10-30', '03:05'), jour: '2026-10-29' }] } as unknown as EtatJournal;
+    const d = {
+      ...MONTRE_VIDE(h('2026-10-30', '12:00')),
+      sommeils: [{ debut: h('2026-10-29', '23:00'), fin: h('2026-10-30', '07:30'), phases: { profond: 181, paradoxal: 108, leger: 156, eveil: 65 }, segments }],
+    };
+    const m = analyserMontre(etat, d, '2026-10-30', TZ, 3);
+    const nuit = m.jours.at(-1)!;
+    expect(nuit.reveils!.map((r) => r.fin - r.debut)).toEqual([12 * 60_000]);
+    expect(nuit.eveilMinutes).toBe(15);
+    expect(nuit.cigarettesNuit).toBe(1);
+    expect(heuresReveils(m.jours, TZ).find((x) => x.heure === 3)!.nombre).toBe(1);
+    expect(semainesReveils(m.jours)).toEqual([{ lundi: '2026-10-26', nuits: 1, reveils: 1, eveilMinutes: 15, verdict: 'bien' }]);
+  });
+});

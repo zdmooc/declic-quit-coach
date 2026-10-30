@@ -39,7 +39,7 @@ export default function App() {
   const [statsVue, setStatsVue] = useState<Statistiques | null>(null);
   const [etatMontre, setEtatMontre] = useState<EtatMontre>('chargement');
   const [axesSante, setAxesSante] = useState<Axe[] | null>(null);
-  const [ongletSante, setOngletSante] = useState<'bilans' | 'aliments' | 'cafeine' | 'montre'>('bilans');
+  const [ongletSante, setOngletSante] = useState<'bilans' | 'aliments' | 'cafeine' | 'montre' | 'sommeil'>('bilans');
   const [montre, setMontre] = useState<AnalyseMontre | null>(null);
   const [substituts, setSubstituts] = useState(false);
   const [progresVue, setProgresVue] = useState<{ progres: Progres; mot: MessageCoach | null } | null>(null);
@@ -106,7 +106,7 @@ export default function App() {
   };
   const ouvrirDetailSante = (d: Destination) => {
     if (d === 'stats') return void declic.statistiques().then(setStatsVue);
-    setOngletSante(d === 'cafeine' ? 'cafeine' : d === 'montre' ? 'montre' : 'bilans');
+    setOngletSante(d === 'cafeine' ? 'cafeine' : d === 'montre' ? 'montre' : d === 'sommeil' ? 'sommeil' : 'bilans');
     void ouvrirSante();
   };
   /** Health Connect (RM-27) : lecture des 14 derniers jours, à la demande ; `demander` affiche l'autorisation. */

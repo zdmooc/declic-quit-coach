@@ -178,6 +178,7 @@ Règles transverses : plafond de 4 notifications non critiques par jour, heures 
 | F12.1 | Lecture à la demande (4 semaines) : sommeil et phases, fréquence cardiaque, repos, HRV, pas (dédoublonnés), SpO2, glycémie, tension, poids (RM-27, ADR-0011) | MVP |
 | F12.2 | Délai réveil → première cigarette ; cœur 30 min avant / après une cigarette | MVP |
 | F12.3 | Sommeil réparateur par semaine (vert / orange / rouge) et pistes tirées des nuits (RM-28) | MVP |
+| F12.4 | Onglet **Sommeil** : réveils nocturnes de la semaine, réveils par nuit, dernière nuit en bandeau, heures des réveils, cigarettes de nuit (RM-31) | MVP |
 
 ### F13 — Statistiques et Ma santé
 

@@ -7,12 +7,12 @@
 
 import type { TableauDeBord } from './dashboard';
 import type { AnalyseMontre, JourMontre } from './montre';
-import { semainesReparateur } from './montre';
+import { semainesReparateur, semainesReveils } from './montre';
 import type { Statistiques } from './stats';
 import { addDays, daysBetween, type LocalDate } from './time';
 
 export type Couleur = 'vert' | 'ambre' | 'rouge' | 'neutre';
-export type Destination = 'stats' | 'montre' | 'cafeine' | 'bilans';
+export type Destination = 'stats' | 'montre' | 'sommeil' | 'cafeine' | 'bilans';
 
 export interface Axe {
   cle: string;
@@ -119,7 +119,7 @@ export function maSante(p: {
       valeur: `${Math.round(s.pct)} %`,
       couleur: s.verdict === 'bien' ? 'vert' : s.verdict === 'limite' ? 'ambre' : 'rouge',
       ...evolution(s.pct, prec, (n) => `${Math.round(n)} pts`, 'haut'),
-      aller: 'montre',
+      aller: 'sommeil',
     });
   }
   const dodo = deuxSemaines(jm, (j) => j.sommeilMinutes, aujourdhui);
@@ -130,8 +130,23 @@ export function maSante(p: {
       valeur: duree(dodo.cette),
       couleur: dodo.cette >= 7 * 60 ? 'vert' : dodo.cette >= 6 * 60 ? 'ambre' : 'rouge',
       ...evolution(dodo.cette, dodo.avant, duree, 'haut'),
-      aller: 'montre',
+      aller: 'sommeil',
     });
+
+  // Réveils nocturnes (RM-31) : temps éveillé dans la nuit, semaine en cours.
+  const rv = semainesReveils(jm);
+  const nuitCette = rv.at(-1);
+  if (nuitCette) {
+    const prec = rv.at(-2) && daysBetween(rv.at(-2)!.lundi, nuitCette.lundi) === 7 ? rv.at(-2)!.eveilMinutes : null;
+    axes.push({
+      cle: 'reveils',
+      titre: '🌙 Réveils nocturnes',
+      valeur: nuitCette.reveils === null ? duree(nuitCette.eveilMinutes) : `${un(nuitCette.reveils)} / nuit`,
+      couleur: nuitCette.verdict === 'bien' ? 'vert' : nuitCette.verdict === 'limite' ? 'ambre' : 'rouge',
+      ...evolution(nuitCette.eveilMinutes, prec, duree, 'bas'),
+      aller: 'sommeil',
+    });
+  }
 
   const repos = deuxSemaines(jm, (j) => j.frequenceRepos, aujourdhui);
   if (repos.cette !== null) {

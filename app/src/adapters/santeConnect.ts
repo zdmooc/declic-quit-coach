@@ -5,7 +5,7 @@
  */
 
 import { Platform } from 'react-native';
-import { addDays, localDateOf, MONTRE_VIDE, zonedInstant, type DonneesMontre } from '../domain';
+import { addDays, localDateOf, MONTRE_VIDE, zonedInstant, type DonneesMontre, type PhaseSommeil, type SegmentSommeil } from '../domain';
 import type { SourceSante } from '../ports';
 
 type HC = typeof import('react-native-health-connect');
@@ -95,15 +95,23 @@ export class HealthConnectSource implements SourceSante {
     d.sommeils = (await lire('SleepSession')).map((r) => {
       // Phases (constantes SleepStageType) : 1 éveillé, 3 hors du lit, 4 léger, 5 profond, 6 paradoxal (REM).
       const ph = { profond: 0, paradoxal: 0, leger: 0, eveil: 0 };
+      const segments: SegmentSommeil[] = [];
       for (const st of r.stages ?? []) {
-        const m = (t(st.endTime) - t(st.startTime)) / 60_000;
-        if (st.stage === 5) ph.profond += m;
-        else if (st.stage === 6) ph.paradoxal += m;
-        else if (st.stage === 4 || st.stage === 2) ph.leger += m;
-        else if (st.stage === 1 || st.stage === 3) ph.eveil += m;
+        const debut = t(st.startTime);
+        const fin = t(st.endTime);
+        const phase: PhaseSommeil | null = st.stage === 5 ? 'profond' : st.stage === 6 ? 'paradoxal' : st.stage === 4 || st.stage === 2 ? 'leger' : st.stage === 1 || st.stage === 3 ? 'eveil' : null;
+        if (!phase) continue;
+        ph[phase] += (fin - debut) / 60_000;
+        segments.push({ debut, fin, phase });
       }
       const detaille = ph.profond + ph.paradoxal > 0;
-      return { debut: t(r.startTime), fin: t(r.endTime), ...(detaille ? { phases: { profond: Math.round(ph.profond), paradoxal: Math.round(ph.paradoxal), leger: Math.round(ph.leger), eveil: Math.round(ph.eveil) } } : {}) };
+      return {
+        debut: t(r.startTime),
+        fin: t(r.endTime),
+        ...(detaille
+          ? { phases: { profond: Math.round(ph.profond), paradoxal: Math.round(ph.paradoxal), leger: Math.round(ph.leger), eveil: Math.round(ph.eveil) }, segments }
+          : {}),
+      };
     });
     d.frequence = (await lire('HeartRate')).flatMap((r) => r.samples.map((s) => ({ a: t(s.time), bpm: s.beatsPerMinute })));
     d.repos = (await lire('RestingHeartRate')).map((r) => ({ a: t(r.time), bpm: r.beatsPerMinute }));
