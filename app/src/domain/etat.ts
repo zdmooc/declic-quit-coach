@@ -71,6 +71,8 @@ export interface EtatJournal {
   intervalleRecommande: number;
   /** Journées mesurées avant de proposer le plan (1 à 7, 3 par défaut). */
   joursObservation: number;
+  /** Étape 3 (stabilisation) : date de début, ou `null` (RM-32). */
+  stabilisationDepuis: LocalDate | null;
   /** Raisons personnelles d'arrêter (SOS envie). */
   raisons: string[];
   /** Consentement à l'envoi d'un résumé non identifiant au coach IA (F1.6, F7.6). */
@@ -118,6 +120,7 @@ export function rejouer(events: readonly DomainEvent[], tz: string): EtatJournal
     contextesPerso: [],
     intervalleRecommande: INTERVALLE_RECOMMANDE_OBSERVATION_MINUTES,
     joursObservation: JOURS_OBSERVATION,
+    stabilisationDepuis: null,
     raisons: [],
     parades: {},
     paradesDepuis: {},
@@ -283,6 +286,9 @@ export function rejouer(events: readonly DomainEvent[], tz: string): EtatJournal
           delete etat.parades[e.payload.contexte];
           delete etat.paradesDepuis[e.payload.contexte];
         }
+        break;
+      case 'StabilisationDemarree':
+        etat.stabilisationDepuis = e.payload.aPartirDu;
         break;
       case 'ObservationReglee':
         etat.joursObservation = e.payload.jours;

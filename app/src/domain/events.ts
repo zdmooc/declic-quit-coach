@@ -132,6 +132,8 @@ export type PalierCafeine = Base<'PalierCafeine', { quota: number }>;
 export type BilanSaisi = Base<'BilanSaisi', { date: string; valeurs: Record<string, number> }>;
 /** Norme du laboratoire ou objectif fixé par le médecin pour un paramètre. */
 export type NormeDefinie = Base<'NormeDefinie', { parametre: string; min?: number; max?: number }>;
+/** Étape 3 de la méthode : « j'ai trouvé ma limite », stabilisation au maximum en cours (RM-32). */
+export type StabilisationDemarree = Base<'StabilisationDemarree', { aPartirDu: string }>;
 /** Durée de l'observation choisie par l'utilisateur (1 à 7 journées mesurées). */
 export type ObservationReglee = Base<'ObservationReglee', { jours: number }>;
 /** Une raison personnelle d'arrêter, rappelée pendant le SOS envie (F7.1). */
@@ -180,6 +182,7 @@ export type DomainEvent =
   | ContexteArchive
   | IntervalleRecommandeModifie
   | ObservationReglee
+  | StabilisationDemarree
   | ParadeDefinie
   | BilanSaisi
   | BoissonPrise
@@ -267,6 +270,9 @@ export function validateEvent(e: DomainEvent): string[] {
     case 'ParadeDefinie':
       if (typeof e.payload.contexte !== 'string' || e.payload.contexte.length === 0) errors.push('contexte manquant');
       if (typeof e.payload.parade !== 'string' || e.payload.parade.length > 60) errors.push('parade : 60 caractères au plus');
+      break;
+    case 'StabilisationDemarree':
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(e.payload.aPartirDu)) errors.push('date de stabilisation invalide');
       break;
     case 'ObservationReglee':
       if (!isInt(e.payload.jours) || e.payload.jours < 1 || e.payload.jours > 7) errors.push('observation : 1 à 7 jours');

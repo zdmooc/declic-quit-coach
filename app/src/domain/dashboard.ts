@@ -9,6 +9,7 @@ import { dateDuZero, quotaDuJour } from './reduction';
 import { economieEnCoursCents, economieJourneeCents, joursAvantObjectif, prixDuJour, projectionArret, type Projection } from './savings';
 import { intervallesEveilles, moyenne, nuits, SEUIL_NUIT_MINUTES, type Nuit } from './sessions';
 import { bilanTechniques, type BilanTechnique } from './respiration';
+import { ouJenSuis, type Parcours } from './parcours';
 import { suiviCafeine, type SuiviCafeine } from './cafeine';
 import { etatOral, etatPatch, type EtatOral, type EtatPatch, type ReferencePharma } from './substitutes';
 import { daysBetween, minutesBetween, zonedInstant, type Fenetre, type Instant, type LocalDate } from './time';
@@ -58,6 +59,8 @@ export interface TableauDeBord {
   /** SOS envie par technique de respiration, la plus efficace d'abord. */
   techniquesSos: BilanTechnique[];
   cafeine: SuiviCafeine;
+  /** « Où j'en suis » : étape de la méthode et prochaine action (RM-32). */
+  parcours: Parcours;
   depuisDerniereMinutes: number | null;
   plusLonguePauseMinutes: number;
   /** Plus longue pause d'éveil aujourd'hui (pause en cours comprise, nuit exclue). */
@@ -128,6 +131,7 @@ export function tableauDeBord(etat: EtatJournal, maintenant: Instant, tz: string
     enviesResistees: elementsDuJour(etat.envies, jour).length,
     techniquesSos: bilanTechniques(etat.envies, etat.enviesSignalees),
     cafeine: suiviCafeine(etat, jour),
+    parcours: ouJenSuis(etat, maintenant, tz),
     depuisDerniereMinutes: derniere === null ? null : Math.max(0, minutesBetween(derniere, maintenant)),
     patch: etatPatch(etat.patch, maintenant),
     oraux: (['pastille', 'gomme'] as const).map((forme) => {

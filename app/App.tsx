@@ -239,6 +239,9 @@ export default function App() {
               })()
             }
             onCafe={agir(() => declic.boire('cafe'))}
+            onMaximum={(q) => void agir(() => declic.imposerMaximum(q))()}
+            onStabiliser={agir(() => declic.stabiliser())}
+            onRythme={(s) => void agir(() => declic.modifierRythme(s))()}
             onProgres={() => void ouvrirProgres()}
             onEcheance={() => void rafraichir()}
             onSos={() => setSos(true)}

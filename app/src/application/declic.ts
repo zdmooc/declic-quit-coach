@@ -217,6 +217,20 @@ export class Declic {
     );
   }
 
+  /** Étape 3 de la méthode : « j'ai trouvé ma limite » — stabiliser au maximum en cours (RM-32). */
+  async stabiliser(): Promise<void> {
+    const etat = await this.etat();
+    const tdb = await this.tableauDeBord();
+    if (!etat?.plan || !tdb) throw new Error('Impose d’abord ton maximum');
+    if (etat.stabilisationDepuis) return;
+    const events: DomainEvent[] = [];
+    // La stabilisation suppose des paliers libres : pas de baisse automatique pendant ce temps.
+    if (strategieCourante(etat.plan.input, addDays(tdb.jour, 1)).pas !== 0)
+      events.push(this.evenement('RythmeModifie', { aPartirDu: addDays(tdb.jour, 1), strategie: PALIERS_LIBRES }));
+    events.push(this.evenement('StabilisationDemarree', { aPartirDu: tdb.jour }));
+    await this.ajouter(...events);
+  }
+
   /** Enregistre une cigarette maintenant et renvoie son identifiant (pour préciser le contexte ensuite). */
   async enregistrerCigarette(contexte?: ContexteCigarette, source: Source = 'phone'): Promise<string> {
     const e = this.evenement('CigaretteFumee', contexte ? { contexte } : {}, source);

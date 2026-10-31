@@ -4,7 +4,7 @@ import { zonedInstant, type ContenuSante, type ReferencePharma } from '../domain
 import { FakeClock, InMemoryEventStore, MemoryNotifier, UuidV7Generator } from '../adapters/memory';
 import { Declic } from './declic';
 import type { SourceSante } from '../ports';
-import { MONTRE_VIDE } from '../domain';
+import { MONTRE_VIDE, MOINS_UN_PAR_JOUR, PALIERS_LIBRES } from '../domain';
 
 const TZ = 'Europe/Paris';
 const REF: ReferencePharma = { version: 't', validePar: null, valideLe: null, oraux: [] };
@@ -630,5 +630,38 @@ describe('maximum par jour imposé (RM-30)', () => {
     aller(clock, zonedInstant('2026-10-31', '08:00', TZ));
     await app.enregistrerCigarette();
     expect((await app.statistiques())!.maximum).toEqual({ tenus: 2, jours: 2 });
+  });
+});
+
+describe('Où j’en suis (RM-32)', () => {
+  it('observer → imposer → tenir 3 jours → descendre → stabiliser → −1 → retour aux paliers libres', async () => {
+    const { app, clock } = monter(zonedInstant('2026-10-26', '08:00', TZ));
+    await app.creerProfil(PROFIL);
+    const journee = async (jour: string, n: number) => {
+      for (let i = 0; i < n; i++) {
+        aller(clock, zonedInstant(jour, `${String(8 + i).padStart(2, '0')}:00`, TZ));
+        await app.enregistrerCigarette();
+      }
+    };
+    let p = (await app.tableauDeBord())!.parcours;
+    expect(p.etape).toBe(1);
+    await journee('2026-10-26', 12);
+    await app.imposerMaximum(12);
+    p = (await app.tableauDeBord())!.parcours;
+    expect([p.etape, p.maximum, p.action.cle]).toEqual([2, 12, 'aucune']);
+    for (const j of ['2026-10-27', '2026-10-28', '2026-10-29']) await journee(j, 10);
+    aller(clock, zonedInstant('2026-10-30', '07:00', TZ));
+    await app.enregistrerCigarette();
+    p = (await app.tableauDeBord())!.parcours;
+    expect(p.consecutifs).toBe(4);
+    expect(p.action).toMatchObject({ cle: 'descendre', quota: 11 });
+    await app.stabiliser();
+    p = (await app.tableauDeBord())!.parcours;
+    expect([p.etape, p.secondaire]).toEqual([3, null]);
+    await app.modifierRythme(MOINS_UN_PAR_JOUR);
+    p = (await app.tableauDeBord())!.parcours;
+    expect([p.etape, p.secondaire?.cle]).toEqual([4, 'paliers-libres']);
+    await app.modifierRythme(PALIERS_LIBRES);
+    expect((await app.tableauDeBord())!.parcours.etape).toBe(3);
   });
 });

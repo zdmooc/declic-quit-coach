@@ -77,7 +77,7 @@ Un **seul journal** et un **seul rejeu** (`etat.ts`) alimentent plusieurs contex
 
 | Contexte | Événements | Modules du domaine | Projections |
 |---|---|---|---|
-| Tabac — journal et plan | `ProfilCree`, `PlanDemarre`, `RythmeModifie`, `PalierDemande`, `PalierFixe`, `ObservationReglee`, `CigaretteFumee`, `CigaretteCorrigee`, `AgregatSansHeure`, `SaisieAnnulee`, `IntervalleRecommandeModifie` | `etat`, `journees`, `sessions`, `habitudes`, `reduction`, `intervals` | tableau de bord, historique, observation |
+| Tabac — journal et plan | `ProfilCree`, `PlanDemarre`, `RythmeModifie`, `PalierDemande`, `PalierFixe`, `ObservationReglee`, `StabilisationDemarree`, `CigaretteFumee`, `CigaretteCorrigee`, `AgregatSansHeure`, `SaisieAnnulee`, `IntervalleRecommandeModifie` | `etat`, `journees`, `sessions`, `habitudes`, `reduction`, `intervals` | tableau de bord, historique, observation |
 | Envies et contextes | `EnvieResistee`, `EnvieSignalee`, `ContexteAjoute`, `ContexteRenomme`, `ContexteArchive`, `ParadeDefinie`, `RaisonAjoutee` | `analyse`, `parades`, `respiration` | déclencheurs, parades et tendance, techniques du SOS |
 | Substituts | `PatchPose`, `PatchRetire`, `SubstitutOralPris` | `substitutes` | patch en cours, prises du jour, cigarettes avec / sans patch |
 | Économies | `PrixModifie`, `ObjectifEpargneDefini`, `ObjectifRetire` | `savings`, `progres` | économies, objectifs, records |
@@ -118,6 +118,7 @@ Un **seul journal** et un **seul rejeu** (`etat.ts`) alimentent plusieurs contex
 | Événement | Charge utile principale |
 |---|---|
 | `ProfilCree` | consommation déclarée, prix, cigarettes par paquet, « déjà fumé aujourd'hui » |
+| `StabilisationDemarree` | date (passage à l'étape 3 « Stabiliser », RM-32) |
 | `PlanDemarre` | date, stratégie, référence, quota de départ, horaires, origine, `journeeEntiere ?` (maximum imposé en cours de journée, RM-30) |
 | `RythmeModifie` | date d'effet, stratégie |
 | `PalierDemande` | jour (garder le quota) |

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { formatDuree, formatEuros, moyenneEnDirect, type TableauDeBord } from '../domain';
+import { formatDuree, formatEuros, moyenneEnDirect, type ReductionStrategy, type TableauDeBord } from '../domain';
+import { CarteParcours } from './CarteParcours';
 import { couleurs, espace } from './theme';
 
 interface Props {
@@ -17,6 +18,10 @@ interface Props {
   onProgres: () => void;
   onSante: () => void;
   onCafe: () => void;
+  /** « Où j'en suis » (RM-32). */
+  onMaximum: (quota: number) => void;
+  onStabiliser: () => void;
+  onRythme: (s: ReductionStrategy) => void;
   onReglages: () => void;
   /** Appelé quand le compte à rebours arrive à zéro (pour rafraîchir l'état). */
   onEcheance: () => void;
@@ -292,6 +297,8 @@ export function DashboardScreen(props: Props) {
       </View>
 
       <Rebours {...props} />
+
+      <CarteParcours parcours={tdb.parcours} onMaximum={props.onMaximum} onStabiliser={props.onStabiliser} onRythme={props.onRythme} />
 
       {tdb.proposerPalier && (
         <Pressable style={styles.bandeau} onPress={onPalier} accessibilityRole="button">
